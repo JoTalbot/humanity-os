@@ -20,7 +20,12 @@
 ## Memory
 - [ ] Saving is explicit.
 - [ ] User can inspect, correct, export and delete memory.
-- [ ] Retention and backup implications are documented.
+- [x] Retention and backup implications are documented for local snapshots and exports.
+- [x] Consistent SQLite snapshots are created without overwriting existing files.
+- [x] Backup verification checks SQLite integrity and validates every stored record.
+- [x] Restore validates the source, creates a pre-restore safety snapshot, stages a replacement, and swaps atomically.
+- [x] Restore is a local CLI operation requiring an explicit confirmation flag.
+- [ ] Automated restore testing on supported operating systems and crash-recovery testing.
 
 ## AI provider
 - [ ] Provider is behind a stable adapter.
@@ -37,7 +42,8 @@
 ## Quality and release
 - [ ] Automated checks pass with recorded evidence.
 - [ ] Dependency and secret scans pass.
-- [ ] Backup restore and export/import are demonstrated.
+- [ ] Full export/import portability is demonstrated; JSON export exists, but import is not implemented.
+- [ ] Production backup scheduling, encryption-at-rest policy, retention, and off-device recovery are implemented.
 - [ ] Accessibility review is completed.
 - [ ] Independent security review is completed or residual risks are public.
 - [ ] User docs and operator runbook are published.
