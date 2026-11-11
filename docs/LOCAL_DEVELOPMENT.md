@@ -30,7 +30,14 @@ humanity-os --verify-backup "$HOME/humanity-backups/knowledge-YYYYMMDDTHHMMSSZ.s
 
 Backup creation refuses to overwrite any existing file, creates the destination with owner-only permissions where supported, and checks SQLite integrity before reporting success. Verification opens the snapshot read-only, runs SQLite integrity checking, validates every knowledge record against the current model, and reports the record count. Backups contain personal data: store them on encrypted storage and include them in your own retention policy.
 
-**Restore is intentionally not exposed yet.** A safe restore workflow must validate schema compatibility, create and verify a pre-restore safety snapshot, require explicit confirmation, and replace the active database atomically. Do not restore by manually copying a file over a running database.
+Restore is available as an explicit CLI operation. **Stop the HUMANITY OS server before restoring** so no process has the database open:
+
+```bash
+humanity-os --restore-from "$HOME/humanity-backups/known-good.sqlite3" \\\
+  --safety-backup "$HOME/humanity-backups/pre-restore-$(date -u +%Y%m%dT%H%M%SZ).sqlite3"
+```
+
+The command validates SQLite integrity and every record before changing the active database, creates a new non-overwriting snapshot of the current database, stages the incoming database beside the active file, validates the staged copy, and only then replaces the active database atomically. If validation fails, the active database is left untouched. The safety snapshot is retained even if the staged replacement fails. Restore is local CLI only; there is no network restore endpoint. Do not manually copy a database over a running server.
 
 ## Security boundary
 
