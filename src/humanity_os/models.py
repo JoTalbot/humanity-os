@@ -1,14 +1,15 @@
 """Versioned API models for the personal knowledge core."""
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Literal
 from uuid import uuid4
+
 from pydantic import BaseModel, ConfigDict, Field
 
 Visibility = Literal["private", "shared", "public"]
 KnowledgeKind = Literal["claim", "concept", "procedure", "observation", "hypothesis", "question", "dataset", "document"]
 
 def utc_now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 class KnowledgeCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
