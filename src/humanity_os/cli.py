@@ -1,6 +1,7 @@
-"""Command-line entry point; intentionally loopback-only until authentication exists."""
+"""Command-line entry point; intentionally loopback-only until security review."""
 import argparse
 import os
+import secrets
 from pathlib import Path
 
 from humanity_os.store import KnowledgeStore
@@ -26,6 +27,11 @@ def main() -> None:
         metavar="PATH",
         help="restore from a verified backup after creating a safety snapshot",
     )
+    operations.add_argument(
+        "--generate-api-token",
+        action="store_true",
+        help="generate a 256-bit bearer token and print it once",
+    )
     parser.add_argument(
         "--safety-backup",
         metavar="PATH",
@@ -37,6 +43,10 @@ def main() -> None:
         help="required acknowledgement before replacing the active database",
     )
     args = parser.parse_args()
+
+    if args.generate_api_token:
+        print(secrets.token_urlsafe(32))
+        return
 
     database_path = os.environ.get(
         "HUMANITY_OS_DB", str(Path.home() / ".humanity-os" / "knowledge.sqlite3")
@@ -66,11 +76,11 @@ def main() -> None:
         return
 
     if args.host not in {"127.0.0.1", "::1", "localhost"}:
-        parser.error("The 0.1 API has no authentication; only loopback binding is allowed.")
+        parser.error("The 0.1 API is loopback-only, even when bearer authentication is enabled.")
     import uvicorn
 
     uvicorn.run("humanity_os.app:app", host=args.host, port=args.port, reload=False)
 
 
-if __name__ == "__main__":
+if ( __name__ == "__main__" ):
     main()
