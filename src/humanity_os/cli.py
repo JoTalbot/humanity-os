@@ -1,6 +1,7 @@
 """Command-line entry point; intentionally loopback-only until authentication exists."""
 import argparse
 
+
 def main() -> None:
     parser = argparse.ArgumentParser(prog="humanity-os")
     parser.add_argument("--host", default="127.0.0.1")
