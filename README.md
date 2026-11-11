@@ -24,7 +24,7 @@ Build a useful, independently deployable personal product first. The initial rel
 Human agency; personal data sovereignty; open protocols; verifiable knowledge provenance; least privilege; accountable automation; independent implementations; backward-compatible evolution.
 
 ## Current implementation
-The HUMANITY ONE local prototype provides private-by-default SQLite knowledge records, CRUD operations, search, cursor pagination, and versioned JSON export. It also supports consistent SQLite snapshots through `humanity-os --backup-to PATH`, read-only integrity/model verification through `humanity-os --verify-backup PATH`, and guarded restore through `humanity-os --restore-from PATH --safety-backup PATH`. Backup creation never overwrites an existing destination; restore validates and stages the snapshot, preserves a pre-restore safety copy, and atomically replaces the database only after validation.
+The HUMANITY ONE local prototype provides private-by-default SQLite knowledge records, CRUD operations, search, cursor pagination, and versioned JSON export. It also supports consistent SQLite snapshots through `humanity-os --backup-to PATH`, read-only integrity/model verification through `humanity-os --verify-backup PATH`, and guarded restore through `humanity-os --restore-from PATH --safety-backup PATH --confirm-restore`. Backup creation never overwrites an existing destination; restore validates and stages the snapshot, preserves a pre-restore safety copy, and atomically replaces the database only after validation.
 
 The API remains loopback-only. Authentication, multi-tenant isolation, safe restore, production deployment, security audit, legal review, and ratified public governance are not yet complete. No production readiness is claimed.
 
