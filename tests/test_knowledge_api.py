@@ -115,7 +115,7 @@ def test_password_rotation_revokes_existing_sessions(tmp_path):
     app.state.auth_store.set_owner_password("first secure password")
     client = TestClient(app)
     login = client.post("/auth/login", json={"password": "first secure password"})
-    csrf = login.json()["csrf_token"]
+    assert login.status_code == 200
     app.state.auth_store.set_owner_password("second secure password")
     assert client.get("/v1/knowledge").status_code == 401
     assert client.post("/auth/login", json={"password": "second secure password"}).status_code == 200
