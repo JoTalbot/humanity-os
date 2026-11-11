@@ -65,3 +65,24 @@ def test_search_and_json_export(tmp_path):
     assert exported.status_code == 200
     assert exported.json()["schema_version"] == "0.1"
     assert len(exported.json()["items"]) == 2
+
+def test_pagination_and_literal_search_wildcards(tmp_path):
+    client = TestClient(create_app(str(tmp_path / "test.sqlite3")))
+    for title in ("alpha", "beta", "gamma"):
+        response = client.post(
+            "/v1/knowledge",
+            json={"kind": "concept", "title": title, "content": "100% reliable"},
+        )
+        assert response.status_code == 201
+
+    first_page = client.get("/v1/knowledge?limit=2").json()
+    assert len(first_page["items"]) == 2
+    assert first_page["next_cursor"]
+    second_page = client.get(
+        "/v1/knowledge", params={"limit": 2, "cursor": first_page["next_cursor"]}
+    ).json()
+    assert len(second_page["items"]) == 1
+    assert not second_page["next_cursor"]
+
+    literal_percent = client.get("/v1/knowledge?q=%25").json()["items"]
+    assert len(literal_percent) == 3
