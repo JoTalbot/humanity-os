@@ -1,6 +1,6 @@
 """HTTP API for the local HUMANITY ONE prototype."""
 import os
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Annotated
 
@@ -51,7 +51,7 @@ def create_app(database_path: str | None = None) -> FastAPI:
         return JSONResponse(
             content={
                 "schema_version": "0.1",
-                "exported_at": datetime.now(timezone.utc).isoformat(),
+                "exported_at": datetime.now(UTC).isoformat(),
                 "items": [record.model_dump(mode="json") for record in records],
             },
             headers={
