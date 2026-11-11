@@ -10,17 +10,12 @@ from humanity_os.store import KnowledgeStore
 
 def test_create_read_update_list_and_delete_knowledge(tmp_path):
     client = TestClient(create_app(str(tmp_path / "test.sqlite3")))
-    payload = {
-        "kind": "observation",
-        "title": "First note",
-        "content": "A user-owned knowledge record.",
-    }
+    payload = {"kind": "observation", "title": "First note", "content": "A user-owned knowledge record."}
     created = client.post("/v1/knowledge", json=payload)
     assert created.status_code == 201
     record = created.json()
     assert record["visibility"] == "private"
     assert client.get(f"/v1/knowledge/{record['id']}").json()["content"] == payload["content"]
-
     updated = client.put(
         f"/v1/knowledge/{record['id']}",
         json={**payload, "title": "Updated note", "visibility": "shared"},
@@ -28,7 +23,6 @@ def test_create_read_update_list_and_delete_knowledge(tmp_path):
     assert updated.status_code == 200
     assert updated.json()["title"] == "Updated note"
     assert updated.json()["visibility"] == "shared"
-
     assert len(client.get("/v1/knowledge").json()["items"]) == 1
     assert client.delete(f"/v1/knowledge/{record['id']}").status_code == 204
     assert client.get(f"/v1/knowledge/{record['id']}").status_code == 404
@@ -52,19 +46,14 @@ def test_bearer_authentication_protects_knowledge_endpoints(tmp_path):
     token = "a" * 43
     client = TestClient(create_app(str(tmp_path / "authenticated.sqlite3"), api_token=token))
     payload = {"kind": "concept", "title": "private", "content": "protected"}
-
     assert client.get("/health").status_code == 200
     assert client.get("/v1/knowledge").status_code == 401
-    assert client.get(
-        "/v1/knowledge", headers={"Authorization": "Bearer wrong-token"}
-    ).status_code == 401
+    assert client.get("/v1/knowledge", headers={"Authorization": "Bearer wrong-token"}).status_code == 401
     response = client.post(
         "/v1/knowledge", json=payload, headers={"Authorization": f"Bearer {token}"}
     )
     assert response.status_code == 201
-    assert client.get(
-        "/v1/knowledge", headers={"Authorization": f"Bearer {token}"}
-    ).status_code == 200
+    assert client.get("/v1/knowledge", headers={"Authorization": f"Bearer {token}"}).status_code == 200
 
 
 def test_rejects_weak_api_token(tmp_path):
@@ -72,18 +61,64 @@ def test_rejects_weak_api_token(tmp_path):
         create_app(str(tmp_path / "weak.sqlite3"), api_token="too-short")
 
 
-def test_cli_generates_a_256_bit_token_without_opening_the_database(
-    tmp_path, monkeypatch, capsys
-):
+def test_cli_generates_a_256_bit_token_without_opening_the_database(tmp_path, monkeypatch, capsys):
     from humanity_os.cli import main
-
     monkeypatch.setenv("HUMANITY_OS_DB", str(tmp_path / "must-not-exist.sqlite3"))
     monkeypatch.setattr(sys, "argv", ["humanity-os", "--generate-api-token"])
     main()
-
-    token = capsys.readouterr().out.strip()
-    assert len(token) == 43
+    assert len(capsys.readouterr().out.strip()) == 43
     assert not (tmp_path / "must-not-exist.sqlite3").exists()
+
+
+def test_owner_session_requires_csrf_and_can_be_revoked(tmp_path):
+    database = str(tmp_path / "owner.sqlite3")
+    app = create_app(database)
+    app.state.auth_store.set_owner_password("a long secure test password")
+    client = TestClient(app)
+
+    assert client.get("/v1/knowledge").status_code == 401
+    login = client.post("/auth/login", json={"password": "a long secure test password"})
+    assert login.status_code == 200
+    csrf = login.json()["csrf_token"]
+    assert client.cookies.get("humanity_session")
+    assert client.get("/v1/knowledge").status_code == 200
+
+    blocked = client.post(
+        "/v1/knowledge",
+        json={"kind": "concept", "title": "blocked", "content": "missing csrf"},
+    )
+    assert blocked.status_code == 403
+
+    created = client.post(
+        "/v1/knowledge",
+        json={"kind": "concept", "title": "allowed", "content": "valid csrf"},
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert created.status_code == 201
+
+    logged_out = client.post("/auth/logout", headers={"X-CSRF-Token": csrf})
+    assert logged_out.status_code == 204
+    assert client.get("/v1/knowledge").status_code == 401
+
+
+def test_owner_login_rejects_wrong_password_and_short_password_is_rejected(tmp_path):
+    app = create_app(str(tmp_path / "owner.sqlite3"))
+    with pytest.raises(ValueError, match="12 characters"):
+        app.state.auth_store.set_owner_password("short")
+    app.state.auth_store.set_owner_password("a long secure test password")
+    client = TestClient(app)
+    assert client.post("/auth/login", json={"password": "incorrect password"}).status_code == 401
+
+
+def test_password_rotation_revokes_existing_sessions(tmp_path):
+    app = create_app(str(tmp_path / "owner.sqlite3"))
+    app.state.auth_store.set_owner_password("first secure password")
+    client = TestClient(app)
+    login = client.post("/auth/login", json={"password": "first secure password"})
+    csrf = login.json()["csrf_token"]
+    app.state.auth_store.set_owner_password("second secure password")
+    assert client.get("/v1/knowledge").status_code == 401
+    assert client.post("/auth/login", json={"password": "second secure password"}).status_code == 200
 
 
 def test_invalid_cursor_is_rejected(tmp_path):
@@ -93,14 +128,8 @@ def test_invalid_cursor_is_rejected(tmp_path):
 
 def test_search_and_json_export(tmp_path):
     client = TestClient(create_app(str(tmp_path / "test.sqlite3")))
-    client.post(
-        "/v1/knowledge",
-        json={"kind": "claim", "title": "Ocean research", "content": "Water samples"},
-    )
-    client.post(
-        "/v1/knowledge",
-        json={"kind": "observation", "title": "Garden", "content": "Tomatoes"},
-    )
+    client.post("/v1/knowledge", json={"kind": "claim", "title": "Ocean research", "content": "Water samples"})
+    client.post("/v1/knowledge", json={"kind": "observation", "title": "Garden", "content": "Tomatoes"})
     results = client.get("/v1/knowledge?q=ocean").json()["items"]
     assert len(results) == 1
     assert results[0]["title"] == "Ocean research"
@@ -118,7 +147,6 @@ def test_pagination_and_literal_search_wildcards(tmp_path):
             json={"kind": "concept", "title": title, "content": "100% reliable"},
         )
         assert response.status_code == 201
-
     first_page = client.get("/v1/knowledge?limit=2").json()
     assert len(first_page["items"]) == 2
     assert first_page["next_cursor"]
@@ -127,9 +155,7 @@ def test_pagination_and_literal_search_wildcards(tmp_path):
     ).json()
     assert len(second_page["items"]) == 1
     assert not second_page["next_cursor"]
-
-    literal_percent = client.get("/v1/knowledge?q=%25").json()["items"]
-    assert len(literal_percent) == 3
+    assert len(client.get("/v1/knowledge?q=%25").json()["items"]) == 3
 
 
 def test_sqlite_backup_is_consistent_and_verifiable(tmp_path):
@@ -137,111 +163,74 @@ def test_sqlite_backup_is_consistent_and_verifiable(tmp_path):
     backup = tmp_path / "backup dir" / "snapshot.sqlite3"
     client = TestClient(create_app(str(database)))
     for title in ("one", "two"):
-        response = client.post(
+        assert client.post(
             "/v1/knowledge",
             json={"kind": "concept", "title": title, "content": "backup test"},
-        )
-        assert response.status_code == 201
-
+        ).status_code == 201
     created = KnowledgeStore(database).backup(backup)
     assert created == backup
     assert backup.stat().st_mode & 0o777 == 0o600
     assert KnowledgeStore.verify_backup(backup) == 2
-
-    restored_view = KnowledgeStore(backup)
-    assert len(restored_view.list()) == 2
+    assert len(KnowledgeStore(backup).list()) == 2
 
 
 def test_backup_never_overwrites_existing_destination(tmp_path):
     database = tmp_path / "source.sqlite3"
     destination = tmp_path / "existing.sqlite3"
     destination.write_text("keep this file", encoding="utf-8")
-    store = KnowledgeStore(database)
-
     with pytest.raises(FileExistsError):
-        store.backup(destination)
-
+        KnowledgeStore(database).backup(destination)
     assert destination.read_text(encoding="utf-8") == "keep this file"
 
 
 def test_backup_rejects_active_database_as_destination(tmp_path):
     database = tmp_path / "source.sqlite3"
-    store = KnowledgeStore(database)
-
     with pytest.raises(ValueError, match="differ"):
-        store.backup(database)
+        KnowledgeStore(database).backup(database)
 
 
 def test_restore_validates_backup_and_preserves_pre_restore_snapshot(tmp_path):
-    database = tmp_path / "active.sqlite3"
-    backup = tmp_path / "known-good.sqlite3"
-    safety = tmp_path / "pre-restore.sqlite3"
+    database, backup, safety = (tmp_path / name for name in ("active.sqlite3", "known-good.sqlite3", "pre-restore.sqlite3"))
     store = KnowledgeStore(database)
-
     client = TestClient(create_app(str(database)))
     for title in ("original-a", "original-b"):
-        response = client.post(
+        assert client.post(
             "/v1/knowledge",
             json={"kind": "concept", "title": title, "content": "from backup"},
-        )
-        assert response.status_code == 201
+        ).status_code == 201
     store.backup(backup)
-
-    response = client.post(
+    assert client.post(
         "/v1/knowledge",
         json={"kind": "concept", "title": "newer-local", "content": "preserve me"},
-    )
-    assert response.status_code == 201
+    ).status_code == 201
     assert len(store.list()) == 3
-
     assert store.restore(backup, safety) == 2
-    assert len(store.list()) == 2
     assert {record.title for record in store.list()} == {"original-a", "original-b"}
     assert KnowledgeStore.verify_backup(safety) == 3
 
 
 def test_restore_rejects_invalid_backup_without_touching_active_database(tmp_path):
-    database = tmp_path / "active.sqlite3"
-    invalid_backup = tmp_path / "invalid.sqlite3"
-    safety = tmp_path / "pre-restore.sqlite3"
+    database, invalid_backup, safety = (tmp_path / name for name in ("active.sqlite3", "invalid.sqlite3", "pre-restore.sqlite3"))
     store = KnowledgeStore(database)
     client = TestClient(create_app(str(database)))
-    client.post(
-        "/v1/knowledge",
-        json={"kind": "concept", "title": "keep", "content": "active data"},
-    )
+    client.post("/v1/knowledge", json={"kind": "concept", "title": "keep", "content": "active data"})
     invalid_backup.write_text("not a sqlite database", encoding="utf-8")
-
     with pytest.raises(sqlite3.DatabaseError):
         store.restore(invalid_backup, safety)
-
     assert [record.title for record in store.list()] == ["keep"]
     assert not safety.exists()
 
 
 def test_cli_restore_requires_explicit_confirmation(tmp_path, monkeypatch):
     from humanity_os.cli import main
-
     database = tmp_path / "active.sqlite3"
     store = KnowledgeStore(database)
     backup = tmp_path / "backup.sqlite3"
     store.backup(backup)
     safety = tmp_path / "safety.sqlite3"
     monkeypatch.setenv("HUMANITY_OS_DB", str(database))
-    monkeypatch.setattr(
-        sys,
-        "argv",
-        [
-            "humanity-os",
-            "--restore-from",
-            str(backup),
-            "--safety-backup",
-            str(safety),
-        ],
-    )
-
+    monkeypatch.setattr(sys, "argv", ["humanity-os", "--restore-from", str(backup), "--safety-backup", str(safety)])
     with pytest.raises(SystemExit) as error:
         main()
-
     assert error.value.code == 2
     assert not safety.exists()
