@@ -4,15 +4,14 @@ from __future__ import annotations
 import hashlib
 import secrets
 import sqlite3
-from contextlib import closing
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
-from argon2 import PasswordHasher
+from argon2 import PasswordHasher, Type
 from argon2.exceptions import InvalidHashError, VerifyMismatchError
 
 SESSION_TTL = timedelta(hours=12)
-_password_hasher = PasswordHasher()
+_password_hasher = PasswordHasher(type=Type.ID)
 
 
 class AuthStore:
@@ -98,22 +97,22 @@ class AuthStore:
                     (now + SESSION_TTL).isoformat(),
                 ),
             )
-            connection.execute("DELETE FROM auth_sessions WHERE expires_at <= ?", (now.isoformat(),))
+            connection.execute(
+                "DELETE FROM auth_sessions WHERE expires_at <= ?", (now.isoformat(),)
+            )
         return token, csrf
 
     def validate_session(self, token: str) -> bool:
         now = datetime.now(UTC).isoformat()
+        digest = self._digest(token)
         with self._connect() as connection:
             row = connection.execute(
-                "SELECT expires_at FROM auth_sessions WHERE token_hash = ?",
-                (self._digest(token),),
+                "SELECT expires_at FROM auth_sessions WHERE token_hash = ?", (digest,)
             ).fetchone()
             if row is None:
                 return False
             if row["expires_at"] <= now:
-                connection.execute(
-                    "DELETE FROM auth_sessions WHERE token_hash = ?", (self._digest(token),)
-                )
+                connection.execute("DELETE FROM auth_sessions WHERE token_hash = ?", (digest,))
                 return False
         return True
 
@@ -123,16 +122,10 @@ class AuthStore:
                 "SELECT csrf_hash FROM auth_sessions WHERE token_hash = ?",
                 (self._digest(token),),
             ).fetchone()
-        return row is not None and secrets.compare_digest(
-            row["csrf_hash"], self._digest(csrf)
-        )
+        return row is not None and secrets.compare_digest(row["csrf_hash"], self._digest(csrf))
 
     def revoke_session(self, token: str) -> None:
         with self._connect() as connection:
             connection.execute(
                 "DELETE FROM auth_sessions WHERE token_hash = ?", (self._digest(token),)
             )
-
-    def revoke_all_sessions(self) -> None:
-        with self._connect() as connection:
-            connection.execute("DELETE FROM auth_sessions")
