@@ -48,6 +48,30 @@ def test_health_endpoint(tmp_path):
     assert client.get("/health").json()["status"] == "ok"
 
 
+def test_bearer_authentication_protects_knowledge_endpoints(tmp_path):
+    token = "a" * 43
+    client = TestClient(create_app(str(tmp_path / "authenticated.sqlite3"), api_token=token))
+    payload = {"kind": "concept", "title": "private", "content": "protected"}
+
+    assert client.get("/health").status_code == 200
+    assert client.get("/v1/knowledge").status_code == 401
+    assert client.get(
+        "/v1/knowledge", headers={"Authorization": "Bearer wrong-token"}
+    ).status_code == 401
+    response = client.post(
+        "/v1/knowledge", json=payload, headers={"Authorization": f"Bearer {token}"}
+    )
+    assert response.status_code == 201
+    assert client.get(
+        "/v1/knowledge", headers={"Authorization": f"Bearer {token}"}
+    ).status_code == 200
+
+
+def test_rejects_weak_api_token(tmp_path):
+    with pytest.raises(ValueError, match="at least 32"):
+        create_app(str(tmp_path / "weak.sqlite3"), api_token="too-short")
+
+
 def test_invalid_cursor_is_rejected(tmp_path):
     client = TestClient(create_app(str(tmp_path / "test.sqlite3")))
     assert client.get("/v1/knowledge?cursor=not-a-valid-cursor").status_code == 400
@@ -134,7 +158,6 @@ def test_backup_rejects_active_database_as_destination(tmp_path):
         store.backup(database)
 
 
-
 def test_restore_validates_backup_and_preserves_pre_restore_snapshot(tmp_path):
     database = tmp_path / "active.sqlite3"
     backup = tmp_path / "known-good.sqlite3"
@@ -180,7 +203,6 @@ def test_restore_rejects_invalid_backup_without_touching_active_database(tmp_pat
 
     assert [record.title for record in store.list()] == ["keep"]
     assert not safety.exists()
-
 
 
 def test_cli_restore_requires_explicit_confirmation(tmp_path, monkeypatch):
