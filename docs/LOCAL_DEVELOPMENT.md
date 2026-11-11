@@ -60,6 +60,10 @@ humanity-os --restore-from "$HOME/humanity-backups/known-good.sqlite3" \
 
 The command validates SQLite integrity and every record before changing the active database, creates a new non-overwriting snapshot of the current database, stages the incoming database beside the active file, validates the staged copy, and only then replaces the active database atomically. If validation fails, the active database is left untouched. The safety snapshot is retained even if the staged replacement fails. Restore is local CLI only; there is no network restore endpoint. Do not manually copy a database over a running server.
 
+## Security and dependency maintenance
+
+CI runs Ruff, the automated test suite, and `pip-audit` against the installed Python environment. Dependabot checks Python dependencies and GitHub Actions weekly. A clean dependency audit is useful evidence, not a substitute for secret scanning, code review, runtime hardening, or an independent security assessment.
+
 ## Security boundary
 
 This first vertical slice has no user accounts or multi-tenant isolation. The optional bearer token protects API routes when configured, but it is a single shared secret and does not provide individual identities or scoped permissions. The CLI refuses non-loopback binding. Do not expose it through a reverse proxy or to a LAN. Network deployment remains blocked until identity, authorisation, origin/CSRF policy as applicable, rate limits, secret handling, operational controls, and threat-model review are implemented. Export and backup files contain personal data and must be stored accordingly.
@@ -69,6 +73,7 @@ This first vertical slice has no user accounts or multi-tenant isolation. The op
 ```bash
 pytest
 ruff check .
+pip-audit
 ```
 
 The CI workflow runs these checks on pushes and pull requests.
