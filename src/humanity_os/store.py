@@ -1,4 +1,5 @@
 """SQLite persistence for the local single-user prototype."""
+from __future__ import annotations
 import base64
 import binascii
 import sqlite3
