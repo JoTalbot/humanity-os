@@ -1,5 +1,5 @@
-from fastapi.testclient import TestClient
 import pytest
+from fastapi.testclient import TestClient
 
 from humanity_os.app import create_app
 from humanity_os.store import KnowledgeStore
