@@ -9,6 +9,9 @@
 - [ ] Server-side workspace isolation.
 - [ ] Sessions are inspectable and revocable.
 - [ ] Private data is excluded from sharing by default.
+- [x] Optional single-secret bearer authentication protects API routes when configured.
+- [x] Token generation uses the operating system cryptographic random source and emits a 256-bit token once.
+- [ ] Individual user identities, scoped authorisation, and revocable sessions.
 
 ## Knowledge
 - [ ] Add, inspect, edit and delete documents/notes.
