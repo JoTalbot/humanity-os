@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import base64
 import binascii
+import os
 import sqlite3
 from pathlib import Path
 
@@ -33,6 +34,50 @@ class KnowledgeStore:
                 "CREATE INDEX IF NOT EXISTS idx_knowledge_created_id "
                 "ON knowledge(created_at DESC, id DESC)"
             )
+
+    def backup(self, destination: str | Path) -> Path:
+        """Create a consistent SQLite snapshot without overwriting an existing file."""
+        target_path = Path(destination).expanduser()
+        target_path.parent.mkdir(parents=True, exist_ok=True)
+        if self.database_path != ":memory:":
+            if target_path.resolve() == Path(self.database_path).resolve():
+                raise ValueError("Backup destination must differ from the active database")
+
+        # O_EXCL prevents clobbering existing files and symlinks; 0600 protects personal data.
+        descriptor = os.open(target_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+        os.close(descriptor)
+        try:
+            with self._connect() as source, sqlite3.connect(str(target_path)) as target:
+                source.backup(target)
+                result = target.execute("PRAGMA integrity_check").fetchone()[0]
+                if result != "ok":
+                    raise sqlite3.DatabaseError(f"Backup integrity check failed: {result}")
+                tables = {
+                    row[0]
+                    for row in target.execute(
+                        "SELECT name FROM sqlite_master WHERE type = 'table'"
+                    ).fetchall()
+                }
+                if "knowledge" not in tables:
+                    raise sqlite3.DatabaseError("Backup is missing the knowledge table")
+            return target_path
+        except Exception:
+            target_path.unlink(missing_ok=True)
+            raise
+
+    @staticmethod
+    def verify_backup(backup_path: str | Path) -> int:
+        """Verify SQLite integrity and every stored record; return record count."""
+        path = Path(backup_path).expanduser()
+        uri = f"file:{path.resolve().as_posix()}?mode=ro"
+        with sqlite3.connect(uri, uri=True) as connection:
+            result = connection.execute("PRAGMA integrity_check").fetchone()[0]
+            if result != "ok":
+                raise sqlite3.DatabaseError(f"Backup integrity check failed: {result}")
+            rows = connection.execute("SELECT payload FROM knowledge").fetchall()
+        for row in rows:
+            KnowledgeRecord.model_validate_json(row[0])
+        return len(rows)
 
     @staticmethod
     def encode_cursor(record: KnowledgeRecord) -> str:
