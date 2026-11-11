@@ -30,8 +30,10 @@ Human agency; personal data sovereignty; open protocols; verifiable knowledge pr
 
 ## Current implementation
 
-The HUMANITY ONE local prototype provides private-by-default SQLite knowledge records, CRUD operations, search, cursor pagination, and versioned JSON export. It supports optional single-secret bearer authentication using `HUMANITY_OS_API_TOKEN`; generate a random token with `humanity-os --generate-api-token`. It also supports consistent SQLite snapshots through `humanity-os --backup-to PATH`, read-only integrity/model verification through `humanity-os --verify-backup PATH`, and guarded restore through `humanity-os --restore-from PATH --safety-backup PATH --confirm-restore`.
+The HUMANITY ONE local prototype provides private-by-default SQLite knowledge records, CRUD operations, search, cursor pagination, and versioned JSON export. It supports a single local owner identity with Argon2id password hashing, opaque 12-hour server-side sessions, logout and password-rotation revocation, and CSRF checks for cookie-authenticated mutations. Configure or rotate the owner password interactively with `humanity-os --set-owner-password`. Optional shared bearer-token authentication remains available through `HUMANITY_OS_API_TOKEN`; generate a token with `humanity-os --generate-api-token`.
 
-The API remains loopback-only even when bearer authentication is enabled. The token is a shared local access-control measure, not a user identity or multi-tenant authorization system. Authentication, multi-tenant isolation, safe remote deployment, security audit, legal review, and ratified public governance are not yet complete. No production readiness is claimed.
+It also supports consistent SQLite snapshots through `humanity-os --backup-to PATH`, read-only integrity/model verification through `humanity-os --verify-backup PATH`, and guarded restore through `humanity-os --restore-from PATH --safety-backup PATH --confirm-restore`.
+
+The API remains loopback-only. This is a single-owner local prototype, not a multi-user identity platform. Password recovery, MFA, login throttling, session-management UI, multi-tenant isolation, safe remote deployment, independent security review, legal review, and ratified public governance are not complete. No production readiness is claimed.
 
 See `constitution/`, `architecture/`, `specifications/`, `security/`, `federation/`, `governance/`, `product/`, `roadmap/`, and `docs/`. Run locally with `python -m pip install -e '.[dev]'` then `humanity-os`.
