@@ -5,6 +5,7 @@ import base64
 import binascii
 import os
 import sqlite3
+import tempfile
 from contextlib import closing
 from pathlib import Path
 
@@ -83,6 +84,49 @@ class KnowledgeStore:
         for row in rows:
             KnowledgeRecord.model_validate_json(row[0])
         return len(rows)
+
+
+    def restore(self, backup_path: str | Path, safety_backup_path: str | Path) -> int:
+        """Restore a verified snapshot after making a separate pre-restore backup.
+
+        The caller must stop the application before invoking this operation.
+        The active database is replaced atomically only after staging and validation.
+        """
+        if self.database_path == ":memory:":
+            raise ValueError("Restore requires a file-backed database")
+        database = Path(self.database_path)
+        if database.is_symlink():
+            raise ValueError("Refusing to replace a database symlink")
+        source = Path(backup_path).expanduser()
+        safety = Path(safety_backup_path).expanduser()
+        if source.resolve() == database.resolve():
+            raise ValueError("Restore source must differ from the active database")
+        if safety.resolve() in {database.resolve(), source.resolve()}:
+            raise ValueError("Safety backup must be a separate file")
+        record_count = self.verify_backup(source)
+
+        # Preserve the current state before preparing any replacement.
+        self.backup(safety)
+        descriptor, temporary_name = tempfile.mkstemp(
+            prefix=f".{database.name}.restore-",
+            suffix=".sqlite3",
+            dir=str(database.parent),
+        )
+        os.close(descriptor)
+        temporary = Path(temporary_name)
+        try:
+            source_uri = f"{source.resolve().as_uri()}?mode=ro"
+            with closing(sqlite3.connect(source_uri, uri=True)) as source_connection, closing(
+                sqlite3.connect(str(temporary))
+            ) as staged_connection:
+                source_connection.backup(staged_connection)
+            staged_count = self.verify_backup(temporary)
+            if staged_count != record_count:
+                raise sqlite3.DatabaseError("Staged restore record count changed")
+            os.replace(temporary, database)
+            return record_count
+        finally:
+            temporary.unlink(missing_ok=True)
 
     @staticmethod
     def encode_cursor(record: KnowledgeRecord) -> str:
