@@ -1,6 +1,8 @@
 from fastapi.testclient import TestClient
+import pytest
 
 from humanity_os.app import create_app
+from humanity_os.store import KnowledgeStore
 
 
 def test_create_read_update_list_and_delete_knowledge(tmp_path):
@@ -66,6 +68,7 @@ def test_search_and_json_export(tmp_path):
     assert exported.json()["schema_version"] == "0.1"
     assert len(exported.json()["items"]) == 2
 
+
 def test_pagination_and_literal_search_wildcards(tmp_path):
     client = TestClient(create_app(str(tmp_path / "test.sqlite3")))
     for title in ("alpha", "beta", "gamma"):
@@ -86,3 +89,43 @@ def test_pagination_and_literal_search_wildcards(tmp_path):
 
     literal_percent = client.get("/v1/knowledge?q=%25").json()["items"]
     assert len(literal_percent) == 3
+
+
+def test_sqlite_backup_is_consistent_and_verifiable(tmp_path):
+    database = tmp_path / "source.sqlite3"
+    backup = tmp_path / "backup dir" / "snapshot.sqlite3"
+    client = TestClient(create_app(str(database)))
+    for title in ("one", "two"):
+        response = client.post(
+            "/v1/knowledge",
+            json={"kind": "concept", "title": title, "content": "backup test"},
+        )
+        assert response.status_code == 201
+
+    created = KnowledgeStore(database).backup(backup)
+    assert created == backup
+    assert backup.stat().st_mode & 0o777 == 0o600
+    assert KnowledgeStore.verify_backup(backup) == 2
+
+    restored_view = KnowledgeStore(backup)
+    assert len(restored_view.list()) == 2
+
+
+def test_backup_never_overwrites_existing_destination(tmp_path):
+    database = tmp_path / "source.sqlite3"
+    destination = tmp_path / "existing.sqlite3"
+    destination.write_text("keep this file", encoding="utf-8")
+    store = KnowledgeStore(database)
+
+    with pytest.raises(FileExistsError):
+        store.backup(destination)
+
+    assert destination.read_text(encoding="utf-8") == "keep this file"
+
+
+def test_backup_rejects_active_database_as_destination(tmp_path):
+    database = tmp_path / "source.sqlite3"
+    store = KnowledgeStore(database)
+
+    with pytest.raises(ValueError, match="differ"):
+        store.backup(database)
