@@ -129,3 +129,51 @@ def test_backup_rejects_active_database_as_destination(tmp_path):
 
     with pytest.raises(ValueError, match="differ"):
         store.backup(database)
+
+
+
+def test_restore_validates_backup_and_preserves_pre_restore_snapshot(tmp_path):
+    database = tmp_path / "active.sqlite3"
+    backup = tmp_path / "known-good.sqlite3"
+    safety = tmp_path / "pre-restore.sqlite3"
+    store = KnowledgeStore(database)
+
+    client = TestClient(create_app(str(database)))
+    for title in ("original-a", "original-b"):
+        response = client.post(
+            "/v1/knowledge",
+            json={"kind": "concept", "title": title, "content": "from backup"},
+        )
+        assert response.status_code == 201
+    store.backup(backup)
+
+    response = client.post(
+        "/v1/knowledge",
+        json={"kind": "concept", "title": "newer-local", "content": "preserve me"},
+    )
+    assert response.status_code == 201
+    assert len(store.list()) == 3
+
+    assert store.restore(backup, safety) == 2
+    assert len(store.list()) == 2
+    assert {record.title for record in store.list()} == {"original-a", "original-b"}
+    assert KnowledgeStore.verify_backup(safety) == 3
+
+
+def test_restore_rejects_invalid_backup_without_touching_active_database(tmp_path):
+    database = tmp_path / "active.sqlite3"
+    invalid_backup = tmp_path / "invalid.sqlite3"
+    safety = tmp_path / "pre-restore.sqlite3"
+    store = KnowledgeStore(database)
+    client = TestClient(create_app(str(database)))
+    client.post(
+        "/v1/knowledge",
+        json={"kind": "concept", "title": "keep", "content": "active data"},
+    )
+    invalid_backup.write_text("not a sqlite database", encoding="utf-8")
+
+    with pytest.raises(Exception):
+        store.restore(invalid_backup, safety)
+
+    assert [record.title for record in store.list()] == ["keep"]
+    assert not safety.exists()
