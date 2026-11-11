@@ -72,7 +72,7 @@ def create_app(database_path: str | None = None) -> FastAPI:
         if existing is None:
             raise HTTPException(status_code=404, detail="Knowledge record not found")
         updated = existing.model_copy(
-            update={**payload.model_dump(), "updated_at": datetime.now(timezone.utc)}
+            update={**payload.model_dump(), "updated_at": datetime.now(UTC)}
         )
         result = store.update(updated)
         if result is None:
