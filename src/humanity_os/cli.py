@@ -82,5 +82,5 @@ def main() -> None:
     uvicorn.run("humanity_os.app:app", host=args.host, port=args.port, reload=False)
 
 
-if ( __name__ == "__main__" ):
+if __name__ == "__main__":
     main()
