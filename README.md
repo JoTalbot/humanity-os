@@ -23,7 +23,9 @@ Build a useful, independently deployable personal product first. The initial rel
 ## Principles
 Human agency; personal data sovereignty; open protocols; verifiable knowledge provenance; least privilege; accountable automation; independent implementations; backward-compatible evolution.
 
-## Repository status
-The repository contains draft architecture documents and an initial HUMANITY ONE local knowledge API vertical slice. The API persists private-by-default knowledge records in SQLite and provides create/list/read/delete endpoints. It is a local prototype, not production-ready: there is no authentication or multi-tenant isolation. No test execution, security audit, legal review, or ratified public governance is claimed.
+## Current implementation
+The HUMANITY ONE local prototype provides private-by-default SQLite knowledge records, CRUD operations, search, cursor pagination, and versioned JSON export. It also supports consistent SQLite snapshots through `humanity-os --backup-to PATH` and read-only integrity/model verification through `humanity-os --verify-backup PATH`. Backup creation never overwrites an existing destination.
 
-See `constitution/`, `architecture/`, `specifications/`, `security/`, `federation/`, `governance/`, `product/`, `roadmap/`, and `docs/`. Run locally with `python -m pip install -e '.[dev]'` then `humanity-os`. The CLI binds only to loopback.
+The API remains loopback-only. Authentication, multi-tenant isolation, safe restore, production deployment, security audit, legal review, and ratified public governance are not yet complete. No production readiness is claimed.
+
+See `constitution/`, `architecture/`, `specifications/`, `security/`, `federation/`, `governance/`, `product/`, `roadmap/`, and `docs/`. Run locally with `python -m pip install -e '.[dev]'` then `humanity-os`.
