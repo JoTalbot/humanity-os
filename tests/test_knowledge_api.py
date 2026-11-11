@@ -1,3 +1,5 @@
+import sqlite3
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -172,7 +174,7 @@ def test_restore_rejects_invalid_backup_without_touching_active_database(tmp_pat
     )
     invalid_backup.write_text("not a sqlite database", encoding="utf-8")
 
-    with pytest.raises(Exception):
+    with pytest.raises(sqlite3.DatabaseError):
         store.restore(invalid_backup, safety)
 
     assert [record.title for record in store.list()] == ["keep"]
