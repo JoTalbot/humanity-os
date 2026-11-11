@@ -1,4 +1,5 @@
 import sqlite3
+import sys
 
 import pytest
 from fastapi.testclient import TestClient
@@ -178,4 +179,33 @@ def test_restore_rejects_invalid_backup_without_touching_active_database(tmp_pat
         store.restore(invalid_backup, safety)
 
     assert [record.title for record in store.list()] == ["keep"]
+    assert not safety.exists()
+
+
+
+def test_cli_restore_requires_explicit_confirmation(tmp_path, monkeypatch):
+    from humanity_os.cli import main
+
+    database = tmp_path / "active.sqlite3"
+    store = KnowledgeStore(database)
+    backup = tmp_path / "backup.sqlite3"
+    store.backup(backup)
+    safety = tmp_path / "safety.sqlite3"
+    monkeypatch.setenv("HUMANITY_OS_DB", str(database))
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "humanity-os",
+            "--restore-from",
+            str(backup),
+            "--safety-backup",
+            str(safety),
+        ],
+    )
+
+    with pytest.raises(SystemExit) as error:
+        main()
+
+    assert error.value.code == 2
     assert not safety.exists()
