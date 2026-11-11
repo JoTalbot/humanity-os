@@ -3,7 +3,6 @@ import base64
 import binascii
 import sqlite3
 from pathlib import Path
-from typing import Sequence
 
 from humanity_os.models import KnowledgeRecord
 
@@ -23,11 +22,14 @@ class KnowledgeStore:
 
     def _initialise(self) -> None:
         with self._connect() as connection:
-            connection.execute("""CREATE TABLE IF NOT EXISTS knowledge (
-                id TEXT PRIMARY KEY, visibility TEXT NOT NULL,
-                created_at TEXT NOT NULL, payload TEXT NOT NULL)""")
             connection.execute(
-                "CREATE INDEX IF NOT EXISTS idx_knowledge_created_id ON knowledge(created_at DESC, id DESC)"
+                """CREATE TABLE IF NOT EXISTS knowledge (
+                    id TEXT PRIMARY KEY, visibility TEXT NOT NULL,
+                    created_at TEXT NOT NULL, payload TEXT NOT NULL)"""
+            )
+            connection.execute(
+                "CREATE INDEX IF NOT EXISTS idx_knowledge_created_id "
+                "ON knowledge(created_at DESC, id DESC)"
             )
 
     @staticmethod
@@ -71,8 +73,8 @@ class KnowledgeStore:
         clauses: list[str] = []
         params: list[object] = []
         if query:
-            escaped = query.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
-            clauses.append("(payload LIKE ? ESCAPE '\\\\')")
+            escaped = query.replace("!", "!!").replace("%", "!%").replace("_", "!_")
+            clauses.append("(payload LIKE ? ESCAPE '!')")
             params.append(f"%{escaped}%")
         if cursor:
             created_at, record_id = self.decode_cursor(cursor)
@@ -99,5 +101,9 @@ class KnowledgeStore:
             result = connection.execute("DELETE FROM knowledge WHERE id = ?", (record_id,))
         return result.rowcount > 0
 
-    def export_all(self) -> Sequence[KnowledgeRecord]:
-        return self.list(limit=100000)
+    def export_all(self) -> list[KnowledgeRecord]:
+        with self._connect() as connection:
+            rows = connection.execute(
+                "SELECT payload FROM knowledge ORDER BY created_at DESC, id DESC"
+            ).fetchall()
+        return [KnowledgeRecord.model_validate_json(row["payload"]) for row in rows]
