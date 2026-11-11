@@ -102,7 +102,8 @@ def create_app(database_path: str | None = None, api_token: str | None = None) -
         if session_token:
             auth.revoke_session(session_token)
         response.delete_cookie(SESSION_COOKIE, path="/", httponly=True, samesite="strict")
-        return Response(status_code=204)
+        response.status_code = 204
+        return response
 
     @app.post("/v1/knowledge", response_model=KnowledgeRecord, status_code=201)
     def create_knowledge(payload: KnowledgeCreate) -> KnowledgeRecord:
