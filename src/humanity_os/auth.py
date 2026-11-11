@@ -11,6 +11,9 @@ from argon2 import PasswordHasher, Type
 from argon2.exceptions import InvalidHashError, VerifyMismatchError
 
 SESSION_TTL = timedelta(hours=12)
+LOGIN_WINDOW = timedelta(minutes=15)
+LOGIN_BLOCK = timedelta(minutes=15)
+LOGIN_MAX_ATTEMPTS = 5
 _password_hasher = PasswordHasher(type=Type.ID)
 
 
@@ -44,6 +47,14 @@ class AuthStore:
             )
             connection.execute(
                 "CREATE INDEX IF NOT EXISTS idx_auth_sessions_expiry ON auth_sessions(expires_at)"
+            )
+            connection.execute(
+                """CREATE TABLE IF NOT EXISTS auth_login_limits (
+                    bucket_key TEXT PRIMARY KEY,
+                    window_started_at TEXT NOT NULL,
+                    attempts INTEGER NOT NULL,
+                    blocked_until TEXT
+                )"""
             )
 
     @staticmethod
@@ -81,6 +92,55 @@ class AuthStore:
             return _password_hasher.verify(row["password_hash"], password)
         except (VerifyMismatchError, InvalidHashError):
             return False
+
+    def login_retry_after(self, bucket_key: str) -> int:
+        now = datetime.now(UTC)
+        with self._connect() as connection:
+            row = connection.execute(
+                "SELECT blocked_until FROM auth_login_limits WHERE bucket_key = ?",
+                (bucket_key,),
+            ).fetchone()
+        if row is None or row["blocked_until"] is None:
+            return 0
+        blocked_until = datetime.fromisoformat(row["blocked_until"])
+        return max(0, int((blocked_until - now).total_seconds() + 0.999))
+
+    def record_login_failure(self, bucket_key: str) -> None:
+        now = datetime.now(UTC)
+        now_text = now.isoformat()
+        with self._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            row = connection.execute(
+                """SELECT window_started_at, attempts, blocked_until
+                   FROM auth_login_limits WHERE bucket_key = ?""",
+                (bucket_key,),
+            ).fetchone()
+            if row is None or now - datetime.fromisoformat(row["window_started_at"]) >= LOGIN_WINDOW:
+                window_started = now_text
+                attempts = 1
+                blocked_until = None
+            else:
+                window_started = row["window_started_at"]
+                attempts = row["attempts"] + 1
+                blocked_until = row["blocked_until"]
+            if attempts >= LOGIN_MAX_ATTEMPTS and blocked_until is None:
+                blocked_until = (now + LOGIN_BLOCK).isoformat()
+            connection.execute(
+                """INSERT INTO auth_login_limits(
+                       bucket_key, window_started_at, attempts, blocked_until
+                   ) VALUES (?, ?, ?, ?)
+                   ON CONFLICT(bucket_key) DO UPDATE SET
+                       window_started_at = excluded.window_started_at,
+                       attempts = excluded.attempts,
+                       blocked_until = excluded.blocked_until""",
+                (bucket_key, window_started, attempts, blocked_until),
+            )
+
+    def clear_login_failures(self, bucket_key: str) -> None:
+        with self._connect() as connection:
+            connection.execute(
+                "DELETE FROM auth_login_limits WHERE bucket_key = ?", (bucket_key,)
+            )
 
     def create_session(self) -> tuple[str, str]:
         token = secrets.token_urlsafe(32)
