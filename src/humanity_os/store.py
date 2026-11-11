@@ -5,6 +5,7 @@ import base64
 import binascii
 import os
 import sqlite3
+from contextlib import closing
 from pathlib import Path
 
 from humanity_os.models import KnowledgeRecord
@@ -47,7 +48,9 @@ class KnowledgeStore:
         descriptor = os.open(target_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
         os.close(descriptor)
         try:
-            with self._connect() as source, sqlite3.connect(str(target_path)) as target:
+            with closing(self._connect()) as source, closing(
+                sqlite3.connect(str(target_path))
+            ) as target:
                 source.backup(target)
                 result = target.execute("PRAGMA integrity_check").fetchone()[0]
                 if result != "ok":
@@ -69,8 +72,8 @@ class KnowledgeStore:
     def verify_backup(backup_path: str | Path) -> int:
         """Verify SQLite integrity and every stored record; return record count."""
         path = Path(backup_path).expanduser()
-        uri = f"file:{path.resolve().as_posix()}?mode=ro"
-        with sqlite3.connect(uri, uri=True) as connection:
+        uri = f"{path.resolve().as_uri()}?mode=ro"
+        with closing(sqlite3.connect(uri, uri=True)) as connection:
             result = connection.execute("PRAGMA integrity_check").fetchone()[0]
             if result != "ok":
                 raise sqlite3.DatabaseError(f"Backup integrity check failed: {result}")
