@@ -1,7 +1,6 @@
 # Security Threat Model 0.1
 
 ## Assets
-
 Personal data, credentials, keys, private knowledge, agent permissions, federation trust, audit history, software supply chain and availability.
 
 ## Threats and controls
@@ -9,8 +8,10 @@ Personal data, credentials, keys, private knowledge, agent permissions, federati
 - Prompt injection: retrieved content is untrusted data; isolate instructions from data.
 - Excessive agent authority: capability allowlists, short-lived scoped grants, approval gates.
 - Provider leakage: data classification, minimisation, provider disclosure and local-model option.
-- Account takeover: strong authentication, recovery controls and session revocation.
-- Shared-token disclosure: optional bearer token, cryptographic token generation, constant-time comparison, secret-manager/environment injection, no token persistence in the application database.
+- Account takeover: Argon2id password hashes, opaque server-side sessions, 12-hour expiry, logout revocation, password-rotation revocation, HttpOnly/SameSite=Strict cookies and CSRF token validation for cookie-authenticated mutations.
+- Session database theft: only SHA-256 digests of random 256-bit session tokens and CSRF tokens are stored; host/database access remains security-critical.
+- Brute force: login rate limiting is not implemented and remains a release blocker.
+- Shared-token disclosure: optional bearer token, cryptographic token generation, constant-time comparison and environment/secret-manager injection.
 - Federation spoofing: signed node identity, key rotation and revocation.
 - Malicious update: reproducible builds, signed releases, provenance and review.
 - Audit tampering: append-only design, external checkpoints and access separation.
@@ -19,13 +20,9 @@ Personal data, credentials, keys, private knowledge, agent permissions, federati
 - Denial of service: quotas, rate limits and graceful degradation.
 
 ## Invariants
-
 Private by default; no self-escalation; external side effects authorised and audited; secrets excluded from prompts/logs by default; federation opt-in and revocable; security failure stops the affected operation.
 
 ## Release gates
+The owner identity and session implementation is single-user local functionality, not a complete identity platform. Password recovery, MFA, login throttling, session inspection/revocation UI, multi-user isolation, rate limits, origin policy, TLS/edge configuration, audit events, dependency/secret scanning and independent review remain incomplete. The API must remain loopback-only. Do not expose it to a LAN or public internet.
 
-The optional bearer token is a local-development control, not a complete identity system. Without it, the service is unauthenticated and must remain loopback-only. Even with it, network exposure remains prohibited until individual identity, scoped authorisation, rate limits, origin policy, TLS/edge configuration, audit events, recovery/rotation procedures, dependency/secret scanning, and independent review are complete.
-
-Threat model review, authentication tests, restore demonstration, export/deletion verification, independent security review before broad public deployment.
-
-Prepare incident contacts, severity levels, containment, evidence preservation, notification criteria and post-incident review before production.
+Before broad public deployment: independent security review, restore demonstration, export/deletion verification, incident response plan, privacy/legal review and public residual-risk register.
