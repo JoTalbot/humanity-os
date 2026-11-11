@@ -4,7 +4,7 @@
 |---|---|---|---|
 | OD-001 | Legal stewardship structure | Open | Multi-jurisdiction legal review |
 | OD-002 | Code/specification licenses | Open | IP and ecosystem review |
-| OD-003 | Identity approach | Open | Privacy and threat analysis |
+| OD-003 | Identity approach | Partially implemented | Single-owner Argon2id + opaque sessions exist locally; multi-user identity, recovery, MFA and federation identity require privacy/security review |
 | OD-004 | Encryption/key recovery | Open | Usability and security review |
 | OD-005 | Formal knowledge schema | Draft | Prototype and interoperability tests |
 | OD-006 | Agent policy language | Open | Threat model and runtime prototype |
