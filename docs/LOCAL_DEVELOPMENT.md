@@ -11,8 +11,29 @@ humanity-os
 
 The API binds to `127.0.0.1:8765`; interactive OpenAPI docs are at `http://127.0.0.1:8765/docs`. The default SQLite database is `~/.humanity-os/knowledge.sqlite3`; override it with `HUMANITY_OS_DB`.
 
+## Owner identity and sessions
+
+Configure the local owner password from the machine running the service:
+
+```bash
+humanity-os --set-owner-password
+```
+
+The password is entered interactively (not as a command-line argument), must contain at least 12 characters, and is stored as an Argon2id password hash. Changing it revokes every active session. There is one local owner identity in this prototype, not a multi-user account system.
+
+Log in with `POST /auth/login` and JSON body `{"password":"..."}`. On success, the server sets an opaque, random, HttpOnly, SameSite=Strict session cookie and returns a CSRF token. Keep the CSRF token in client memory and send it as `X-CSRF-Token` on state-changing requests made with the cookie. The cookie is valid for 12 hours; logout at `POST /auth/logout` revokes the server-side session. Session tokens are stored only as SHA-256 digests. Password changes revoke all sessions.
+
+The cookie is marked Secure when the request uses HTTPS. The service still refuses non-loopback binding. Do not place it behind a public reverse proxy or expose it to a LAN. There is no password recovery, account recovery, multi-factor authentication, login rate limiting, session management UI, or multi-user isolation yet. Protect the host account and encrypted backups. A shared bearer token remains available as an optional compatibility mechanism; prefer owner sessions for interactive clients.
+
+## Bearer-token compatibility
+
+Generate a cryptographically random 256-bit token with `humanity-os --generate-api-token`, then set `HUMANITY_OS_API_TOKEN` in the server environment. If configured, protected API routes accept that bearer token. Never commit or log it.
+
 ## API
 
+- `POST /auth/login`: create an owner session.
+- `POST /auth/logout`: revoke the current session (requires CSRF header).
+- `GET /health`: health status.
 - `POST /v1/knowledge`: create a private-by-default knowledge record.
 - `GET /v1/knowledge?q=...`: search record content; supports pagination.
 - `GET /v1/knowledge/{id}`: read one record.
@@ -20,37 +41,20 @@ The API binds to `127.0.0.1:8765`; interactive OpenAPI docs are at `http://127.0
 - `DELETE /v1/knowledge/{id}`: delete a record.
 - `GET /v1/knowledge/export`: export all records as versioned JSON.
 
-## Optional bearer-token authentication
-
-Generate a cryptographically random 256-bit token:
-
-```bash
-humanity-os --generate-api-token
-```
-
-Store the printed value in a secret manager or protected environment file, then configure the server process:
-
-```bash
-export HUMANITY_OS_API_TOKEN='paste-the-generated-token-here'
-humanity-os
-```
-
-When configured, all routes except `/health` require `Authorization: Bearer <token>`. The token must be at least 32 characters. Requests with missing or invalid credentials receive HTTP 401; comparison is constant-time. The token is never written to the database or application logs by this code. Treat it as a password: do not commit it, paste it into issue trackers, or put it in shell history. Rotate it by generating a new token and restarting the process with the replacement value. There is no user account, token database, multi-user support, per-resource authorization, or self-service revocation in this prototype.
-
-Without `HUMANITY_OS_API_TOKEN`, the API remains unauthenticated and is suitable only for isolated loopback development. Even with bearer authentication enabled, the CLI refuses non-loopback binding. This is an additional local access-control layer, not permission to expose the service to a LAN or the public internet. Rate limiting, TLS termination, origin policy, audit events, secret rotation workflow, and independent security review remain release blockers.
+When no owner password or bearer token is configured, the prototype remains unauthenticated and loopback-only. Once an owner password is set, all protected routes require a valid owner session or configured bearer token. Cookie-authenticated state-changing requests require a valid CSRF token.
 
 ## SQLite backup
 
-Create a consistent SQLite snapshot using SQLite's online backup API:
+Create and verify a consistent snapshot:
 
 ```bash
 humanity-os --backup-to "$HOME/humanity-backups/knowledge-$(date -u +%Y%m%dT%H%M%SZ).sqlite3"
 humanity-os --verify-backup "$HOME/humanity-backups/knowledge-YYYYMMDDTHHMMSSZ.sqlite3"
 ```
 
-Backup creation refuses to overwrite any existing file, creates the destination with owner-only permissions where supported, and checks SQLite integrity before reporting success. Verification opens the snapshot read-only, runs SQLite integrity checking, validates every knowledge record against the current model, and reports the record count. Backups contain personal data: store them on encrypted storage and include them in your own retention policy.
+Backup creation refuses to overwrite an existing file, creates it with owner-only permissions where supported, and checks SQLite integrity. Verification checks SQLite integrity and validates every stored knowledge record. Backups contain personal data; store them on encrypted storage.
 
-Restore is available as an explicit CLI operation. **Stop the HUMANITY OS server before restoring** so no process has the database open:
+Stop the server before restore:
 
 ```bash
 humanity-os --restore-from "$HOME/humanity-backups/known-good.sqlite3" \
@@ -58,15 +62,15 @@ humanity-os --restore-from "$HOME/humanity-backups/known-good.sqlite3" \
   --confirm-restore
 ```
 
-The command validates SQLite integrity and every record before changing the active database, creates a new non-overwriting snapshot of the current database, stages the incoming database beside the active file, validates the staged copy, and only then replaces the active database atomically. If validation fails, the active database is left untouched. The safety snapshot is retained even if the staged replacement fails. Restore is local CLI only; there is no network restore endpoint. Do not manually copy a database over a running server.
+Restore validates the source, creates a non-overwriting safety snapshot, stages and verifies the replacement, then atomically replaces the active database. It is a local CLI operation, not a network endpoint.
 
 ## Security and dependency maintenance
 
-CI runs Ruff, the automated test suite, and `pip-audit` against the installed Python environment. Dependabot checks Python dependencies and GitHub Actions weekly. A clean dependency audit is useful evidence, not a substitute for secret scanning, code review, runtime hardening, or an independent security assessment.
+CI runs Ruff, pytest and `pip-audit`. Dependabot checks Python dependencies and GitHub Actions weekly. These checks do not replace code review or independent security assessment.
 
 ## Security boundary
 
-This first vertical slice has no user accounts or multi-tenant isolation. The optional bearer token protects API routes when configured, but it is a single shared secret and does not provide individual identities or scoped permissions. The CLI refuses non-loopback binding. Do not expose it through a reverse proxy or to a LAN. Network deployment remains blocked until identity, authorisation, origin/CSRF policy as applicable, rate limits, secret handling, operational controls, and threat-model review are implemented. Export and backup files contain personal data and must be stored accordingly.
+This is a local, single-owner prototype. It has no multi-tenant isolation, password recovery, MFA, login throttling, session UI, remote deployment hardening, rate limiting, or independent security review. The CLI refuses non-loopback binding. Do not expose it through a reverse proxy or to a LAN. Export and backup files contain personal data.
 
 ## Local checks
 
@@ -75,5 +79,3 @@ pytest
 ruff check .
 pip-audit
 ```
-
-The CI workflow runs these checks on pushes and pull requests.
