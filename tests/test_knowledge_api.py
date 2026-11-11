@@ -72,6 +72,20 @@ def test_rejects_weak_api_token(tmp_path):
         create_app(str(tmp_path / "weak.sqlite3"), api_token="too-short")
 
 
+def test_cli_generates_a_256_bit_token_without_opening_the_database(
+    tmp_path, monkeypatch, capsys
+):
+    from humanity_os.cli import main
+
+    monkeypatch.setenv("HUMANITY_OS_DB", str(tmp_path / "must-not-exist.sqlite3"))
+    monkeypatch.setattr(sys, "argv", ["humanity-os", "--generate-api-token"])
+    main()
+
+    token = capsys.readouterr().out.strip()
+    assert len(token) == 43
+    assert not (tmp_path / "must-not-exist.sqlite3").exists()
+
+
 def test_invalid_cursor_is_rejected(tmp_path):
     client = TestClient(create_app(str(tmp_path / "test.sqlite3")))
     assert client.get("/v1/knowledge?cursor=not-a-valid-cursor").status_code == 400
