@@ -1,4 +1,5 @@
 """HTTP API for the local HUMANITY ONE prototype."""
+import hashlib
 import hmac
 import os
 from datetime import UTC, datetime
@@ -82,8 +83,25 @@ def create_app(database_path: str | None = None, api_token: str | None = None) -
     def login(payload: LoginRequest, request: Request, response: Response) -> dict[str, str]:
         if not auth.has_owner():
             raise HTTPException(status_code=503, detail="Owner password has not been configured")
+
+        remote_host = request.client.host if request.client else "unknown"
+        ip_bucket = "ip:" + hashlib.sha256(remote_host.encode("utf-8")).hexdigest()
+        buckets = ("owner", ip_bucket)
+        retry_after = max(auth.login_retry_after(bucket) for bucket in buckets)
+        if retry_after:
+            raise HTTPException(
+                status_code=429,
+                detail="Too many login attempts; try again later",
+                headers={"Retry-After": str(retry_after)},
+            )
+
         if not auth.verify_owner_password(payload.password):
+            for bucket in buckets:
+                auth.record_login_failure(bucket)
             raise HTTPException(status_code=401, detail="Invalid credentials")
+
+        for bucket in buckets:
+            auth.clear_login_failures(bucket)
         session_token, csrf_token = auth.create_session()
         response.set_cookie(
             SESSION_COOKIE,
