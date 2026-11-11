@@ -33,7 +33,7 @@ Backup creation refuses to overwrite any existing file, creates the destination 
 Restore is available as an explicit CLI operation. **Stop the HUMANITY OS server before restoring** so no process has the database open:
 
 ```bash
-humanity-os --restore-from "$HOME/humanity-backups/known-good.sqlite3" \\\
+humanity-os --restore-from "$HOME/humanity-backups/known-good.sqlite3" \
   --safety-backup "$HOME/humanity-backups/pre-restore-$(date -u +%Y%m%dT%H%M%SZ).sqlite3"
 ```
 
