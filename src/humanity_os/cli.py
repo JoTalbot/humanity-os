@@ -31,6 +31,11 @@ def main() -> None:
         metavar="PATH",
         help="new, non-existing path for the mandatory pre-restore snapshot",
     )
+    parser.add_argument(
+        "--confirm-restore",
+        action="store_true",
+        help="required acknowledgement before replacing the active database",
+    )
     args = parser.parse_args()
 
     database_path = os.environ.get(
@@ -40,6 +45,10 @@ def main() -> None:
         parser.error("--safety-backup is only valid with --restore-from")
     if args.restore_from and not args.safety_backup:
         parser.error("--restore-from requires --safety-backup")
+    if args.restore_from and not args.confirm_restore:
+        parser.error("--restore-from requires --confirm-restore")
+    if args.confirm_restore and not args.restore_from:
+        parser.error("--confirm-restore is only valid with --restore-from")
 
     if args.backup_to:
         result = KnowledgeStore(database_path).backup(args.backup_to)
