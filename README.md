@@ -24,6 +24,6 @@ Build a useful, independently deployable personal product first. The initial rel
 Human agency; personal data sovereignty; open protocols; verifiable knowledge provenance; least privilege; accountable automation; independent implementations; backward-compatible evolution.
 
 ## Repository status
-The repository is being bootstrapped. Architecture and product documents are drafts until reviewed. No production implementation, tests, security audit, legal review, or ratified public governance is claimed.
+The repository contains draft architecture documents and an initial HUMANITY ONE local knowledge API vertical slice. The API persists private-by-default knowledge records in SQLite and provides create/list/read/delete endpoints. It is a local prototype, not production-ready: there is no authentication or multi-tenant isolation. No test execution, security audit, legal review, or ratified public governance is claimed.
 
-See `constitution/`, `architecture/`, `specifications/`, `security/`, `federation/`, `governance/`, `product/`, and `roadmap/`.
+See `constitution/`, `architecture/`, `specifications/`, `security/`, `federation/`, `governance/`, `product/`, `roadmap/`, and `docs/`. Run locally with `python -m pip install -e '.[dev]'` then `humanity-os`. The CLI binds only to loopback.
