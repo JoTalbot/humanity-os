@@ -35,6 +35,7 @@ Restore is available as an explicit CLI operation. **Stop the HUMANITY OS server
 ```bash
 humanity-os --restore-from "$HOME/humanity-backups/known-good.sqlite3" \
   --safety-backup "$HOME/humanity-backups/pre-restore-$(date -u +%Y%m%dT%H%M%SZ).sqlite3"
+  --confirm-restore
 ```
 
 The command validates SQLite integrity and every record before changing the active database, creates a new non-overwriting snapshot of the current database, stages the incoming database beside the active file, validates the staged copy, and only then replaces the active database atomically. If validation fails, the active database is left untouched. The safety snapshot is retained even if the staged replacement fails. Restore is local CLI only; there is no network restore endpoint. Do not manually copy a database over a running server.
