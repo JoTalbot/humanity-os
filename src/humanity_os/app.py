@@ -1,6 +1,6 @@
 """HTTP API for the local HUMANITY ONE prototype."""
-import json
 import os
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Annotated
 
@@ -51,12 +51,12 @@ def create_app(database_path: str | None = None) -> FastAPI:
         return JSONResponse(
             content={
                 "schema_version": "0.1",
-                "exported_at": __import__("datetime").datetime.now(
-                    __import__("datetime").timezone.utc
-                ).isoformat(),
+                "exported_at": datetime.now(timezone.utc).isoformat(),
                 "items": [record.model_dump(mode="json") for record in records],
             },
-            headers={"Content-Disposition": 'attachment; filename="humanity-knowledge-export.json"'},
+            headers={
+                "Content-Disposition": 'attachment; filename="humanity-knowledge-export.json"'
+            },
         )
 
     @app.get("/v1/knowledge/{record_id}", response_model=KnowledgeRecord)
@@ -71,11 +71,12 @@ def create_app(database_path: str | None = None) -> FastAPI:
         existing = store.get(record_id)
         if existing is None:
             raise HTTPException(status_code=404, detail="Knowledge record not found")
-        updated = existing.model_copy(update={**payload.model_dump(), "updated_at": __import__(
-            "datetime"
-        ).datetime.now(__import__("datetime").timezone.utc)})
+        updated = existing.model_copy(
+            update={**payload.model_dump(), "updated_at": datetime.now(timezone.utc)}
+        )
         result = store.update(updated)
-        assert result is not None
+        if result is None:
+            raise HTTPException(status_code=404, detail="Knowledge record not found")
         return result
 
     @app.delete("/v1/knowledge/{record_id}", status_code=204)
