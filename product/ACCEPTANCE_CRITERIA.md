@@ -43,8 +43,9 @@
 - [ ] History distinguishes attempted from completed actions.
 
 ## Quality and release
-- [ ] Automated checks pass with recorded evidence.
-- [ ] Dependency and secret scans pass.
+- [x] CI runs lint and tests; current run 43083118549 passed.
+- [x] CI includes a Python dependency vulnerability audit; current run 43083118549 passed after upgrading pytest and setuptools.
+- [ ] Secret scanning is enabled and passes.
 - [ ] Full export/import portability is demonstrated; JSON export exists, but import is not implemented.
 - [ ] Production backup scheduling, encryption-at-rest policy, retention, and off-device recovery are implemented.
 - [ ] Accessibility review is completed.
