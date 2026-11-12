@@ -46,4 +46,4 @@ Text and Markdown document originals and extracted chunks are stored in the acti
 
 ## Explicit memory
 
-Pending memory proposals, approved memory items and append-only lifecycle events are stored in the local SQLite database and included in workspace exports (schema 1.2.0). Archiving changes visibility in the memory lifecycle but does not erase content or event history. The current prototype has no memory deletion or automatic expiry workflow.
+Pending memory proposals, approved memory items and append-only lifecycle events are stored in the local SQLite database and included in workspace exports (schema 1.3.0). Archiving changes visibility in the memory lifecycle but does not erase content or event history. The current prototype has no memory deletion or automatic expiry workflow.
