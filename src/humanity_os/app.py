@@ -13,6 +13,7 @@ from pydantic import BaseModel, Field
 
 from humanity_os import __version__
 from humanity_os.auth import AuthStore
+from humanity_os.evidence import EvidenceAssessmentStore
 from humanity_os.models import (
     ConflictCreate,
     ConflictDecision,
@@ -27,7 +28,6 @@ from humanity_os.models import (
     KnowledgeRevision,
 )
 from humanity_os.store import KnowledgeStore
-from humanity_os.evidence import EvidenceAssessmentStore
 
 SESSION_COOKIE = "humanity_session"
 SESSION_MAX_AGE = 12 * 60 * 60
