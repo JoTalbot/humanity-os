@@ -39,7 +39,8 @@ Generate a cryptographically random 256-bit token with `humanity-os --generate-a
 - `GET /v1/knowledge/{id}`: read one record.
 - `PUT /v1/knowledge/{id}`: update a record.
 - `DELETE /v1/knowledge/{id}`: delete a record.
-- `GET /v1/knowledge/export`: export all records as versioned JSON.
+- `GET /v1/knowledge/export`: export knowledge records only (legacy, incomplete interchange format).
+- `GET /v1/workspace/export`: authenticated, versioned workspace export with provenance, revisions, decisions, claim graph, assessments, reasoning history and security audit metadata.
 
 Authentication is fail-closed by default: if neither an owner password nor a bearer token is configured, every protected route returns `401`; `/health` remains available to loopback clients. Configure the owner password locally with the CLI before using the API. Once an owner password is set, protected routes require a valid owner session or configured bearer token. Cookie-authenticated state-changing requests require a valid CSRF token. The `allow_unauthenticated_local=True` app-factory option exists only for isolated automated tests and must never be enabled in a deployed service.
 
@@ -79,3 +80,25 @@ pytest
 ruff check .
 pip-audit
 ```
+
+## Portable workspace export and deletion
+
+The full export endpoint is `GET /v1/workspace/export`. It is protected by the normal owner-session or bearer-token boundary and returns format `humanity-os-workspace`, schema version `1.0.0`, a UTC export timestamp and a SHA-256 digest over the canonical document before the integrity block is added. The export includes domain tables and security audit metadata. It intentionally excludes owner password hashes, active session/CSRF token hashes, login-throttling buckets, environment bearer tokens, SQLite internals and derived indexes. Do not treat the legacy knowledge-only export as a complete workspace export.
+
+Create a portable export from the machine running the service:
+
+```bash
+humanity-os --export-workspace "$HOME/humanity-backups/workspace-$(date -u +%Y%m%dT%H%M%SZ).json"
+```
+
+The command refuses to overwrite an existing path and creates the file with owner-only permissions where supported. The digest detects accidental changes; it is not a digital signature and does not prove who created the export.
+
+Full workspace deletion is an offline, destructive CLI operation. Stop the HUMANITY OS service first, then run:
+
+```bash
+humanity-os --delete-workspace \
+  --safety-backup "$HOME/humanity-backups/pre-delete-$(date -u +%Y%m%dT%H%M%SZ).sqlite3" \
+  --confirm-delete
+```
+
+The command creates and verifies a separate non-overwriting SQLite safety backup before deleting the active database and its `-wal` and `-shm` sidecars. It refuses symlinked database paths. There is no HTTP deletion endpoint. The retained safety backup is a deliberate recovery copy, so deletion is not complete erasure while that backup exists. Other copies, filesystem snapshots, host-level backups, exports and storage-provider retention are outside this command's control and must be managed separately. Store backups encrypted, restrict access, and apply a documented retention period. The command cannot guarantee cryptographic erasure from SSDs, snapshots or external backup systems.
