@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import base64
 import binascii
+import hashlib
+import json
 import os
 import sqlite3
 import tempfile
@@ -552,6 +554,67 @@ class KnowledgeStore:
                 (limit,),
             ).fetchall()
         return [DecisionRecord.model_validate_json(row["payload"]) for row in rows]
+
+
+    def export_workspace(self) -> dict:
+        """Return a versioned portable export of domain data, excluding live credentials."""
+        tables = (
+            "knowledge",
+            "knowledge_revisions",
+            "decisions",
+            "knowledge_conflicts",
+            "evidence_assessments",
+            "claims",
+            "claim_relations",
+            "reasoning_runs",
+            "claim_assessments",
+            "auth_audit_events",
+        )
+        exported: dict[str, list[dict]] = {}
+        with self._connect() as connection:
+            available = {
+                row["name"]
+                for row in connection.execute(
+                    "SELECT name FROM sqlite_master WHERE type = 'table'"
+                ).fetchall()
+            }
+            for table in tables:
+                if table not in available:
+                    exported[table] = []
+                    continue
+                columns = connection.execute(f'PRAGMA table_info("{table}")').fetchall()
+                primary_key = [row["name"] for row in columns if row["pk"]]
+                order = ", ".join(f'"{name}"' for name in primary_key) or "rowid"
+                rows = connection.execute(
+                    f'SELECT * FROM "{table}" ORDER BY {order}'
+                ).fetchall()
+                exported[table] = [dict(row) for row in rows]
+
+        document = {
+            "format": "humanity-os-workspace",
+            "schema_version": "1.0.0",
+            "exported_at": datetime.now(UTC).isoformat(),
+            "data_policy": {
+                "included": "workspace domain records, provenance, immutable history, and security audit metadata",
+                "excluded": [
+                    "owner password hashes",
+                    "live session and CSRF token hashes",
+                    "login throttling buckets",
+                    "environment bearer tokens",
+                    "derived search indexes and SQLite implementation metadata",
+                ],
+                "backup_note": "This export does not erase or supersede existing backups.",
+            },
+            "tables": exported,
+        }
+        canonical = json.dumps(
+            document, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+        ).encode("utf-8")
+        document["integrity"] = {
+            "algorithm": "sha256",
+            "canonical_document_sha256": hashlib.sha256(canonical).hexdigest(),
+        }
+        return document
 
     def export_all(self) -> list[KnowledgeRecord]:
         with self._connect() as connection:
