@@ -8,7 +8,7 @@ The FastAPI application serves a responsive single-page interface at \`/\` and s
 
 - Owner password login and logout using the existing HTTP-only session cookie.
 - Knowledge note creation, listing and lexical search.
-- Bounded TXT/Markdown document ingestion, source-chunk search, and bounded source-cited context preparation.
+- Bounded TXT/Markdown document ingestion, source-chunk search, bounded source-cited context preparation, and provider-backed answer generation only when an injected provider exists and the owner explicitly consents for that request.
 - Memory proposal review, explicit approval/rejection, approved memory archive/restore and lifecycle event inspection.
 - Responsive layouts for desktop and mobile, semantic headings/labels, keyboard focus indicators, live status announcements and reduced-motion handling.
 
