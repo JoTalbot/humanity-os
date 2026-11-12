@@ -187,6 +187,7 @@ class DocumentStore:
             or source.get("chunk_hash") != item["chunk_hash"]
             or source.get("start_offset") != start
             or source.get("end_offset") != end
+            or source.get("ordinal") != item["ordinal"]
             or source.get("excerpt") != item["excerpt"]
             or hashlib.sha256(item["document_content"].encode("utf-8")).hexdigest() != item["document_hash"]
             or hashlib.sha256(item["excerpt"].encode("utf-8")).hexdigest() != item["chunk_hash"]
