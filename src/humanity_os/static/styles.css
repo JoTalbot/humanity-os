@@ -11,3 +11,5 @@
 @media(prefers-color-scheme:dark){:root{--bg:#111714;--surface:#19221d;--surface-soft:#202b25;--text:#edf3ee;--muted:#a0ada4;--line:#344139;--accent:#91c4a7;--accent-hover:#a9d4ba;--accent-soft:#263d31;--danger:#e39a92;--shadow:0 14px 40px rgba(0,0,0,.18)}.button-primary{color:#102018}.local-pill span{background:#7dc69a}}
 
 .answer-panel{margin-top:18px}.consent-label{display:flex;align-items:flex-start;gap:10px;margin:16px 0;color:var(--muted);font-size:13px;font-weight:500}.consent-label input{width:auto;min-width:18px;margin-top:3px}.answer-panel #answer-submit{margin-bottom:12px}
+
+.agent-result{max-height:420px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;padding:14px;border-radius:10px;background:var(--surface-soft);font:12px/1.5 ui-monospace,SFMono-Regular,Consolas,monospace;color:var(--text)}select{width:100%;padding:12px 13px;border:1px solid var(--line);border-radius:10px;background:var(--surface-soft);color:var(--text)}
