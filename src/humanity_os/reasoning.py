@@ -5,6 +5,7 @@ import sqlite3
 from collections import deque
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Literal
 from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -51,7 +52,7 @@ class ReasoningRun(BaseModel):
     evidence: list[EvidenceReference]
     contradiction_candidates: list[str]
     limitations: list[str]
-    actor: str
+    actor: Literal["owner", "system"]
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
 
