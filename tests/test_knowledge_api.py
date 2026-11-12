@@ -21,6 +21,7 @@ class TestClient(_TestClient):
         kwargs.setdefault("client", ("127.0.0.1", 50000))
         super().__init__(app, **kwargs)
 
+
 def test_create_read_update_list_and_delete_knowledge(tmp_path):
     client = TestClient(create_app(str(tmp_path / "test.sqlite3")))
     payload = {"kind": "observation", "title": "First note", "content": "A user-owned knowledge record."}
@@ -69,11 +70,12 @@ def test_authentication_fails_closed_without_owner_or_token(tmp_path):
 
 
 def test_asgi_rejects_non_loopback_clients_even_for_health(tmp_path):
-    app = _create_app(str(tmp_path / "remote.sqlite3"))
+    app = _create_app(str(tmp_path / "remote.sqlite3"), api_token="a" * 43)
     client = _TestClient(app, client=("192.0.2.10", 50000))
+    headers = {"Authorization": "Bearer " + "a" * 43}
 
     assert client.get("/health").status_code == 403
-    assert client.get("/v1/knowledge").status_code == 403
+    assert client.get("/v1/knowledge", headers=headers).status_code == 403
 
 
 def test_bearer_authentication_protects_knowledge_endpoints(tmp_path):
