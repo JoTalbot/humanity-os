@@ -984,9 +984,9 @@ class KnowledgeStore:
             # Build every supported schema before inserting records. Authentication
             # identities and sessions are intentionally initialized empty.
             KnowledgeStore(temporary)
+            from humanity_os.agent_runtime import AgentRuntimeStore
             from humanity_os.documents import DocumentStore
             from humanity_os.memory import MemoryStore
-            from humanity_os.agent_runtime import AgentRuntimeStore
 
             DocumentStore(temporary)
             MemoryStore(temporary)
