@@ -252,6 +252,14 @@ class KnowledgeStore:
                 if claim_relation_table
                 else []
             )
+            reasoning_table = connection.execute(
+                "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'reasoning_runs'"
+            ).fetchone()
+            reasoning_rows = (
+                connection.execute("SELECT payload FROM reasoning_runs").fetchall()
+                if reasoning_table
+                else []
+            )
         for row in rows:
             KnowledgeRecord.model_validate_json(row[0])
         for row in conflict_rows:
@@ -266,6 +274,10 @@ class KnowledgeStore:
             ClaimNode.model_validate_json(row[0])
         for row in claim_relation_rows:
             ClaimRelation.model_validate_json(row[0])
+        from humanity_os.reasoning import ReasoningRun
+
+        for row in reasoning_rows:
+            ReasoningRun.model_validate_json(row[0])
         return len(rows)
 
 
@@ -309,8 +321,10 @@ class KnowledgeStore:
             os.replace(temporary, database)
             self._initialise()
             from humanity_os.claim_graph import ClaimGraphStore
+            from humanity_os.reasoning import ReasoningEngine
 
-            ClaimGraphStore(self.database_path)
+            graph = ClaimGraphStore(self.database_path)
+            ReasoningEngine(self.database_path, self, graph)
             return record_count
         finally:
             temporary.unlink(missing_ok=True)
