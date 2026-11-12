@@ -273,6 +273,8 @@ def create_app(database_path: str | None = None, api_token: str | None = None) -
             raise HTTPException(
                 status_code=409, detail="This claim relation already exists"
             ) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
 
     @app.get("/v1/claim-relations", response_model=list[ClaimRelation])
     def list_claim_relations(
