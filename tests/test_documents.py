@@ -14,7 +14,7 @@ from humanity_os.store import KnowledgeStore
 def test_text_document_is_chunked_with_exact_source_offsets(tmp_path):
     database = tmp_path / "workspace.sqlite3"
     store = DocumentStore(database)
-    content = ("A paragraph about local knowledge.\\n" * 100).strip()
+    content = ("A paragraph about local knowledge.\n" * 100).strip()
     document = store.create("notes.md", content)
 
     assert document["status"] == "ready"
@@ -35,11 +35,12 @@ def test_document_input_is_allowlisted_bounded_and_deduplicated(tmp_path):
     with pytest.raises(ValueError, match="Only"):
         store.create("payload.pdf", "not a supported parser")
     with pytest.raises(ValueError, match="NUL"):
-        store.create("bad.txt", "hello\\x00world")
+        store.create("bad.txt", "hello\x00world")
     with pytest.raises(ValueError, match="non-empty"):
         store.create("empty.txt", "  ")
+    store.create("one.txt", "same content")
     with pytest.raises(ValueError, match="identical content"):
-        store.create("one.txt", "same content")
+        store.create("two.md", "same content")
     with pytest.raises(ValueError, match="identical content"):
         store.create("two.md", "same content")
 
