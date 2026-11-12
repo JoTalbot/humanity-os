@@ -8,7 +8,6 @@ from fastapi.testclient import TestClient
 
 from humanity_os.agent_runtime import AgentRuntimeStore
 from humanity_os.app import create_app
-from humanity_os.memory import MemoryStore
 from humanity_os.store import KnowledgeStore
 
 
