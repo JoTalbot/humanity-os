@@ -61,8 +61,19 @@ class KnowledgeCreate(BaseModel):
 class KnowledgeRecord(KnowledgeCreate):
     id: str = Field(default_factory=lambda: str(uuid4()))
     schema_version: str = "0.1"
+    revision: int = Field(default=1, ge=1)
     created_at: datetime = Field(default_factory=utc_now)
     updated_at: datetime = Field(default_factory=utc_now)
+
+class KnowledgeRevision(BaseModel):
+    """Immutable snapshot metadata and the complete record state at one revision."""
+    record_id: str
+    revision: int = Field(ge=1)
+    actor: Literal["owner", "system"]
+    change_reason: str = Field(min_length=1, max_length=2_000)
+    created_at: datetime
+    snapshot: "KnowledgeRecord"
+
 
 class KnowledgeList(BaseModel):
     items: list[KnowledgeRecord]
