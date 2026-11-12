@@ -22,7 +22,7 @@ The project's mission and humanity-ownership direction do not establish a legal 
 ## Data flow boundaries
 
 - The 0.1 application does not upload workspace content to a HUMANITY OS cloud service.
-- There is no built-in external model-provider gateway in this milestone. Any future provider connection must be explicit, documented, opt-in, and disclose the data sent.
+- The model gateway contract is present, but no provider is configured by default and no network-backed provider is included. Any future provider connection must be explicit, documented, opt-in, and disclose the exact data sent. See [MODEL_GATEWAY.md](MODEL_GATEWAY.md).
 - The local API is loopback-only. A future remote-access mode requires a separate threat model, secure transport, identity, session, abuse-control and deployment review.
 - Logs and backups are controlled by the host and operator. Operators must not place passwords, bearer tokens, session cookies or raw private content in logs or unprotected backup locations.
 
