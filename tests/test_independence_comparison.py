@@ -1,7 +1,20 @@
-from fastapi.testclient import TestClient
+from fastapi.testclient import TestClient as _TestClient
 
-from humanity_os.app import create_app
+from humanity_os.app import create_app as _create_app
 
+
+
+# Existing API behavior tests explicitly opt into the isolated, loopback-only
+# anonymous mode. Production create_app() remains authenticated by default.
+def create_app(*args, **kwargs):
+    kwargs["allow_unauthenticated_local"] = True
+    return _create_app(*args, **kwargs)
+
+
+class TestClient(_TestClient):
+    def __init__(self, app, **kwargs):
+        kwargs.setdefault("client", ("127.0.0.1", 50000))
+        super().__init__(app, **kwargs)
 
 def test_reasoning_comparison_includes_independence_metadata(tmp_path):
     client = TestClient(create_app(str(tmp_path / "reasoning-independence.sqlite3")))
