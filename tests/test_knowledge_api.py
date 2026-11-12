@@ -483,3 +483,29 @@ def test_knowledge_record_with_conflict_cannot_be_deleted_silently(tmp_path):
     assert client.delete(f"/v1/knowledge/{first}").status_code == 409
     assert client.get(f"/v1/knowledge/{first}").status_code == 200
     assert client.get("/v1/conflicts").json()["items"][0]["id"] == conflict.json()["id"]
+
+
+def test_restore_migrates_legacy_snapshot_without_conflict_table(tmp_path):
+    legacy_database = tmp_path / "legacy-source.sqlite3"
+    legacy_backup = tmp_path / "legacy-backup.sqlite3"
+    active_database = tmp_path / "active.sqlite3"
+    safety_backup = tmp_path / "safety.sqlite3"
+
+    legacy_client = TestClient(create_app(str(legacy_database)))
+    assert legacy_client.post("/v1/knowledge", json={
+        "kind": "claim", "title": "Legacy", "content": "Older schema record"
+    }).status_code == 201
+    KnowledgeStore(legacy_database).backup(legacy_backup)
+    with sqlite3.connect(legacy_backup) as connection:
+        connection.execute("DROP TABLE knowledge_conflicts")
+
+    active_client = TestClient(create_app(str(active_database)))
+    assert active_client.post("/v1/knowledge", json={
+        "kind": "claim", "title": "Current", "content": "Current schema record"
+    }).status_code == 201
+
+    restored = KnowledgeStore(active_database).restore(legacy_backup, safety_backup)
+    assert restored == 1
+    restored_store = KnowledgeStore(active_database)
+    assert [record.title for record in restored_store.list()] == ["Legacy"]
+    assert restored_store.list_conflicts() == []
