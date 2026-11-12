@@ -18,6 +18,8 @@ from humanity_os.models import (
     ConflictDecision,
     DecisionCreate,
     DecisionRecord,
+    EvidenceAssessment,
+    EvidenceAssessmentCreate,
     KnowledgeConflict,
     KnowledgeCreate,
     KnowledgeList,
@@ -25,6 +27,7 @@ from humanity_os.models import (
     KnowledgeRevision,
 )
 from humanity_os.store import KnowledgeStore
+from humanity_os.evidence import EvidenceAssessmentStore
 
 SESSION_COOKIE = "humanity_session"
 SESSION_MAX_AGE = 12 * 60 * 60
@@ -44,6 +47,7 @@ def create_app(database_path: str | None = None, api_token: str | None = None) -
 
     store = KnowledgeStore(path)
     auth = AuthStore(path)
+    evidence_assessments = EvidenceAssessmentStore(path)
     app = FastAPI(
         title="HUMANITY OS Personal Core",
         version=__version__,
@@ -51,6 +55,7 @@ def create_app(database_path: str | None = None, api_token: str | None = None) -
     )
     app.state.knowledge_store = store
     app.state.auth_store = auth
+    app.state.evidence_assessment_store = evidence_assessments
     app.state.authentication_enabled = bool(token) or auth.has_owner()
 
     @app.middleware("http")
@@ -210,6 +215,45 @@ def create_app(database_path: str | None = None, api_token: str | None = None) -
                 raise HTTPException(status_code=404, detail="Conflict not found")
             raise HTTPException(status_code=409, detail="Conflict is no longer pending review")
         return decided
+
+    @app.post(
+        "/v1/evidence-assessments",
+        response_model=EvidenceAssessment,
+        status_code=201,
+    )
+    def create_evidence_assessment(
+        payload: EvidenceAssessmentCreate, request: Request
+    ) -> EvidenceAssessment:
+        record = store.get(payload.knowledge_id)
+        if record is None:
+            raise HTTPException(status_code=404, detail="Knowledge record not found")
+        source_ids = {source.id for source in record.sources}
+        if payload.source_id not in source_ids:
+            raise HTTPException(status_code=404, detail="Source is not declared on this knowledge record")
+        if payload.evidence_id is not None:
+            matching_evidence = next(
+                (item for item in record.evidence if item.id == payload.evidence_id),
+                None,
+            )
+            if matching_evidence is None or matching_evidence.source_id != payload.source_id:
+                raise HTTPException(
+                    status_code=422,
+                    detail="Evidence ID must identify evidence linked to the declared source",
+                )
+        assessment = EvidenceAssessment(
+            **payload.model_dump(),
+            actor="owner" if request.state.auth_session_token else "system",
+        )
+        return evidence_assessments.create(assessment)
+
+    @app.get("/v1/evidence-assessments", response_model=list[EvidenceAssessment])
+    def list_evidence_assessments(
+        knowledge_id: Annotated[str, Query(min_length=1, max_length=128)],
+        limit: Annotated[int, Query(ge=1, le=100)] = 100,
+    ) -> list[EvidenceAssessment]:
+        if store.get(knowledge_id) is None:
+            raise HTTPException(status_code=404, detail="Knowledge record not found")
+        return evidence_assessments.list_for_knowledge(knowledge_id, limit=limit)
 
     @app.post("/v1/knowledge", response_model=KnowledgeRecord, status_code=201)
     def create_knowledge(payload: KnowledgeCreate) -> KnowledgeRecord:
