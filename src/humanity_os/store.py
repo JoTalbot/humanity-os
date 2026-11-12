@@ -10,7 +10,7 @@ from contextlib import closing
 from datetime import UTC, datetime
 from pathlib import Path
 
-from humanity_os.models import DecisionRecord, KnowledgeConflict, KnowledgeRecord, KnowledgeRevision
+from humanity_os.models import DecisionRecord, EvidenceAssessment, KnowledgeConflict, KnowledgeRecord, KnowledgeRevision
 
 
 class KnowledgeStore:
@@ -197,6 +197,14 @@ class KnowledgeStore:
                 if revision_table
                 else []
             )
+            assessment_table = connection.execute(
+                "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'evidence_assessments'"
+            ).fetchone()
+            assessment_rows = (
+                connection.execute("SELECT payload FROM evidence_assessments").fetchall()
+                if assessment_table
+                else []
+            )
         for row in rows:
             KnowledgeRecord.model_validate_json(row[0])
         for row in conflict_rows:
@@ -205,6 +213,8 @@ class KnowledgeStore:
             KnowledgeRevision.model_validate_json(row[0])
         for row in decision_rows:
             DecisionRecord.model_validate_json(row[0])
+        for row in assessment_rows:
+            EvidenceAssessment.model_validate_json(row[0])
         return len(rows)
 
 
