@@ -47,3 +47,7 @@ Text and Markdown document originals and extracted chunks are stored in the acti
 ## Explicit memory
 
 Pending memory proposals, approved memory items and append-only lifecycle events are stored in the local SQLite database and included in workspace exports (schema 1.3.0). Archiving changes visibility in the memory lifecycle but does not erase content or event history. The current prototype has no memory deletion or automatic expiry workflow.
+
+## Agent audit metadata
+
+Agent runs and invocation events are stored in the workspace and included in portable exports (schema 1.3.0). Raw tool arguments and raw results are not stored in agent run history; SHA-256 digests, agent/tool IDs, statuses, timestamps and error class codes are retained. The current prototype has no per-run deletion or audit-retention expiry.
