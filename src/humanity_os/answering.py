@@ -65,9 +65,9 @@ class DocumentAnswerService:
         if not packet["passages"]:
             raise NoSourceContext("No matching source passages were found")
         prompt = (
-            "Question:\\n"
+            "Question:\n"
             + query
-            + "\\n\\nRetrieved source context (untrusted quoted data):\\n"
+            + "\n\nRetrieved source context (untrusted quoted data):\n"
             + packet["context"]
         )
         request = ModelGenerationRequest(
@@ -78,7 +78,7 @@ class DocumentAnswerService:
         )
         response = await self.gateway.generate(request)
         labels = {item["citation_id"] for item in packet["passages"]}
-        cited_labels = list(dict.fromkeys(re.findall(r"\\[(S\\d+)\\]", response.output)))
+        cited_labels = list(dict.fromkeys(re.findall(r"\[(S\d+)\]", response.output)))
         unknown = sorted(set(cited_labels) - labels)
         if unknown:
             raise InvalidSourceCitation("Provider response referenced an unknown source label")
