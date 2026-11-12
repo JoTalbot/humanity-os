@@ -11,6 +11,6 @@
 | OD-007 | Funding and hosting sustainability | Open | Cost model and public consultation |
 | OD-008 | Governance representation/voting | Open | Stakeholder research and anti-capture analysis |
 | OD-009 | Retention and deletion guarantees | Open | Legal and technical review |
-| OD-010 | PICKLANG/PROLEPSIS integration | Open | Repository audit and adapter prototypes |
+| OD-010 | PICKLANG/PROLEPSIS integration | Open | Repository audit and adapter prototypes |\n| OD-011 | Model provider activation and data-transfer consent | Open | Provider terms, data-classification review, user disclosure and opt-in UX |
 
 Do not turn an open decision into a settled fact merely to make a roadmap look complete.
