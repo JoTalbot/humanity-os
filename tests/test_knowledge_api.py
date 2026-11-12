@@ -55,6 +55,27 @@ def test_health_endpoint(tmp_path):
     assert client.get("/health").json()["status"] == "ok"
 
 
+def test_authentication_fails_closed_without_owner_or_token(tmp_path):
+    app = _create_app(str(tmp_path / "strict.sqlite3"))
+    client = TestClient(app)
+
+    assert app.state.authentication_enabled is True
+    assert client.get("/health").status_code == 200
+    assert client.get("/v1/knowledge").status_code == 401
+    assert client.post(
+        "/v1/knowledge",
+        json={"kind": "concept", "title": "private", "content": "blocked"},
+    ).status_code == 401
+
+
+def test_asgi_rejects_non_loopback_clients_even_for_health(tmp_path):
+    app = _create_app(str(tmp_path / "remote.sqlite3"))
+    client = _TestClient(app, client=("192.0.2.10", 50000))
+
+    assert client.get("/health").status_code == 403
+    assert client.get("/v1/knowledge").status_code == 403
+
+
 def test_bearer_authentication_protects_knowledge_endpoints(tmp_path):
     token = "a" * 43
     client = TestClient(create_app(str(tmp_path / "authenticated.sqlite3"), api_token=token))
