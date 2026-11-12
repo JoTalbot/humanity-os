@@ -6,10 +6,11 @@ import binascii
 import os
 import sqlite3
 import tempfile
+from datetime import UTC, datetime
 from contextlib import closing
 from pathlib import Path
 
-from humanity_os.models import KnowledgeRecord
+from humanity_os.models import KnowledgeConflict, KnowledgeRecord
 
 
 class KnowledgeStore:
@@ -35,6 +36,22 @@ class KnowledgeStore:
             connection.execute(
                 "CREATE INDEX IF NOT EXISTS idx_knowledge_created_id "
                 "ON knowledge(created_at DESC, id DESC)"
+            )
+            connection.execute(
+                """CREATE TABLE IF NOT EXISTS knowledge_conflicts (
+                    id TEXT PRIMARY KEY,
+                    record_a_id TEXT NOT NULL REFERENCES knowledge(id),
+                    record_b_id TEXT NOT NULL REFERENCES knowledge(id),
+                    status TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    payload TEXT NOT NULL,
+                    UNIQUE(record_a_id, record_b_id),
+                    CHECK(record_a_id < record_b_id)
+                )"""
+            )
+            connection.execute(
+                "CREATE INDEX IF NOT EXISTS idx_knowledge_conflicts_status "
+                "ON knowledge_conflicts(status, created_at DESC)"
             )
 
     def backup(self, destination: str | Path) -> Path:
@@ -81,8 +98,18 @@ class KnowledgeStore:
             if result != "ok":
                 raise sqlite3.DatabaseError(f"Backup integrity check failed: {result}")
             rows = connection.execute("SELECT payload FROM knowledge").fetchall()
+            conflict_table = connection.execute(
+                "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'knowledge_conflicts'"
+            ).fetchone()
+            conflict_rows = (
+                connection.execute("SELECT payload FROM knowledge_conflicts").fetchall()
+                if conflict_table
+                else []
+            )
         for row in rows:
             KnowledgeRecord.model_validate_json(row[0])
+        for row in conflict_rows:
+            KnowledgeConflict.model_validate_json(row[0])
         return len(rows)
 
 
@@ -196,6 +223,69 @@ class KnowledgeStore:
         with self._connect() as connection:
             result = connection.execute("DELETE FROM knowledge WHERE id = ?", (record_id,))
         return result.rowcount > 0
+
+    def create_conflict(self, conflict: KnowledgeConflict) -> KnowledgeConflict:
+        if conflict.record_a_id >= conflict.record_b_id:
+            raise ValueError("Conflict record IDs must be stored in canonical order")
+        with self._connect() as connection:
+            connection.execute(
+                """INSERT INTO knowledge_conflicts(
+                       id, record_a_id, record_b_id, status, created_at, payload
+                   ) VALUES (?, ?, ?, ?, ?, ?)""",
+                (
+                    conflict.id,
+                    conflict.record_a_id,
+                    conflict.record_b_id,
+                    conflict.status,
+                    conflict.created_at.isoformat(),
+                    conflict.model_dump_json(),
+                ),
+            )
+        return conflict
+
+    def get_conflict(self, conflict_id: str) -> KnowledgeConflict | None:
+        with self._connect() as connection:
+            row = connection.execute(
+                "SELECT payload FROM knowledge_conflicts WHERE id = ?", (conflict_id,)
+            ).fetchone()
+        return KnowledgeConflict.model_validate_json(row["payload"]) if row else None
+
+    def list_conflicts(
+        self, status: str | None = None, limit: int = 50
+    ) -> list[KnowledgeConflict]:
+        if not 1 <= limit <= 100:
+            raise ValueError("Conflict limit must be between 1 and 100")
+        sql = "SELECT payload FROM knowledge_conflicts"
+        params: list[object] = []
+        if status is not None:
+            sql += " WHERE status = ?"
+            params.append(status)
+        sql += " ORDER BY created_at DESC, id DESC LIMIT ?"
+        params.append(limit)
+        with self._connect() as connection:
+            rows = connection.execute(sql, params).fetchall()
+        return [KnowledgeConflict.model_validate_json(row["payload"]) for row in rows]
+
+    def decide_conflict(
+        self, conflict_id: str, status: str, resolution_note: str
+    ) -> KnowledgeConflict | None:
+        existing = self.get_conflict(conflict_id)
+        if existing is None or existing.status != "pending_review":
+            return None
+        updated = existing.model_copy(
+            update={
+                "status": status,
+                "resolution_note": resolution_note,
+                "updated_at": datetime.now(UTC),
+            }
+        )
+        with self._connect() as connection:
+            result = connection.execute(
+                """UPDATE knowledge_conflicts
+                   SET status = ?, payload = ? WHERE id = ? AND status = 'pending_review'""",
+                (updated.status, updated.model_dump_json(), conflict_id),
+            )
+        return updated if result.rowcount else None
 
     def export_all(self) -> list[KnowledgeRecord]:
         with self._connect() as connection:
