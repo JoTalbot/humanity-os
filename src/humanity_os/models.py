@@ -80,6 +80,9 @@ class KnowledgeCreate(BaseModel):
         if missing:
             raise ValueError("Evidence references an undeclared source ID")
         source_by_id = {source.id: source for source in self.sources}
+        canonical_uris = [source.canonical_uri for source in self.sources]
+        if len(canonical_uris) != len(set(canonical_uris)):
+            raise ValueError("Canonical source URIs must be unique within a knowledge record")
         for source in self.sources:
             if len(source.derived_from_source_ids) != len(set(source.derived_from_source_ids)):
                 raise ValueError("Derived source references must be unique")
