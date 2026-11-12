@@ -247,3 +247,44 @@ def test_memory_events_are_append_only(tmp_path):
                 "UPDATE memory_events SET event_type = 'rewritten' WHERE id = ?",
                 (event["id"],),
             )
+
+
+@pytest.mark.parametrize("legacy_version", ["1.0.0", "1.1.0"])
+def test_legacy_workspace_exports_remain_importable_after_memory_schema_upgrade(
+    tmp_path, legacy_version
+):
+    source = tmp_path / "source.sqlite3"
+    client = TestClient(
+        create_app(str(source), allow_unauthenticated_local=True),
+        client=("127.0.0.1", 50000),
+    )
+    client.post(
+        "/v1/knowledge",
+        json={"kind": "concept", "title": "Legacy data", "content": "Keep this record."},
+    )
+    exported = KnowledgeStore(source).export_workspace()
+    tables = dict(exported["tables"])
+    tables.pop("memory_proposals")
+    tables.pop("memory_items")
+    tables.pop("memory_events")
+    if legacy_version == "1.0.0":
+        tables.pop("documents")
+        tables.pop("document_chunks")
+    exported["schema_version"] = legacy_version
+    exported["tables"] = tables
+    unsigned = {key: value for key, value in exported.items() if key != "integrity"}
+    canonical = json.dumps(unsigned, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()
+    exported["integrity"]["canonical_document_sha256"] = hashlib.sha256(canonical).hexdigest()
+
+    export_path = tmp_path / f"legacy-{legacy_version}.json"
+    export_path.write_text(json.dumps(exported), encoding="utf-8")
+    target = tmp_path / f"target-{legacy_version}.sqlite3"
+    TestClient(
+        create_app(str(target), allow_unauthenticated_local=True),
+        client=("127.0.0.1", 50000),
+    )
+    KnowledgeStore(target).import_workspace(
+        export_path, tmp_path / f"safety-{legacy_version}.sqlite3"
+    )
+    assert KnowledgeStore(target).list()[0].content == "Keep this record."
+    assert MemoryStore(target).list_memories() == []
