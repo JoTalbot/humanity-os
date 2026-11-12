@@ -16,6 +16,7 @@ class TestClient(_TestClient):
         kwargs.setdefault("client", ("127.0.0.1", 50000))
         super().__init__(app, **kwargs)
 
+
 def test_reasoning_comparison_includes_independence_metadata(tmp_path):
     client = TestClient(create_app(str(tmp_path / "reasoning-independence.sqlite3")))
     record = client.post("/v1/knowledge", json={
