@@ -13,9 +13,12 @@ from pydantic import BaseModel, Field
 
 from humanity_os import __version__
 from humanity_os.auth import AuthStore
+from humanity_os.claim_assessments import ClaimAssessmentStore
 from humanity_os.claim_graph import ClaimGraphStore
 from humanity_os.evidence import EvidenceAssessmentStore
 from humanity_os.models import (
+    ClaimAssessment,
+    ClaimAssessmentCreate,
     ClaimCreate,
     ClaimNode,
     ClaimRelation,
@@ -55,6 +58,7 @@ def create_app(database_path: str | None = None, api_token: str | None = None) -
     auth = AuthStore(path)
     evidence_assessments = EvidenceAssessmentStore(store.database_path)
     claim_graph = ClaimGraphStore(store.database_path)
+    claim_assessments = ClaimAssessmentStore(store.database_path)
     reasoning = ReasoningEngine(store.database_path, store, claim_graph)
     app = FastAPI(
         title="HUMANITY OS Personal Core",
@@ -65,6 +69,7 @@ def create_app(database_path: str | None = None, api_token: str | None = None) -
     app.state.auth_store = auth
     app.state.evidence_assessment_store = evidence_assessments
     app.state.claim_graph_store = claim_graph
+    app.state.claim_assessment_store = claim_assessments
     app.state.reasoning_engine = reasoning
     app.state.authentication_enabled = bool(token) or auth.has_owner()
 
@@ -257,6 +262,35 @@ def create_app(database_path: str | None = None, api_token: str | None = None) -
         if claim is None:
             raise HTTPException(status_code=404, detail="Claim not found")
         return claim
+
+    @app.post(
+        "/v1/claims/{claim_id}/assessments",
+        response_model=ClaimAssessment,
+        status_code=201,
+    )
+    def create_claim_assessment(
+        claim_id: str, payload: ClaimAssessmentCreate, request: Request
+    ) -> ClaimAssessment:
+        if claim_graph.get_claim(claim_id) is None:
+            raise HTTPException(status_code=404, detail="Claim not found")
+        assessment = ClaimAssessment(
+            **payload.model_dump(),
+            claim_id=claim_id,
+            actor="owner" if request.state.auth_session_token else "system",
+        )
+        return claim_assessments.create(assessment)
+
+    @app.get(
+        "/v1/claims/{claim_id}/assessments",
+        response_model=list[ClaimAssessment],
+    )
+    def list_claim_assessments(
+        claim_id: str,
+        limit: Annotated[int, Query(ge=1, le=100)] = 100,
+    ) -> list[ClaimAssessment]:
+        if claim_graph.get_claim(claim_id) is None:
+            raise HTTPException(status_code=404, detail="Claim not found")
+        return claim_assessments.list_for_claim(claim_id, limit=limit)
 
     @app.post("/v1/claim-relations", response_model=ClaimRelation, status_code=201)
     def create_claim_relation(
