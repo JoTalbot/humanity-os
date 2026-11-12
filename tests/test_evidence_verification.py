@@ -4,6 +4,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from humanity_os.app import create_app
+from humanity_os.models import KnowledgeSource
 from humanity_os.store import KnowledgeStore
 
 
@@ -38,11 +39,9 @@ def _knowledge_payload():
     }
 
 
-def test_source_canonical_uri_normalizes_scheme_host_port_and_fragment(tmp_path):
-    client = TestClient(create_app(str(tmp_path / "source-identity.sqlite3")))
-    response = client.post("/v1/knowledge", json=_knowledge_payload())
-    assert response.status_code == 201
-    assert response.json()["sources"][0]["uri"] == "HTTPS://Example.ORG:443/report#section"
+def test_source_canonical_uri_normalizes_scheme_host_port_and_fragment():
+    source = KnowledgeSource(uri="HTTPS://Example.ORG:443/report#section")
+    assert source.canonical_uri == "https://example.org/report"
 
 
 def test_duplicate_canonical_source_uri_is_rejected(tmp_path):
