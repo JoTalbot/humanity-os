@@ -182,7 +182,7 @@ def test_memory_export_import_round_trip_and_secret_exclusion(tmp_path):
     ).json()
     client.post(f"/v1/memory/proposals/{proposal['id']}/approve")
     exported = KnowledgeStore(source).export_workspace()
-    assert exported["schema_version"] == "1.2.0"
+    assert exported["schema_version"] == "1.3.0"
     assert len(exported["tables"]["memory_proposals"]) == 1
     assert len(exported["tables"]["memory_items"]) == 1
     assert len(exported["tables"]["memory_events"]) == 2
