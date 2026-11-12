@@ -53,6 +53,16 @@ class KnowledgeStore:
                 "CREATE INDEX IF NOT EXISTS idx_knowledge_revisions_created "
                 "ON knowledge_revisions(record_id, revision DESC)"
             )
+            connection.execute(
+                """CREATE TRIGGER IF NOT EXISTS knowledge_revisions_no_update
+                   BEFORE UPDATE ON knowledge_revisions
+                   BEGIN SELECT RAISE(ABORT, 'knowledge revisions are immutable'); END"""
+            )
+            connection.execute(
+                """CREATE TRIGGER IF NOT EXISTS knowledge_revisions_no_delete
+                   BEFORE DELETE ON knowledge_revisions
+                   BEGIN SELECT RAISE(ABORT, 'knowledge revisions are immutable'); END"""
+            )
             # Seed one baseline snapshot for records created before revision history existed.
             existing_rows = connection.execute(
                 "SELECT id, payload FROM knowledge"
