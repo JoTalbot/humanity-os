@@ -32,7 +32,7 @@ def test_full_workspace_export_covers_domain_history_and_excludes_secrets(tmp_pa
     assert response.headers["cache-control"] == "no-store"
     document = response.json()
     assert document["format"] == "humanity-os-workspace"
-    assert document["schema_version"] == "1.2.0"
+    assert document["schema_version"] == "1.3.0"
     assert len(document["tables"]["knowledge"]) == 1
     assert len(document["tables"]["knowledge_revisions"]) == 2
     assert "auth_audit_events" in document["tables"]
