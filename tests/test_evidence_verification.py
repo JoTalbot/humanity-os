@@ -1,9 +1,9 @@
 import sqlite3
 
 import pytest
-from fastapi.testclient import TestClient
+from fastapi.testclient import TestClient as _TestClient
 
-from humanity_os.app import create_app
+from humanity_os.app import create_app as _create_app
 from humanity_os.models import KnowledgeSource
 from humanity_os.store import KnowledgeStore
 
@@ -38,6 +38,19 @@ def _knowledge_payload():
         ],
     }
 
+
+
+# Existing API behavior tests explicitly opt into the isolated, loopback-only
+# anonymous mode. Production create_app() remains authenticated by default.
+def create_app(*args, **kwargs):
+    kwargs["allow_unauthenticated_local"] = True
+    return _create_app(*args, **kwargs)
+
+
+class TestClient(_TestClient):
+    def __init__(self, app, **kwargs):
+        kwargs.setdefault("client", ("127.0.0.1", 50000))
+        super().__init__(app, **kwargs)
 
 def test_source_canonical_uri_normalizes_scheme_host_port_and_fragment(tmp_path):
     source = KnowledgeSource(uri="HTTPS://Example.ORG:443/report#section")
