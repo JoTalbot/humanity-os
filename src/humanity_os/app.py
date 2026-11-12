@@ -2,6 +2,7 @@
 import hashlib
 import hmac
 import os
+import sqlite3
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Annotated
@@ -12,7 +13,14 @@ from pydantic import BaseModel, Field
 
 from humanity_os import __version__
 from humanity_os.auth import AuthStore
-from humanity_os.models import KnowledgeCreate, KnowledgeList, KnowledgeRecord
+from humanity_os.models import (
+    ConflictCreate,
+    ConflictDecision,
+    KnowledgeConflict,
+    KnowledgeCreate,
+    KnowledgeList,
+    KnowledgeRecord,
+)
 from humanity_os.store import KnowledgeStore
 
 SESSION_COOKIE = "humanity_session"
@@ -130,6 +138,50 @@ def create_app(database_path: str | None = None, api_token: str | None = None) -
         response.delete_cookie(SESSION_COOKIE, path="/", httponly=True, samesite="strict")
         response.status_code = 204
         return response
+
+    @app.post("/v1/conflicts", response_model=KnowledgeConflict, status_code=201)
+    def create_conflict(payload: ConflictCreate) -> KnowledgeConflict:
+        if store.get(payload.record_a_id) is None or store.get(payload.record_b_id) is None:
+            raise HTTPException(status_code=404, detail="Both knowledge records must exist")
+        record_a_id, record_b_id = sorted((payload.record_a_id, payload.record_b_id))
+        conflict = KnowledgeConflict(
+            record_a_id=record_a_id,
+            record_b_id=record_b_id,
+            reason=payload.reason,
+        )
+        try:
+            return store.create_conflict(conflict)
+        except sqlite3.IntegrityError as exc:
+            raise HTTPException(
+                status_code=409, detail="A conflict for this record pair already exists"
+            ) from exc
+
+    @app.get("/v1/conflicts")
+    def list_conflicts(
+        status: Annotated[
+            str | None,
+            Query(pattern="^(pending_review|resolved|dismissed)$"),
+        ] = None,
+        limit: Annotated[int, Query(ge=1, le=100)] = 50,
+    ) -> dict[str, list[KnowledgeConflict]]:
+        return {"items": store.list_conflicts(status=status, limit=limit)}
+
+    @app.post(
+        "/v1/conflicts/{conflict_id}/decision",
+        response_model=KnowledgeConflict,
+    )
+    def decide_conflict(
+        conflict_id: str, payload: ConflictDecision
+    ) -> KnowledgeConflict:
+        decided = store.decide_conflict(
+            conflict_id, payload.status, payload.resolution_note
+        )
+        if decided is None:
+            existing = store.get_conflict(conflict_id)
+            if existing is None:
+                raise HTTPException(status_code=404, detail="Conflict not found")
+            raise HTTPException(status_code=409, detail="Conflict is no longer pending review")
+        return decided
 
     @app.post("/v1/knowledge", response_model=KnowledgeRecord, status_code=201)
     def create_knowledge(payload: KnowledgeCreate) -> KnowledgeRecord:
