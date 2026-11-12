@@ -4,7 +4,7 @@ on:
   pull_request:
     branches: [main, "foundation/**", "security/**", "personal-core/**", "humanity-one/**"]
   push:
-    branches: [main, "foundation/**", "security/**", "personal-core/**"]
+    branches: [main, "foundation/**", "security/**", "personal-core/**", "humanity-one/**"]
   workflow_dispatch:
 
 permissions:
