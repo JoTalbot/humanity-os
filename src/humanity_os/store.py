@@ -4,6 +4,7 @@ from __future__ import annotations
 import base64
 import binascii
 import hashlib
+import hmac
 import json
 import os
 import sqlite3
@@ -615,6 +616,121 @@ class KnowledgeStore:
             "canonical_document_sha256": hashlib.sha256(canonical).hexdigest(),
         }
         return document
+
+
+    def import_workspace(
+        self, source_path: str | Path, safety_backup_path: str | Path
+    ) -> int:
+        """Validate a portable export, stage it, back up the active DB, then replace it."""
+        if self.database_path == ":memory:":
+            raise ValueError("Workspace import requires a file-backed database")
+        database = Path(self.database_path).expanduser()
+        if database.is_symlink():
+            raise ValueError("Refusing to replace a database symlink")
+        source = Path(source_path).expanduser()
+        safety = Path(safety_backup_path).expanduser()
+        if source.is_symlink() or not source.is_file():
+            raise ValueError("Workspace export must be a regular file, not a symlink")
+        if source.resolve() in {database.resolve(), safety.resolve()}:
+            raise ValueError("Workspace export must differ from the database and safety backup")
+        if safety.resolve() == database.resolve():
+            raise ValueError("Safety backup must differ from the active database")
+
+        document = json.loads(source.read_text(encoding="utf-8"))
+        if not isinstance(document, dict) or document.get("format") != "humanity-os-workspace":
+            raise ValueError("Unsupported workspace export format")
+        if document.get("schema_version") != "1.0.0":
+            raise ValueError("Unsupported workspace export schema version")
+        integrity = document.get("integrity")
+        if not isinstance(integrity, dict) or integrity.get("algorithm") != "sha256":
+            raise ValueError("Workspace export has no supported integrity metadata")
+        unsigned = {key: value for key, value in document.items() if key != "integrity"}
+        canonical = json.dumps(
+            unsigned, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+        ).encode("utf-8")
+        actual_digest = hashlib.sha256(canonical).hexdigest()
+        expected_digest = integrity.get("canonical_document_sha256")
+        if not isinstance(expected_digest, str) or not hmac.compare_digest(
+            actual_digest, expected_digest
+        ):
+            raise ValueError("Workspace export integrity check failed")
+
+        tables = document.get("tables")
+        table_names = (
+            "knowledge",
+            "knowledge_revisions",
+            "decisions",
+            "knowledge_conflicts",
+            "evidence_assessments",
+            "claims",
+            "claim_relations",
+            "reasoning_runs",
+            "claim_assessments",
+            "auth_audit_events",
+        )
+        if not isinstance(tables, dict) or set(tables) != set(table_names):
+            raise ValueError("Workspace export table set does not match schema 1.0.0")
+        if any(not isinstance(tables[name], list) for name in table_names):
+            raise ValueError("Every exported table must contain a list of rows")
+
+        descriptor, temporary_name = tempfile.mkstemp(
+            prefix=f".{database.name}.import-",
+            suffix=".sqlite3",
+            dir=str(database.parent),
+        )
+        os.close(descriptor)
+        temporary = Path(temporary_name)
+        temporary.unlink()
+        try:
+            # Build every supported schema before inserting records. Authentication
+            # identities and sessions are intentionally initialized empty.
+            KnowledgeStore(temporary)
+            from humanity_os.auth import AuthStore
+            from humanity_os.claim_assessments import ClaimAssessmentStore
+            from humanity_os.claim_graph import ClaimGraphStore
+            from humanity_os.evidence import EvidenceAssessmentStore
+            from humanity_os.reasoning import ReasoningEngine
+
+            AuthStore(temporary)
+            EvidenceAssessmentStore(temporary)
+            graph = ClaimGraphStore(temporary)
+            ClaimAssessmentStore(temporary)
+            knowledge = KnowledgeStore(temporary)
+            ReasoningEngine(temporary, knowledge, graph)
+
+            with closing(sqlite3.connect(str(temporary))) as connection:
+                connection.execute("PRAGMA foreign_keys = ON")
+                for table in table_names:
+                    columns = [
+                        row[1]
+                        for row in connection.execute(
+                            f'PRAGMA table_info("{table}")'
+                        ).fetchall()
+                    ]
+                    if not columns:
+                        raise ValueError(f"Workspace schema is missing table: {table}")
+                    placeholders = ", ".join("?" for _ in columns)
+                    column_sql = ", ".join(f'"{column}"' for column in columns)
+                    for row in tables[table]:
+                        if not isinstance(row, dict) or set(row) != set(columns):
+                            raise ValueError(f"Invalid row shape in workspace table: {table}")
+                        values = tuple(row[column] for column in columns)
+                        connection.execute(
+                            f'INSERT INTO "{table}" ({column_sql}) VALUES ({placeholders})',
+                            values,
+                        )
+                violations = connection.execute("PRAGMA foreign_key_check").fetchall()
+                if violations:
+                    raise ValueError("Workspace export contains broken foreign-key references")
+
+            record_count = self.verify_backup(temporary)
+            self.backup(safety)
+            for suffix in ("-wal", "-shm"):
+                Path(str(database) + suffix).unlink(missing_ok=True)
+            os.replace(temporary, database)
+            return record_count
+        finally:
+            temporary.unlink(missing_ok=True)
 
     def export_all(self) -> list[KnowledgeRecord]:
         with self._connect() as connection:
