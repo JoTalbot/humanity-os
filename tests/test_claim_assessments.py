@@ -34,6 +34,7 @@ class TestClient(_TestClient):
         kwargs.setdefault("client", ("127.0.0.1", 50000))
         super().__init__(app, **kwargs)
 
+
 def test_claim_assessment_is_explicit_and_append_only(tmp_path):
     database = tmp_path / "claim-assessment.sqlite3"
     client = TestClient(create_app(str(database)))
