@@ -1,4 +1,5 @@
 import sqlite3
+from itertools import pairwise
 
 import pytest
 from fastapi.testclient import TestClient
@@ -107,7 +108,7 @@ def test_reasoning_depth_and_node_limits_are_enforced(tmp_path):
     client = TestClient(create_app(str(tmp_path / "reasoning-bounds.sqlite3")))
     record = _record(client, "Bounded")
     claims = [_claim(client, record, f"Claim {index}") for index in range(4)]
-    for source, target in zip(claims, claims[1:]):
+    for source, target in pairwise(claims):
         response = client.post("/v1/claim-relations", json={
             "source_claim_id": source["id"],
             "target_claim_id": target["id"],
