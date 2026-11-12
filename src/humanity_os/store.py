@@ -359,6 +359,41 @@ class KnowledgeStore:
 
         # Preserve the current state before preparing any replacement.
         self.backup(safety)
+        proposals = {row.get("id"): row for row in tables["memory_proposals"] if isinstance(row, dict)}
+        if len(proposals) != len(tables["memory_proposals"]):
+            raise ValueError("Invalid memory proposal row in workspace export")
+        memory_items = {row.get("id"): row for row in tables["memory_items"] if isinstance(row, dict)}
+        if len(memory_items) != len(tables["memory_items"]):
+            raise ValueError("Invalid memory item row in workspace export")
+        for memory in memory_items.values():
+            proposal = proposals.get(memory.get("proposal_id"))
+            content = memory.get("content")
+            if (
+                proposal is None
+                or proposal.get("status") != "approved"
+                or proposal.get("approved_memory_id") != memory.get("id")
+                or not isinstance(content, str)
+                or hashlib.sha256(content.encode("utf-8")).hexdigest() != memory.get("content_hash")
+                or content != proposal.get("content")
+            ):
+                raise ValueError("Memory item does not match its explicitly approved proposal")
+        for proposal in proposals.values():
+            if proposal.get("status") == "approved" and proposal.get("approved_memory_id") not in memory_items:
+                raise ValueError("Approved memory proposal is missing its durable memory item")
+        for event in tables["memory_events"]:
+            if not isinstance(event, dict):
+                raise TypeError("Invalid memory event row in workspace export")
+            if event.get("proposal_id") is not None and event["proposal_id"] not in proposals:
+                raise ValueError("Memory event references an unknown proposal")
+            if event.get("memory_id") is not None and event["memory_id"] not in memory_items:
+                raise ValueError("Memory event references an unknown memory item")
+            try:
+                details = json.loads(event.get("details", ""))
+            except (TypeError, json.JSONDecodeError) as exc:
+                raise ValueError("Memory event details are invalid JSON") from exc
+            if not isinstance(details, dict):
+                raise ValueError("Memory event details must be an object")
+
         descriptor, temporary_name = tempfile.mkstemp(
             prefix=f".{database.name}.restore-",
             suffix=".sqlite3",
@@ -615,6 +650,9 @@ class KnowledgeStore:
             "auth_audit_events": ("id", "occurred_at", "event_type", "subject"),
             "documents": ("id", "filename", "media_type", "content_hash", "character_count", "chunk_count", "status", "created_at", "content"),
             "document_chunks": ("id", "document_id", "ordinal", "start_offset", "end_offset", "content_hash", "content"),
+            "memory_proposals": ("id", "title", "content", "rationale", "source_document_id", "source_chunk_id", "status", "created_at", "reviewed_at", "approved_memory_id"),
+            "memory_items": ("id", "proposal_id", "title", "content", "content_hash", "rationale", "source_document_id", "source_chunk_id", "status", "created_at", "updated_at"),
+            "memory_events": ("id", "proposal_id", "memory_id", "event_type", "actor", "occurred_at", "details"),
         }
         exported: dict[str, list[dict]] = {}
         with self._connect() as connection:
@@ -655,7 +693,7 @@ class KnowledgeStore:
 
         document = {
             "format": "humanity-os-workspace",
-            "schema_version": "1.1.0",
+            "schema_version": "1.2.0",
             "exported_at": datetime.now(UTC).isoformat(),
             "data_policy": {
                 "included": "workspace domain records, provenance, immutable history, and security audit metadata",
@@ -709,7 +747,7 @@ class KnowledgeStore:
         if not isinstance(document, dict) or document.get("format") != "humanity-os-workspace":
             raise ValueError("Unsupported workspace export format")
         schema_version = document.get("schema_version")
-        if schema_version not in {"1.0.0", "1.1.0"}:
+        if schema_version not in {"1.0.0", "1.1.0", "1.2.0"}:
             raise ValueError("Unsupported workspace export schema version")
         integrity = document.get("integrity")
         if not isinstance(integrity, dict) or integrity.get("algorithm") != "sha256":
@@ -738,12 +776,21 @@ class KnowledgeStore:
             "claim_assessments",
             "auth_audit_events",
         )
-        if schema_version == "1.1.0":
+        if schema_version in {"1.1.0", "1.2.0"}:
             table_names = (*table_names, "documents", "document_chunks")
+        if schema_version == "1.2.0":
+            table_names = (*table_names, "memory_proposals", "memory_items", "memory_events")
         if not isinstance(tables, dict) or set(tables) != set(table_names):
             raise ValueError(f"Workspace export table set does not match schema {schema_version}")
         if schema_version == "1.0.0":
             tables = {**tables, "documents": [], "document_chunks": []}
+        if schema_version in {"1.0.0", "1.1.0"}:
+            tables = {
+                **tables,
+                "memory_proposals": [],
+                "memory_items": [],
+                "memory_events": [],
+            }
         if any(not isinstance(tables[name], list) for name in table_names):
             raise ValueError("Every exported table must contain a list of rows")
 
@@ -805,7 +852,10 @@ class KnowledgeStore:
             # identities and sessions are intentionally initialized empty.
             KnowledgeStore(temporary)
             from humanity_os.documents import DocumentStore
+            from humanity_os.memory import MemoryStore
+
             DocumentStore(temporary)
+            MemoryStore(temporary)
             from humanity_os.auth import AuthStore
             from humanity_os.claim_assessments import ClaimAssessmentStore
             from humanity_os.claim_graph import ClaimGraphStore
