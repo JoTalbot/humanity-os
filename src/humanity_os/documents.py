@@ -189,9 +189,9 @@ class DocumentStore:
             citation_id = f"S{len(passages) + 1}"
             header = (
                 f"[{citation_id}] {match['filename']} | "
-                f"document={match['document_id']} | chunk={match['chunk_id']}\\n"
+                f"document={match['document_id']} | chunk={match['chunk_id']}\n"
             )
-            separator = "\\n\\n" if context_parts else ""
+            separator = "\n\n" if context_parts else ""
             available = max_context_chars - used - len(separator) - len(header)
             if available <= 0:
                 break
