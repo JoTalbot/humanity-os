@@ -1,7 +1,6 @@
 """Bounded, provenance-aware and explainable knowledge graph traversal."""
 from __future__ import annotations
 
-import json
 import sqlite3
 from collections import deque
 from datetime import UTC, datetime
