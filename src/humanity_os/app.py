@@ -241,9 +241,10 @@ def create_app(database_path: str | None = None, api_token: str | None = None) -
         record_id: str,
         limit: Annotated[int, Query(ge=1, le=100)] = 100,
     ) -> list[KnowledgeRevision]:
-        if store.get(record_id) is None:
-            raise HTTPException(status_code=404, detail="Knowledge record not found")
-        return store.list_revisions(record_id, limit=limit)
+        revisions = store.list_revisions(record_id, limit=limit)
+        if not revisions:
+            raise HTTPException(status_code=404, detail="Knowledge record or revision history not found")
+        return revisions
 
     @app.delete("/v1/knowledge/{record_id}", status_code=204)
     def delete_knowledge(record_id: str) -> Response:
