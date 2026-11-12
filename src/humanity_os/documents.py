@@ -174,6 +174,59 @@ class DocumentStore:
             ).fetchall()
         return [dict(row) for row in rows]
 
+    def prepare_context(
+        self, query: str, passage_limit: int = 5, max_context_chars: int = 8_000
+    ) -> dict:
+        if not 1 <= passage_limit <= 10:
+            raise ValueError("Passage limit must be between 1 and 10")
+        if not 512 <= max_context_chars <= 16_000:
+            raise ValueError("Context character limit must be between 512 and 16,000")
+        matches = self.search(query, limit=passage_limit)
+        passages = []
+        context_parts = []
+        used = 0
+        for match in matches:
+            citation_id = f"S{len(passages) + 1}"
+            header = (
+                f"[{citation_id}] {match['filename']} | "
+                f"document={match['document_id']} | chunk={match['chunk_id']}\\n"
+            )
+            separator = "\\n\\n" if context_parts else ""
+            available = max_context_chars - used - len(separator) - len(header)
+            if available <= 0:
+                break
+            excerpt = match["excerpt"][:available]
+            if not excerpt:
+                break
+            excerpt_end = match["start_offset"] + len(excerpt)
+            passage = {
+                "citation_id": citation_id,
+                "document_id": match["document_id"],
+                "filename": match["filename"],
+                "document_hash": match["document_hash"],
+                "chunk_id": match["chunk_id"],
+                "chunk_hash": match["chunk_hash"],
+                "start_offset": match["start_offset"],
+                "end_offset": excerpt_end,
+                "excerpt": excerpt,
+                "truncated": len(excerpt) < len(match["excerpt"]),
+            }
+            passages.append(passage)
+            context_parts.append(separator + header + excerpt)
+            used += len(separator) + len(header) + len(excerpt)
+            if used >= max_context_chars:
+                break
+        return {
+            "query": query,
+            "context": "".join(context_parts),
+            "passages": passages,
+            "processing": {
+                "model_called": False,
+                "external_processing": False,
+                "retrieval": "local_lexical",
+            },
+        }
+
     def search(self, query: str, limit: int = 20) -> list[dict]:
         if not 1 <= limit <= 50:
             raise ValueError("Search limit must be between 1 and 50")
