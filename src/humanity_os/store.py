@@ -398,6 +398,68 @@ class KnowledgeStore:
             if not isinstance(details, dict):
                 raise ValueError("Memory event details must be an object")
 
+        proposals = {
+            row.get("id"): row for row in tables["memory_proposals"] if isinstance(row, dict)
+        }
+        if len(proposals) != len(tables["memory_proposals"]):
+            raise ValueError("Invalid memory proposal row in workspace export")
+        memory_items = {
+            row.get("id"): row for row in tables["memory_items"] if isinstance(row, dict)
+        }
+        if len(memory_items) != len(tables["memory_items"]):
+            raise ValueError("Invalid memory item row in workspace export")
+        chunks_by_id = {row["id"]: row for row in tables["document_chunks"]}
+        for proposal in proposals.values():
+            if proposal.get("status") not in {"pending_review", "approved", "rejected"}:
+                raise ValueError("Memory proposal has an invalid lifecycle status")
+            source_document_id = proposal.get("source_document_id")
+            source_chunk_id = proposal.get("source_chunk_id")
+            if (source_document_id is None) != (source_chunk_id is None):
+                raise ValueError("Memory proposal source references are incomplete")
+            if source_document_id is not None:
+                chunk = chunks_by_id.get(source_chunk_id)
+                if chunk is None or chunk.get("document_id") != source_document_id:
+                    raise ValueError("Memory proposal references an unknown document chunk")
+        for memory in memory_items.values():
+            proposal = proposals.get(memory.get("proposal_id"))
+            content = memory.get("content")
+            if (
+                proposal is None
+                or proposal.get("status") != "approved"
+                or proposal.get("approved_memory_id") != memory.get("id")
+                or not isinstance(content, str)
+                or hashlib.sha256(content.encode("utf-8")).hexdigest() != memory.get("content_hash")
+                or content != proposal.get("content")
+                or memory.get("status") not in {"active", "archived"}
+            ):
+                raise ValueError("Memory item does not match its explicitly approved proposal")
+            source_document_id = memory.get("source_document_id")
+            source_chunk_id = memory.get("source_chunk_id")
+            if (source_document_id is None) != (source_chunk_id is None):
+                raise ValueError("Memory item source references are incomplete")
+            if source_document_id is not None:
+                chunk = chunks_by_id.get(source_chunk_id)
+                if chunk is None or chunk.get("document_id") != source_document_id:
+                    raise ValueError("Memory item references an unknown document chunk")
+        for proposal in proposals.values():
+            if proposal.get("status") == "approved" and proposal.get("approved_memory_id") not in memory_items:
+                raise ValueError("Approved memory proposal is missing its durable memory item")
+        for event in tables["memory_events"]:
+            if not isinstance(event, dict):
+                raise TypeError("Invalid memory event row in workspace export")
+            if event.get("proposal_id") is not None and event["proposal_id"] not in proposals:
+                raise ValueError("Memory event references an unknown proposal")
+            if event.get("memory_id") is not None and event["memory_id"] not in memory_items:
+                raise ValueError("Memory event references an unknown memory item")
+            if event.get("proposal_id") is None and event.get("memory_id") is None:
+                raise ValueError("Memory event has no subject")
+            try:
+                details = json.loads(event.get("details", ""))
+            except (TypeError, json.JSONDecodeError) as exc:
+                raise ValueError("Memory event details are invalid JSON") from exc
+            if not isinstance(details, dict):
+                raise ValueError("Memory event details must be an object")
+
         descriptor, temporary_name = tempfile.mkstemp(
             prefix=f".{database.name}.restore-",
             suffix=".sqlite3",
