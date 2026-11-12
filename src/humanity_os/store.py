@@ -53,6 +53,34 @@ class KnowledgeStore:
                 "CREATE INDEX IF NOT EXISTS idx_knowledge_revisions_created "
                 "ON knowledge_revisions(record_id, revision DESC)"
             )
+            # Seed one baseline snapshot for records created before revision history existed.
+            existing_rows = connection.execute(
+                "SELECT id, payload FROM knowledge"
+            ).fetchall()
+            for existing_row in existing_rows:
+                record = KnowledgeRecord.model_validate_json(existing_row["payload"])
+                has_history = connection.execute(
+                    "SELECT 1 FROM knowledge_revisions WHERE record_id = ? LIMIT 1",
+                    (record.id,),
+                ).fetchone()
+                if has_history is None:
+                    migrated_at = datetime.now(UTC)
+                    baseline = KnowledgeRevision(
+                        record_id=record.id,
+                        revision=record.revision,
+                        actor="system",
+                        change_reason="history initialized during migration",
+                        created_at=migrated_at,
+                        snapshot=record,
+                    )
+                    connection.execute(
+                        """INSERT INTO knowledge_revisions(
+                            record_id, revision, actor, change_reason, created_at, payload
+                        ) VALUES (?, ?, ?, ?, ?, ?)""",
+                        (record.id, record.revision, "system",
+                         "history initialized during migration", migrated_at.isoformat(),
+                         baseline.model_dump_json()),
+                    )
             connection.execute(
                 """CREATE TABLE IF NOT EXISTS knowledge_conflicts (
                     id TEXT PRIMARY KEY,
