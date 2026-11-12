@@ -268,6 +268,8 @@ def test_legacy_workspace_exports_remain_importable_after_memory_schema_upgrade(
     tables.pop("memory_proposals")
     tables.pop("memory_items")
     tables.pop("memory_events")
+    tables.pop("agent_runs")
+    tables.pop("agent_events")
     if legacy_version == "1.0.0":
         tables.pop("documents")
         tables.pop("document_chunks")
