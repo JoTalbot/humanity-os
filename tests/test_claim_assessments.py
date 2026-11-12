@@ -151,9 +151,9 @@ def test_reasoning_comparison_reports_shared_and_unique_claims_and_source_uris(t
     assert result["shared_claim_ids"] == [common["id"]]
     assert result["unique_claim_ids"][first["id"]] == [first["id"]]
     assert result["unique_claim_ids"][second["id"]] == [second["id"]]
-    assert result["shared_source_uris"] == ["https://example.org/shared/"]
-    assert result["unique_source_uris"][first["id"]] == ["https://example.org/a/"]
-    assert result["unique_source_uris"][second["id"]] == ["https://example.org/b/"]
+    assert result["shared_source_uris"] == ["https://example.org/shared"]
+    assert result["unique_source_uris"][first["id"]] == ["https://example.org/a"]
+    assert result["unique_source_uris"][second["id"]] == ["https://example.org/b"]
     assert len(result["runs"]) == 2
     assert all("not a ranking" in item for item in result["limitations"])
 
