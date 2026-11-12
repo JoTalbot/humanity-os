@@ -1,6 +1,4 @@
 """Source-grounded document answer orchestration with explicit provider consent."""
-from __future__ import annotations
-
 import re
 
 from humanity_os.documents import DocumentStore
