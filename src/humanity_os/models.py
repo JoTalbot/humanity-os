@@ -12,7 +12,7 @@ def utc_now() -> datetime:
     return datetime.now(UTC)
 
 class KnowledgeSource(BaseModel):
-    """A durable, inspectable origin for a knowledge record."""
+    """A durable source identity with explicit provenance lineage."""
     model_config = ConfigDict(extra="forbid")
     id: str = Field(default_factory=lambda: str(uuid4()), min_length=1, max_length=128)
     uri: str = Field(min_length=1, max_length=2_048)
@@ -21,6 +21,29 @@ class KnowledgeSource(BaseModel):
     published_at: datetime | None = None
     accessed_at: datetime | None = None
     content_hash: str | None = Field(default=None, pattern=r"^[a-fA-F0-9]{64}$")
+    source_type: Literal["primary", "secondary", "unknown"] = "unknown"
+    independence_group_id: str | None = Field(default=None, min_length=1, max_length=128)
+    derived_from_source_ids: list[str] = Field(default_factory=list, max_length=100)
+
+    @property
+    def canonical_uri(self) -> str:
+        from urllib.parse import urlsplit, urlunsplit
+        parts = urlsplit(self.uri.strip())
+        if parts.scheme.lower() not in {"http", "https"} or not parts.netloc:
+            return self.uri.strip()
+        host = (parts.hostname or "").lower()
+        port = parts.port
+        netloc = host
+        if port and not ((parts.scheme.lower() == "http" and port == 80) or
+                         (parts.scheme.lower() == "https" and port == 443)):
+            netloc = f"{host}:{port}"
+        if parts.username or parts.password:
+            return self.uri.strip()
+        path = parts.path or "/"
+        if path != "/":
+            path = path.rstrip("/")
+        return urlunsplit((parts.scheme.lower(), netloc, path, parts.query, ""))
+
 
 
 class EvidenceLink(BaseModel):
@@ -56,6 +79,28 @@ class KnowledgeCreate(BaseModel):
         missing = sorted({item.source_id for item in self.evidence} - declared)
         if missing:
             raise ValueError("Evidence references an undeclared source ID")
+        source_by_id = {source.id: source for source in self.sources}
+        for source in self.sources:
+            if len(source.derived_from_source_ids) != len(set(source.derived_from_source_ids)):
+                raise ValueError("Derived source references must be unique")
+            if source.id in source.derived_from_source_ids:
+                raise ValueError("A source cannot derive from itself")
+            if set(source.derived_from_source_ids) - declared:
+                raise ValueError("Derived source references must point to declared sources")
+        visiting: set[str] = set()
+        visited: set[str] = set()
+        def visit(source_id: str) -> None:
+            if source_id in visiting:
+                raise ValueError("Source derivation lineage cannot contain cycles")
+            if source_id in visited:
+                return
+            visiting.add(source_id)
+            for parent_id in source_by_id[source_id].derived_from_source_ids:
+                visit(parent_id)
+            visiting.remove(source_id)
+            visited.add(source_id)
+        for source_id in declared:
+            visit(source_id)
         return self
 
 class KnowledgeRecord(KnowledgeCreate):
@@ -148,3 +193,26 @@ class DecisionRecord(DecisionCreate):
     action: DecisionAction = "made"
     supersedes_decision_id: str | None = None
     created_at: datetime = Field(default_factory=utc_now)
+
+
+EvidenceAssessmentStance = Literal["supports", "refutes", "neutral"]
+EvidenceAssessmentStatus = Literal["unassessed", "assessed", "review_required"]
+EvidenceAssessmentMethod = Literal["manual", "document_review", "cross_check", "automated_triage"]
+
+
+class EvidenceAssessmentCreate(BaseModel):
+    """A recorded assessment of one declared source/evidence relationship."""
+    model_config = ConfigDict(extra="forbid")
+    knowledge_id: str = Field(min_length=1, max_length=128)
+    source_id: str = Field(min_length=1, max_length=128)
+    evidence_id: str | None = Field(default=None, min_length=1, max_length=128)
+    stance: EvidenceAssessmentStance
+    status: Literal["assessed", "review_required"]
+    method: EvidenceAssessmentMethod
+    notes: str = Field(min_length=1, max_length=4_000)
+
+
+class EvidenceAssessment(EvidenceAssessmentCreate):
+    id: str = Field(default_factory=lambda: str(uuid4()))
+    actor: Literal["owner", "system"]
+    assessed_at: datetime = Field(default_factory=utc_now)
