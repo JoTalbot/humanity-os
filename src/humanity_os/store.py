@@ -371,6 +371,8 @@ class KnowledgeStore:
                     raise ValueError("Memory proposal references an unknown document chunk")
             if proposal.get("status") not in {"pending_review", "approved", "rejected"}:
                 raise ValueError("Memory proposal has an invalid lifecycle status")
+            if proposal.get("status") != "approved" and proposal.get("approved_memory_id") is not None:
+                raise ValueError("Unapproved memory proposal cannot reference durable memory")
         for memory in memory_items.values():
             source_document_id = memory.get("source_document_id")
             source_chunk_id = memory.get("source_chunk_id")
@@ -391,6 +393,14 @@ class KnowledgeStore:
                 raise ValueError("Memory event references an unknown memory item")
             if event.get("proposal_id") is None and event.get("memory_id") is None:
                 raise ValueError("Memory event has no subject")
+            if event.get("event_type") not in {
+                "proposal_created",
+                "proposal_approved",
+                "proposal_rejected",
+                "memory_archived",
+                "memory_restored",
+            } or event.get("actor") != "owner":
+                raise ValueError("Memory event has an unsupported type or actor")
             try:
                 details = json.loads(event.get("details", ""))
             except (TypeError, json.JSONDecodeError) as exc:
