@@ -74,7 +74,7 @@ def main() -> None:
         descriptor = os.open(target, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
         with os.fdopen(descriptor, "w", encoding="utf-8") as output:
             json.dump(document, output, ensure_ascii=False, indent=2)
-            output.write("\\n")
+            output.write("\n")
         print(f"Workspace export created: {target}")
         print(f"SHA-256: {document['integrity']['canonical_document_sha256']}")
         return
@@ -82,6 +82,8 @@ def main() -> None:
         database = Path(database_path).expanduser()
         if database_path == ":memory:":
             parser.error("Workspace deletion requires a file-backed database")
+        if not database.exists():
+            parser.error("Workspace database does not exist")
         if database.is_symlink():
             parser.error("Refusing to delete a database symlink")
         if Path(args.safety_backup).expanduser().resolve() == database.resolve():
