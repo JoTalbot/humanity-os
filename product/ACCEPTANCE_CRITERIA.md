@@ -40,3 +40,11 @@
 - [ ] Operator runbook and user documentation complete.
 
 A checkbox without evidence is not acceptance. CI evidence is recorded in GitHub Actions.
+
+## Explicit memory lifecycle
+
+- [x] Memory proposals are separate from durable memory and remain pending until an explicit owner approval request.
+- [x] Rejection, approval, archive and restore actions are recorded in append-only lifecycle events.
+- [x] Approved memory preserves optional document/chunk provenance.
+- [x] Workspace export/import schema 1.2.0 includes memory proposals, items and events with domain integrity checks.
+- [ ] Responsive memory review and correction UI; multi-user approval roles; deletion and retention controls.
