@@ -89,6 +89,13 @@ class DocumentSearch(BaseModel):
     limit: int = Field(default=20, ge=1, le=50)
 
 
+class DocumentContextRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    query: str = Field(min_length=2, max_length=200)
+    passage_limit: int = Field(default=5, ge=1, le=10)
+    max_context_chars: int = Field(default=8_000, ge=512, le=16_000)
+
+
 def create_app(
     database_path: str | None = None,
     api_token: str | None = None,
@@ -612,6 +619,17 @@ def create_app(
     def search_documents(payload: DocumentSearch) -> dict[str, list[dict]]:
         try:
             return {"items": documents.search(payload.query, limit=payload.limit)}
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    @app.post("/v1/documents/context")
+    def prepare_document_context(payload: DocumentContextRequest) -> dict:
+        try:
+            return documents.prepare_context(
+                payload.query,
+                passage_limit=payload.passage_limit,
+                max_context_chars=payload.max_context_chars,
+            )
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
 
