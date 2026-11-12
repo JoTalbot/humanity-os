@@ -20,6 +20,7 @@ from humanity_os.models import (
     KnowledgeCreate,
     KnowledgeList,
     KnowledgeRecord,
+    KnowledgeRevision,
 )
 from humanity_os.store import KnowledgeStore
 
@@ -227,10 +228,22 @@ def create_app(database_path: str | None = None, api_token: str | None = None) -
         updated = existing.model_copy(
             update={**payload.model_dump(), "updated_at": datetime.now(UTC)}
         )
-        result = store.update(updated)
+        result = store.update(updated, actor="owner" if auth.has_owner() else "system")
         if result is None:
             raise HTTPException(status_code=404, detail="Knowledge record not found")
         return result
+
+    @app.get(
+        "/v1/knowledge/{record_id}/revisions",
+        response_model=list[KnowledgeRevision],
+    )
+    def list_knowledge_revisions(
+        record_id: str,
+        limit: Annotated[int, Query(ge=1, le=100)] = 100,
+    ) -> list[KnowledgeRevision]:
+        if store.get(record_id) is None:
+            raise HTTPException(status_code=404, detail="Knowledge record not found")
+        return store.list_revisions(record_id, limit=limit)
 
     @app.delete("/v1/knowledge/{record_id}", status_code=204)
     def delete_knowledge(record_id: str) -> Response:
