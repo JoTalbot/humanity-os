@@ -94,3 +94,14 @@ The report scopes source IDs and independence-group IDs to their parent knowledg
 A derived-source cluster indicates recorded lineage dependency, not proof that every downstream publication copied every detail. A declared independence group is reviewer-provided metadata, not verified publisher independence. Different URLs, publishers, or hashes are not treated as proof of independent origin.
 
 The analysis is deterministic for a fixed knowledge snapshot, bounded to the request limits, read-only, and does not create an append-only event because it is a reproducible derived report. It does not fetch external sources, authenticate publishers, infer missing lineage, rank evidence, calculate truth scores, or adjudicate claims. Unknown independence remains unknown.
+
+
+## Evidence Independence Engine (0.3)
+
+POST `/v1/evidence-independence/analyze` accepts 1–50 existing knowledge record IDs and a maximum source count of 1–500. The request is rejected if the selected records exceed the source cap.
+
+The report scopes source IDs and independence-group IDs to their parent knowledge record. Identical local IDs in different records are never merged. It groups only explicitly declared independence groups, follows the declared `derived_from_source_ids` graph to identify shared upstream roots, and lists sources whose independence remains unknown.
+
+A derived-source cluster indicates recorded lineage dependency, not proof that every downstream publication copied every detail. A declared independence group is reviewer-provided metadata, not verified publisher independence. Different URLs, publishers, or hashes are not treated as proof of independent origin.
+
+The analysis is deterministic for a fixed knowledge snapshot, bounded to the request limits, read-only, and does not create an append-only event because it is a reproducible derived report. It does not fetch external sources, authenticate publishers, infer missing lineage, rank evidence, calculate truth scores, or adjudicate claims. Unknown independence remains unknown.
