@@ -164,6 +164,37 @@ class KnowledgeStore:
             )
 
 
+            connection.execute(
+                """CREATE TABLE IF NOT EXISTS documents (
+                    id TEXT PRIMARY KEY,
+                    filename TEXT NOT NULL,
+                    media_type TEXT NOT NULL,
+                    content_hash TEXT NOT NULL UNIQUE,
+                    character_count INTEGER NOT NULL,
+                    chunk_count INTEGER NOT NULL,
+                    status TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    content TEXT NOT NULL
+                )"""
+            )
+            connection.execute(
+                """CREATE TABLE IF NOT EXISTS document_chunks (
+                    id TEXT PRIMARY KEY,
+                    document_id TEXT NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
+                    ordinal INTEGER NOT NULL,
+                    start_offset INTEGER NOT NULL,
+                    end_offset INTEGER NOT NULL,
+                    content_hash TEXT NOT NULL,
+                    content TEXT NOT NULL,
+                    UNIQUE(document_id, ordinal)
+                )"""
+            )
+            connection.execute(
+                "CREATE INDEX IF NOT EXISTS idx_document_chunks_document "
+                "ON document_chunks(document_id, ordinal)"
+            )
+
+
     @staticmethod
     def checkpoint_database(database_path: str | Path) -> None:
         """Checkpoint committed WAL pages before offline replacement or deletion."""
@@ -582,6 +613,8 @@ class KnowledgeStore:
             "reasoning_runs": ("id", "created_at", "payload"),
             "claim_assessments": ("id", "claim_id", "assessed_at", "payload"),
             "auth_audit_events": ("id", "occurred_at", "event_type", "subject"),
+            "documents": ("id", "filename", "media_type", "content_hash", "character_count", "chunk_count", "status", "created_at", "content"),
+            "document_chunks": ("id", "document_id", "ordinal", "start_offset", "end_offset", "content_hash", "content"),
         }
         exported: dict[str, list[dict]] = {}
         with self._connect() as connection:
@@ -622,7 +655,7 @@ class KnowledgeStore:
 
         document = {
             "format": "humanity-os-workspace",
-            "schema_version": "1.0.0",
+            "schema_version": "1.1.0",
             "exported_at": datetime.now(UTC).isoformat(),
             "data_policy": {
                 "included": "workspace domain records, provenance, immutable history, and security audit metadata",
@@ -675,7 +708,8 @@ class KnowledgeStore:
         document = json.loads(source.read_text(encoding="utf-8"))
         if not isinstance(document, dict) or document.get("format") != "humanity-os-workspace":
             raise ValueError("Unsupported workspace export format")
-        if document.get("schema_version") != "1.0.0":
+        schema_version = document.get("schema_version")
+        if schema_version not in {"1.0.0", "1.1.0"}:
             raise ValueError("Unsupported workspace export schema version")
         integrity = document.get("integrity")
         if not isinstance(integrity, dict) or integrity.get("algorithm") != "sha256":
@@ -704,8 +738,12 @@ class KnowledgeStore:
             "claim_assessments",
             "auth_audit_events",
         )
+        if schema_version == "1.1.0":
+            table_names = (*table_names, "documents", "document_chunks")
         if not isinstance(tables, dict) or set(tables) != set(table_names):
-            raise ValueError("Workspace export table set does not match schema 1.0.0")
+            raise ValueError(f"Workspace export table set does not match schema {schema_version}")
+        if schema_version == "1.0.0":
+            tables = {**tables, "documents": [], "document_chunks": []}
         if any(not isinstance(tables[name], list) for name in table_names):
             raise ValueError("Every exported table must contain a list of rows")
 
@@ -721,6 +759,8 @@ class KnowledgeStore:
             # Build every supported schema before inserting records. Authentication
             # identities and sessions are intentionally initialized empty.
             KnowledgeStore(temporary)
+            from humanity_os.documents import DocumentStore
+            DocumentStore(temporary)
             from humanity_os.auth import AuthStore
             from humanity_os.claim_assessments import ClaimAssessmentStore
             from humanity_os.claim_graph import ClaimGraphStore
