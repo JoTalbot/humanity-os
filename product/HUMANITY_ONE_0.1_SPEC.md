@@ -9,7 +9,11 @@ Install locally or use a clearly identified hosted instance → create private w
 ## Included
 Responsive web UI; private workspace and authentication; provider adapter; document/note ingestion; search; source-aware answers; explicit memory save; memory inspection/correction/export/deletion; task history; API docs; local deployment guide.
 
-## Current implementation boundary\n\nThe current prototype accepts UTF-8 plain text and Markdown up to 1,000,000 characters per document, preserves chunk offsets and includes document content in portable workspace export schema 1.1.0. PDF, DOCX, OCR, semantic retrieval and generated answers with source citations remain future work.\n\n## Excluded
+## Current implementation boundary
+
+The current prototype accepts UTF-8 plain text and Markdown up to 1,000,000 characters per document, preserves chunk offsets and includes document content in portable workspace export schema 1.1.0. PDF, DOCX, OCR, semantic retrieval and generated answers with source citations remain future work.
+
+## Excluded
 Federation sync, public knowledge marketplace, autonomous external actions, global identity, social network, automated certification, self-modifying agents.
 
 ## Principles
