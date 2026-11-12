@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Literal
 from uuid import uuid4
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from humanity_os.claim_assessments import ClaimAssessmentStore
 from humanity_os.claim_graph import ClaimGraphStore
@@ -53,6 +53,34 @@ class ReasoningRun(BaseModel):
     paths: list[list[str]]
     evidence: list[EvidenceReference]
     contradiction_candidates: list[str]
+    limitations: list[str]
+    actor: Literal["owner", "system"]
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+
+
+class ReasoningComparisonQuery(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    query: str = Field(min_length=1, max_length=4_000)
+    root_claim_ids: list[str] = Field(min_length=2, max_length=10)
+    max_depth: int = Field(default=3, ge=0, le=5)
+    max_nodes: int = Field(default=30, ge=1, le=50)
+    scope: str | None = Field(default=None, max_length=2_000)
+    temporal_scope: str | None = Field(default=None, max_length=500)
+
+    @model_validator(mode="after")
+    def validate_unique_roots(self) -> "ReasoningComparisonQuery":
+        if len(self.root_claim_ids) != len(set(self.root_claim_ids)):
+            raise ValueError("Comparison root claim IDs must be unique")
+        return self
+
+
+class ReasoningComparison(BaseModel):
+    query: str
+    runs: list[ReasoningRun]
+    shared_claim_ids: list[str]
+    unique_claim_ids: dict[str, list[str]]
+    shared_source_ids: list[str]
+    unique_source_ids: dict[str, list[str]]
     limitations: list[str]
     actor: Literal["owner", "system"]
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
@@ -218,6 +246,69 @@ class ReasoningEngine:
                 (result.id, result.created_at.isoformat(), result.model_dump_json()),
             )
         return result
+
+
+    def compare(
+        self, request: ReasoningComparisonQuery, actor: str
+    ) -> ReasoningComparison:
+        roots = []
+        for claim_id in request.root_claim_ids:
+            claim = self.graph.get_claim(claim_id)
+            if claim is None:
+                raise LookupError(f"Root claim not found: {claim_id}")
+            query = ReasoningQuery(
+                query=request.query,
+                root_claim_id=claim_id,
+                max_depth=request.max_depth,
+                max_nodes=request.max_nodes,
+                scope=request.scope,
+                temporal_scope=request.temporal_scope,
+            )
+            if not self._matches(claim, query):
+                raise ValueError(f"Root claim does not match requested filters: {claim_id}")
+            roots.append(claim)
+
+        runs = [
+            self.run(
+                ReasoningQuery(
+                    query=request.query,
+                    root_claim_id=claim.id,
+                    max_depth=request.max_depth,
+                    max_nodes=request.max_nodes,
+                    scope=request.scope,
+                    temporal_scope=request.temporal_scope,
+                ),
+                actor=actor,
+            )
+            for claim in roots
+        ]
+        claim_sets = {run.root_claim_id: {claim.id for claim in run.claims} for run in runs}
+        source_sets = {
+            run.root_claim_id: {item.source_id for item in run.evidence}
+            for run in runs
+        }
+        shared_claims = set.intersection(*claim_sets.values())
+        shared_sources = set.intersection(*source_sets.values())
+        return ReasoningComparison(
+            query=request.query,
+            runs=runs,
+            shared_claim_ids=sorted(shared_claims),
+            unique_claim_ids={
+                root_id: sorted(values - shared_claims)
+                for root_id, values in claim_sets.items()
+            },
+            shared_source_ids=sorted(shared_sources),
+            unique_source_ids={
+                root_id: sorted(values - shared_sources)
+                for root_id, values in source_sets.items()
+            },
+            limitations=[
+                "Comparison is set overlap across bounded graph traversals, not a ranking of hypotheses.",
+                "Shared claims or sources do not establish correctness or independent corroboration.",
+                "Each alternative is stored as its own immutable reasoning run.",
+            ],
+            actor=actor,
+        )
 
     def get(self, run_id: str) -> ReasoningRun | None:
         with self._connect() as connection:
