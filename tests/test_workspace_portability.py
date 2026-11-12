@@ -1,5 +1,6 @@
 import hashlib
 import json
+from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
@@ -144,3 +145,59 @@ def test_portable_workspace_import_rejects_tampering_before_replacement(tmp_path
         KnowledgeStore(target_db).import_workspace(export_path, tmp_path / "safety.sqlite3")
     assert KnowledgeStore(target_db).list()[0].title == "Keep me"
     assert not (tmp_path / "safety.sqlite3").exists()
+
+
+def test_workspace_deletion_rejects_safety_backup_on_sqlite_sidecar(tmp_path, monkeypatch):
+    database = tmp_path / "active.sqlite3"
+    app = create_app(str(database), allow_unauthenticated_local=True)
+    client = TestClient(app, client=("127.0.0.1", 50000))
+    assert client.post(
+        "/v1/knowledge",
+        json={"kind": "concept", "title": "Keep", "content": "Do not lose this"},
+    ).status_code == 201
+
+    monkeypatch.setenv("HUMANITY_OS_DB", str(database))
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "humanity-os",
+            "--delete-workspace",
+            "--safety-backup",
+            str(database) + "-wal",
+            "--confirm-delete",
+        ],
+    )
+    with pytest.raises(SystemExit):
+        main()
+
+    assert database.exists()
+    assert KnowledgeStore(database).list()[0].title == "Keep"
+    assert not Path(str(database) + "-wal").exists()
+
+
+def test_portable_import_rejects_safety_backup_on_sqlite_sidecar(tmp_path):
+    source_db = tmp_path / "source.sqlite3"
+    source_app = create_app(str(source_db), allow_unauthenticated_local=True)
+    source_client = TestClient(source_app, client=("127.0.0.1", 50000))
+    source_client.post(
+        "/v1/knowledge",
+        json={"kind": "concept", "title": "Source", "content": "Portable"},
+    )
+    export_path = tmp_path / "workspace.json"
+    export_path.write_text(
+        json.dumps(KnowledgeStore(source_db).export_workspace()), encoding="utf-8"
+    )
+
+    target_db = tmp_path / "target.sqlite3"
+    target_app = create_app(str(target_db), allow_unauthenticated_local=True)
+    target_client = TestClient(target_app, client=("127.0.0.1", 50000))
+    target_client.post(
+        "/v1/knowledge",
+        json={"kind": "observation", "title": "Target", "content": "Preserve"},
+    )
+
+    with pytest.raises(ValueError, match="SQLite sidecars"):
+        KnowledgeStore(target_db).import_workspace(
+            export_path, str(target_db) + "-wal"
+        )
+    assert KnowledgeStore(target_db).list()[0].title == "Target"
