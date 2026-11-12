@@ -16,7 +16,7 @@ class ClaimGraphStore:
             connection.execute(
                 """CREATE TABLE IF NOT EXISTS claims (
                     id TEXT PRIMARY KEY,
-                    knowledge_id TEXT NOT NULL,
+                    knowledge_id TEXT NOT NULL REFERENCES knowledge(id),
                     created_at TEXT NOT NULL,
                     payload TEXT NOT NULL
                 )"""
