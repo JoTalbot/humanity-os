@@ -39,3 +39,4 @@ The project does not claim cryptographic erasure, physical-media sanitization or
 ## Release boundary
 
 A future release may add a reviewed retention configuration and auditable backup inventory. Automatic deletion must not be introduced until retention defaults, recovery guarantees, backup discovery and owner approval behavior have explicit contracts and tests.
+\n## Document content\n\nText and Markdown document originals and extracted chunks are stored in the active SQLite database and included in portable workspace exports (schema 1.1.0). Export files and safety backups therefore contain the full document text. The current prototype has no per-document deletion or automatic retention expiry; protect and dispose of the database, exports and backups as sensitive personal data.\n
