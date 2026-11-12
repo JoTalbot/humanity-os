@@ -47,7 +47,7 @@ def create_app(database_path: str | None = None, api_token: str | None = None) -
 
     store = KnowledgeStore(path)
     auth = AuthStore(path)
-    evidence_assessments = EvidenceAssessmentStore(path)
+    evidence_assessments = EvidenceAssessmentStore(store.database_path)
     app = FastAPI(
         title="HUMANITY OS Personal Core",
         version=__version__,
