@@ -18,7 +18,7 @@ class IndependenceQuery(BaseModel):
     max_sources: int = Field(default=500, ge=1, le=500)
 
     @model_validator(mode="after")
-    def unique_knowledge_ids(self) -> "IndependenceQuery":
+    def unique_knowledge_ids(self) -> IndependenceQuery:
         if len(self.knowledge_ids) != len(set(self.knowledge_ids)):
             raise ValueError("Knowledge IDs must be unique")
         return self
@@ -90,18 +90,22 @@ class EvidenceIndependenceEngine:
             source_map = {source.id: source for source in record.sources}
             memo: dict[str, set[str]] = {}
 
-            def roots(source_id: str) -> set[str]:
-                if source_id in memo:
-                    return memo[source_id]
-                source = source_map[source_id]
+            def roots(
+                source_id: str,
+                _memo: dict[str, set[str]] = memo,
+                _source_map: dict[str, object] = source_map,
+            ) -> set[str]:
+                if source_id in _memo:
+                    return _memo[source_id]
+                source = _source_map[source_id]
                 parents = source.derived_from_source_ids
                 result: set[str] = set()
                 if not parents:
                     result.add(source_id)
                 else:
                     for parent_id in parents:
-                        result.update(roots(parent_id))
-                memo[source_id] = result
+                        result.update(roots(parent_id, _memo, _source_map))
+                _memo[source_id] = result
                 return result
 
             roots_by_record[record.id] = {}
