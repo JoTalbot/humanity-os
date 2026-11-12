@@ -17,7 +17,8 @@ def main() -> None:
     operations = parser.add_mutually_exclusive_group()
     operations.add_argument("--backup-to", metavar="PATH", help="create a consistent SQLite backup")
     operations.add_argument("--verify-backup", metavar="PATH", help="verify a SQLite backup")
-    operations.add_argument("--restore-from", metavar="PATH", help="restore a verified backup")
+    operations.add_argument("--restore-from", metavar="PATH", help="restore a verified SQLite backup")
+    operations.add_argument("--import-workspace-from", metavar="PATH", help="replace workspace from a verified portable JSON export")
     operations.add_argument("--generate-api-token", action="store_true", help="generate a 256-bit bearer token")
     operations.add_argument("--set-owner-password", action="store_true", help="set or rotate the local owner password")
     operations.add_argument("--export-workspace", metavar="PATH", help="write a portable workspace export")
@@ -46,14 +47,14 @@ def main() -> None:
         print("Owner password updated; all existing sessions were revoked.")
         return
 
-    if args.safety_backup and not (args.restore_from or args.delete_workspace):
-        parser.error("--safety-backup is only valid with --restore-from or --delete-workspace")
-    if args.restore_from and not args.safety_backup:
-        parser.error("--restore-from requires --safety-backup")
-    if args.restore_from and not args.confirm_restore:
-        parser.error("--restore-from requires --confirm-restore")
-    if args.confirm_restore and not args.restore_from:
-        parser.error("--confirm-restore is only valid with --restore-from")
+    if args.safety_backup and not (args.restore_from or args.import_workspace_from or args.delete_workspace):
+        parser.error("--safety-backup is only valid with restore, import or deletion")
+    if (args.restore_from or args.import_workspace_from) and not args.safety_backup:
+        parser.error("Restore/import requires --safety-backup")
+    if (args.restore_from or args.import_workspace_from) and not args.confirm_restore:
+        parser.error("Restore/import requires --confirm-restore")
+    if args.confirm_restore and not (args.restore_from or args.import_workspace_from):
+        parser.error("--confirm-restore is only valid with restore/import")
     if args.delete_workspace and not args.safety_backup:
         parser.error("--delete-workspace requires --safety-backup")
     if args.delete_workspace and not args.confirm_delete:
@@ -96,6 +97,14 @@ def main() -> None:
         print(f"Workspace database and SQLite sidecars deleted: {database}")
         print(f"Verified safety backup retained at: {backup}")
         print("Copies in other backups, snapshots, or filesystems are not erased.")
+        return
+    if args.import_workspace_from:
+        count = KnowledgeStore(database_path).import_workspace(
+            args.import_workspace_from, args.safety_backup
+        )
+        print(f"Portable workspace imported: {count} knowledge records")
+        print(f"Pre-import safety backup: {args.safety_backup}")
+        print("Owner password and active sessions were not imported; configure a new owner password.")
         return
     if args.restore_from:
         count = KnowledgeStore(database_path).restore(args.restore_from, args.safety_backup)
