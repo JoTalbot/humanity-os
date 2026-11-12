@@ -87,8 +87,13 @@ def main() -> None:
             parser.error("Workspace database does not exist")
         if database.is_symlink():
             parser.error("Refusing to delete a database symlink")
-        if Path(args.safety_backup).expanduser().resolve() == database.resolve():
-            parser.error("Safety backup must differ from the active database")
+        protected_paths = {
+            database.resolve(),
+            Path(str(database) + "-wal").resolve(),
+            Path(str(database) + "-shm").resolve(),
+        }
+        if Path(args.safety_backup).expanduser().resolve() in protected_paths:
+            parser.error("Safety backup must differ from the active database and SQLite sidecars")
         # This command is intentionally offline: stop the server before running it.
         backup = KnowledgeStore(database_path).backup(args.safety_backup)
         KnowledgeStore.verify_backup(backup)
