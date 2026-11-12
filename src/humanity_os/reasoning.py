@@ -68,7 +68,7 @@ class ReasoningComparisonQuery(BaseModel):
     temporal_scope: str | None = Field(default=None, max_length=500)
 
     @model_validator(mode="after")
-    def validate_unique_roots(self) -> "ReasoningComparisonQuery":
+    def validate_unique_roots(self) -> ReasoningComparisonQuery:
         if len(self.root_claim_ids) != len(set(self.root_claim_ids)):
             raise ValueError("Comparison root claim IDs must be unique")
         return self
