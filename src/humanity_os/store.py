@@ -877,6 +877,8 @@ class KnowledgeStore:
             if not isinstance(details, dict):
                 raise TypeError("Memory event details must be an object")
 
+        from humanity_os.agent_runtime import AGENT_PROFILES, TOOL_CATALOG
+
         runs = {row.get("id"): row for row in tables["agent_runs"] if isinstance(row, dict)}
         if len(runs) != len(tables["agent_runs"]):
             raise ValueError("Invalid agent run row in workspace export")
@@ -887,8 +889,16 @@ class KnowledgeStore:
                 or not isinstance(run.get("input_digest"), str)
                 or len(run["input_digest"]) != 64
                 or any(character not in "0123456789abcdef" for character in run["input_digest"])
+                or not isinstance(run.get("agent_id"), str)
+                or not isinstance(run.get("tool_name"), str)
             ):
                 raise ValueError("Agent run metadata is invalid")
+            if (
+                run["agent_id"] not in AGENT_PROFILES
+                or run["tool_name"] not in TOOL_CATALOG
+                or run["tool_name"] not in AGENT_PROFILES[run["agent_id"]]["tools"]
+            ):
+                raise ValueError("Agent run references an unregistered capability")
             if run.get("status") == "completed":
                 digest = run.get("result_digest")
                 if (
