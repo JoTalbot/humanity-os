@@ -16,8 +16,8 @@ from humanity_os import __version__
 from humanity_os.auth import AuthStore
 from humanity_os.claim_assessments import ClaimAssessmentStore
 from humanity_os.claim_graph import ClaimGraphStore
+from humanity_os.documents import MAX_DOCUMENT_CHARS, DocumentStore
 from humanity_os.evidence import EvidenceAssessmentStore
-from humanity_os.documents import DocumentStore, MAX_DOCUMENT_CHARS
 from humanity_os.independence import (
     EvidenceIndependenceEngine,
     EvidenceIndependenceReport,
