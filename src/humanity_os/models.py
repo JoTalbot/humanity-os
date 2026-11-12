@@ -67,3 +67,36 @@ class KnowledgeRecord(KnowledgeCreate):
 class KnowledgeList(BaseModel):
     items: list[KnowledgeRecord]
     next_cursor: str | None = None
+
+
+ConflictStatus = Literal["pending_review", "resolved", "dismissed"]
+
+
+class ConflictCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    record_a_id: str = Field(min_length=1, max_length=128)
+    record_b_id: str = Field(min_length=1, max_length=128)
+    reason: str = Field(min_length=1, max_length=4_000)
+
+    @model_validator(mode="after")
+    def validate_distinct_records(self) -> "ConflictCreate":
+        if self.record_a_id == self.record_b_id:
+            raise ValueError("A knowledge record cannot conflict with itself")
+        return self
+
+
+class ConflictDecision(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    status: Literal["resolved", "dismissed"]
+    resolution_note: str = Field(min_length=1, max_length=4_000)
+
+
+class KnowledgeConflict(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid4()))
+    record_a_id: str
+    record_b_id: str
+    reason: str
+    status: ConflictStatus = "pending_review"
+    resolution_note: str | None = None
+    created_at: datetime = Field(default_factory=utc_now)
+    updated_at: datetime = Field(default_factory=utc_now)
