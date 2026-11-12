@@ -722,6 +722,7 @@ class KnowledgeStore:
                 violations = connection.execute("PRAGMA foreign_key_check").fetchall()
                 if violations:
                     raise ValueError("Workspace export contains broken foreign-key references")
+                connection.commit()
 
             record_count = self.verify_backup(temporary)
             self.backup(safety)
