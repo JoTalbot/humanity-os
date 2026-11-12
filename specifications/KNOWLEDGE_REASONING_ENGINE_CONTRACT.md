@@ -57,3 +57,29 @@ Reasoning runs are append-only SQLite rows. Database triggers reject update and 
 - The graph snapshot cap can make results incomplete; the run records this limitation.
 - No AI model is invoked, no external content is fetched, and no message or real-world action is triggered.
 - This remains a loopback-only, single-owner prototype, not a production or multi-user reasoning service.
+
+
+## Human epistemic assessments (0.2)
+
+A claim may receive append-only human assessment events with one classification:
+
+- fact: the reviewer considers the proposition established for the stated context;
+- hypothesis: a proposition being evaluated;
+- assumption: a proposition provisionally accepted for reasoning;
+- unknown: the reviewer explicitly records that the matter is unknown.
+
+Each event requires a rationale, actor and timestamp. Reassessment appends a new event; it never overwrites history. Reasoning runs include the latest assessment for each selected claim. No assessment event means no classification was recorded; it must not be silently converted to unknown.
+
+These labels are reviewer statements, not objective truth guarantees, calibrated probabilities, or machine-inferred conclusions.
+
+API:
+- POST /v1/claims/{claim_id}/assessments: append an assessment.
+- GET /v1/claims/{claim_id}/assessments: retrieve assessment history.
+
+## Alternative explanation comparison (0.2)
+
+POST /v1/reasoning/compare accepts 2–10 unique root claim IDs and runs the same bounded reasoning query for each root. It returns the individual immutable reasoning runs plus the intersection and per-root differences of selected claim IDs and canonical source URIs.
+
+The comparison is descriptive set overlap only. It does not rank alternatives, calculate likelihood, infer causation, or treat shared source identity as independent corroboration. Each component run is persisted independently in the reasoning ledger. All root IDs and filters are validated before any run is created.
+
+Claim assessment records are included in backup verification and their schema is initialized during restore.
