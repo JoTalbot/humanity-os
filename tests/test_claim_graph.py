@@ -52,6 +52,7 @@ class TestClient(_TestClient):
         kwargs.setdefault("client", ("127.0.0.1", 50000))
         super().__init__(app, **kwargs)
 
+
 def test_claim_node_is_atomic_and_grounded_in_existing_knowledge_evidence(tmp_path):
     client = TestClient(create_app(str(tmp_path / "claims.sqlite3")))
     record = _claim_record(client)
