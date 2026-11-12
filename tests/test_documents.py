@@ -41,8 +41,8 @@ def test_document_input_is_allowlisted_bounded_and_deduplicated(tmp_path):
     store.create("one.txt", "same content")
     with pytest.raises(ValueError, match="identical content"):
         store.create("two.md", "same content")
-    with pytest.raises(ValueError, match="identical content"):
-        store.create("two.md", "same content")
+    with pytest.raises(ValueError, match="1,000,000"):
+        store.create("large.txt", "x" * 1_000_001)
 
 
 def test_source_aware_search_returns_document_and_chunk_references(tmp_path):
