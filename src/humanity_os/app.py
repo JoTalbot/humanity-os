@@ -234,7 +234,14 @@ def create_app(database_path: str | None = None, api_token: str | None = None) -
 
     @app.delete("/v1/knowledge/{record_id}", status_code=204)
     def delete_knowledge(record_id: str) -> Response:
-        if not store.delete(record_id):
+        try:
+            deleted = store.delete(record_id)
+        except sqlite3.IntegrityError as exc:
+            raise HTTPException(
+                status_code=409,
+                detail="Knowledge record is linked to a conflict; review or remove the conflict first",
+            ) from exc
+        if not deleted:
             raise HTTPException(status_code=404, detail="Knowledge record not found")
         return Response(status_code=204)
 
