@@ -99,3 +99,77 @@ def test_claim_assessments_are_verified_and_restored_with_backup(tmp_path):
     history = restored.get(f"/v1/claims/{claim['id']}/assessments").json()
     assert history[0]["id"] == assessment["id"]
     assert history[0]["classification"] == "fact"
+
+
+def _source_backed_claim(client, title, uri):
+    record = client.post("/v1/knowledge", json={
+        "kind": "claim",
+        "title": title,
+        "content": "A proposition with declared evidence.",
+        "sources": [{
+            "id": "source-1",
+            "uri": uri,
+            "title": "Declared source",
+            "publisher": "Publisher",
+        }],
+        "evidence": [{
+            "id": "evidence-1",
+            "source_id": "source-1",
+            "relation": "supports",
+            "excerpt": "A bounded excerpt.",
+        }],
+    }).json()
+    return client.post("/v1/claims", json={
+        "knowledge_id": record["id"],
+        "statement": title,
+        "evidence_ids": ["evidence-1"],
+    }).json()
+
+
+def test_reasoning_comparison_reports_shared_and_unique_claims_and_source_uris(tmp_path):
+    client = TestClient(create_app(str(tmp_path / "reasoning-comparison.sqlite3")))
+    first = _source_backed_claim(client, "Alternative A", "https://example.org/a")
+    second = _source_backed_claim(client, "Alternative B", "https://example.org/b")
+    common = _source_backed_claim(client, "Shared evidence", "https://example.org/shared")
+
+    for root in (first, second):
+        response = client.post("/v1/claim-relations", json={
+            "source_claim_id": root["id"],
+            "target_claim_id": common["id"],
+            "relation": "supports",
+            "rationale": "Both alternatives connect to this proposition.",
+        })
+        assert response.status_code == 201
+
+    compared = client.post("/v1/reasoning/compare", json={
+        "query": "Compare two alternative explanations",
+        "root_claim_ids": [first["id"], second["id"]],
+        "max_depth": 1,
+    })
+    assert compared.status_code == 201
+    result = compared.json()
+    assert result["shared_claim_ids"] == [common["id"]]
+    assert result["unique_claim_ids"][first["id"]] == [first["id"]]
+    assert result["unique_claim_ids"][second["id"]] == [second["id"]]
+    assert result["shared_source_uris"] == ["https://example.org/shared/"]
+    assert result["unique_source_uris"][first["id"]] == ["https://example.org/a/"]
+    assert result["unique_source_uris"][second["id"]] == ["https://example.org/b/"]
+    assert len(result["runs"]) == 2
+    assert all("not a ranking" in item for item in result["limitations"])
+
+
+def test_reasoning_comparison_rejects_duplicate_or_missing_roots_without_partial_runs(tmp_path):
+    client = TestClient(create_app(str(tmp_path / "reasoning-comparison-validation.sqlite3")))
+    claim = _claim(client)
+    duplicate = client.post("/v1/reasoning/compare", json={
+        "query": "Invalid duplicate roots",
+        "root_claim_ids": [claim["id"], claim["id"]],
+    })
+    assert duplicate.status_code == 422
+    missing = client.post("/v1/reasoning/compare", json={
+        "query": "Invalid missing root",
+        "root_claim_ids": [claim["id"], "missing"],
+    })
+    assert missing.status_code == 404
+    runs = client.get("/v1/reasoning/runs/" + "missing")
+    assert runs.status_code == 404
