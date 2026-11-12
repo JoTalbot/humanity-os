@@ -36,4 +36,4 @@ It also supports consistent SQLite snapshots through `humanity-os --backup-to PA
 
 The API remains loopback-only. This is a single-owner local prototype, not a multi-user identity platform. Password recovery, MFA, session-management UI, multi-tenant isolation, general API rate limiting, safe remote deployment, independent security review, legal review, and ratified public governance are not complete. No production readiness is claimed.
 
-See `constitution/`, `architecture/`, `specifications/`, `security/`, `federation/`, `governance/`, `product/`, `roadmap/`, and `docs/`. Run locally with `python -m pip install -e '.[dev]'` then `humanity-os`.
+See `constitution/`, `architecture/`, `specifications/` (including the knowledge provenance contract), `security/`, `federation/`, `governance/`, `product/`, `roadmap/`, and `docs/`. Run locally with `python -m pip install -e '.[dev]'` then `humanity-os`.
