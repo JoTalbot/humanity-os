@@ -629,3 +629,81 @@ def test_deleted_knowledge_keeps_its_revision_audit_trail(tmp_path):
     history = client.get(f"/v1/knowledge/{record['id']}/revisions")
     assert history.status_code == 200
     assert history.json()[0]["snapshot"]["content"] == "Preserve audit trail"
+
+
+def test_decision_ledger_records_alternatives_rationale_and_actor(tmp_path):
+    client = TestClient(create_app(str(tmp_path / "decisions.sqlite3")))
+    payload = {
+        "title": "Choose knowledge storage",
+        "question": "Which storage model should the first node use?",
+        "context": "The first release is a local single-owner prototype.",
+        "alternatives": ["SQLite", "PostgreSQL", "Document database"],
+        "selected_option": "SQLite",
+        "rationale": "A local embedded database minimizes operational complexity.",
+        "confidence": 0.92,
+    }
+    created = client.post("/v1/decisions", json=payload)
+    assert created.status_code == 201
+    decision = created.json()
+    assert decision["selected_option"] == "SQLite"
+    assert decision["alternatives"] == payload["alternatives"]
+    assert decision["rationale"] == payload["rationale"]
+    assert decision["actor"] == "system"
+    assert decision["action"] == "made"
+    fetched = client.get(f"/v1/decisions/{decision['id']}")
+    assert fetched.status_code == 200
+    assert fetched.json()["id"] == decision["id"]
+    assert client.get("/v1/decisions").json()[0]["id"] == decision["id"]
+
+
+def test_decision_requires_selected_option_from_unique_alternatives(tmp_path):
+    client = TestClient(create_app(str(tmp_path / "decisions.sqlite3")))
+    payload = {
+        "title": "Invalid decision",
+        "question": "Which option?",
+        "context": "Context",
+        "alternatives": ["A", "B", "A"],
+        "selected_option": "C",
+        "rationale": "No valid selected option.",
+    }
+    assert client.post("/v1/decisions", json=payload).status_code == 422
+
+
+def test_decision_related_knowledge_must_exist(tmp_path):
+    client = TestClient(create_app(str(tmp_path / "decisions.sqlite3")))
+    response = client.post("/v1/decisions", json={
+        "title": "Grounded decision",
+        "question": "Which claim applies?",
+        "context": "Use existing knowledge.",
+        "alternatives": ["Use", "Reject"],
+        "selected_option": "Use",
+        "rationale": "The cited record is required.",
+        "related_knowledge_ids": ["missing-record"],
+    })
+    assert response.status_code == 404
+
+
+def test_decision_ledger_is_append_only_and_included_in_backup(tmp_path):
+    database = tmp_path / "decisions.sqlite3"
+    backup = tmp_path / "decisions-backup.sqlite3"
+    client = TestClient(create_app(str(database)))
+    created = client.post("/v1/decisions", json={
+        "title": "Immutable decision",
+        "question": "Should history be preserved?",
+        "context": "Historical decisions explain current system state.",
+        "alternatives": ["Preserve", "Discard"],
+        "selected_option": "Preserve",
+        "rationale": "Auditability requires preserving decisions.",
+    })
+    assert created.status_code == 201
+    decision_id = created.json()["id"]
+    with sqlite3.connect(database) as connection:
+        with pytest.raises(sqlite3.IntegrityError, match="append-only"):
+            connection.execute("UPDATE decisions SET payload = '{}' WHERE id = ?", (decision_id,))
+        with pytest.raises(sqlite3.IntegrityError, match="append-only"):
+            connection.execute("DELETE FROM decisions WHERE id = ?", (decision_id,))
+    store = KnowledgeStore(database)
+    store.backup(backup)
+    assert store.verify_backup(backup) == 0
+    restored = KnowledgeStore(backup)
+    assert restored.get_decision(decision_id).title == "Immutable decision"
