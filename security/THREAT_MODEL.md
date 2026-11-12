@@ -11,6 +11,7 @@ Personal data, credentials, keys, private knowledge, agent permissions, federati
 - Account takeover: Argon2id password hashes, opaque server-side sessions, 12-hour expiry, logout revocation, password-rotation revocation, HttpOnly/SameSite=Strict cookies and CSRF token validation for cookie-authenticated mutations.
 - Session database theft: only SHA-256 digests of random 256-bit session tokens and CSRF tokens are stored; host/database access remains security-critical.
 - Brute force: five failed attempts per owner and source-IP bucket within a 15-minute window trigger a 15-minute lockout; successful login clears both counters. Client IP is taken from the direct ASGI peer, not an untrusted forwarded header. Distributed attacks and denial-of-service lockout still require edge controls.
+- Authentication audit: password changes, login failures/successes, rate limiting, session creation and revocation are recorded without credentials or raw IP addresses. SQLite triggers reject event updates and deletes; this is application-level tamper resistance, not protection against an attacker with full database-file control.
 - Shared-token disclosure: optional bearer token, cryptographic token generation, constant-time comparison and environment/secret-manager injection.
 - Federation spoofing: signed node identity, key rotation and revocation.
 - Malicious update: reproducible builds, signed releases, provenance and review.
