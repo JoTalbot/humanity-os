@@ -265,9 +265,10 @@ def test_legacy_workspace_exports_remain_importable_after_memory_schema_upgrade(
     )
     exported = KnowledgeStore(source).export_workspace()
     tables = dict(exported["tables"])
-    tables.pop("memory_proposals")
-    tables.pop("memory_items")
-    tables.pop("memory_events")
+    if legacy_version in {"1.0.0", "1.1.0"}:
+        tables.pop("memory_proposals")
+        tables.pop("memory_items")
+        tables.pop("memory_events")
     tables.pop("agent_runs")
     tables.pop("agent_events")
     if legacy_version == "1.0.0":
