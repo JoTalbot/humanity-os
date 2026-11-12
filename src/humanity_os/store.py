@@ -571,18 +571,18 @@ class KnowledgeStore:
 
     def export_workspace(self) -> dict:
         """Return a versioned portable export of domain data, excluding live credentials."""
-        tables = (
-            "knowledge",
-            "knowledge_revisions",
-            "decisions",
-            "knowledge_conflicts",
-            "evidence_assessments",
-            "claims",
-            "claim_relations",
-            "reasoning_runs",
-            "claim_assessments",
-            "auth_audit_events",
-        )
+        table_columns = {
+            "knowledge": ("id", "visibility", "created_at", "payload"),
+            "knowledge_revisions": ("record_id", "revision", "actor", "change_reason", "created_at", "payload"),
+            "decisions": ("id", "created_at", "payload"),
+            "knowledge_conflicts": ("id", "record_a_id", "record_b_id", "status", "created_at", "payload"),
+            "evidence_assessments": ("id", "knowledge_id", "source_id", "assessed_at", "payload"),
+            "claims": ("id", "knowledge_id", "created_at", "payload"),
+            "claim_relations": ("id", "source_claim_id", "target_claim_id", "relation", "created_at", "payload"),
+            "reasoning_runs": ("id", "created_at", "payload"),
+            "claim_assessments": ("id", "claim_id", "assessed_at", "payload"),
+            "auth_audit_events": ("id", "occurred_at", "event_type", "subject"),
+        }
         exported: dict[str, list[dict]] = {}
         with self._connect() as connection:
             # Keep all table reads on one SQLite snapshot while writers may be active.
@@ -593,15 +593,26 @@ class KnowledgeStore:
                     "SELECT name FROM sqlite_master WHERE type = 'table'"
                 ).fetchall()
             }
-            for table in tables:
+            for table, columns in table_columns.items():
                 if table not in available:
                     exported[table] = []
                     continue
-                columns = connection.execute(f'PRAGMA table_info("{table}")').fetchall()
-                primary_key = [row["name"] for row in columns if row["pk"]]
+                actual_columns = {
+                    row["name"]
+                    for row in connection.execute(f'PRAGMA table_info("{table}")').fetchall()
+                }
+                if actual_columns != set(columns):
+                    raise ValueError(
+                        f"Unsupported {table} schema; update the workspace export version"
+                    )
+                primary_key = tuple(
+                    column for column in columns
+                    if column in {"id", "record_id"}
+                )
                 order = ", ".join(f'"{name}"' for name in primary_key) or "rowid"
+                column_sql = ", ".join(f'"{name}"' for name in columns)
                 rows = connection.execute(
-                    f'SELECT * FROM "{table}" ORDER BY {order}'
+                    f'SELECT {column_sql} FROM "{table}" ORDER BY {order}'
                 ).fetchall()
                 exported[table] = [dict(row) for row in rows]
 
