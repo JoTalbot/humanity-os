@@ -35,6 +35,9 @@ class EvidenceReference(BaseModel):
     source_title: str | None = None
     publisher: str | None = None
     content_hash: str | None = None
+    source_type: str = "unknown"
+    independence_group_id: str | None = None
+    derived_from_source_ids: list[str] = Field(default_factory=list)
     excerpt: str | None = None
     locator: str | None = None
 
@@ -81,6 +84,10 @@ class ReasoningComparison(BaseModel):
     unique_claim_ids: dict[str, list[str]]
     shared_source_uris: list[str]
     unique_source_uris: dict[str, list[str]]
+    shared_independence_groups: list[str] = Field(default_factory=list)
+    unique_independence_groups: dict[str, list[str]] = Field(default_factory=dict)
+    dependent_source_edges: list[str] = Field(default_factory=list)
+    unknown_lineage_sources: list[str] = Field(default_factory=list)
     limitations: list[str]
     actor: Literal["owner", "system"]
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
@@ -201,6 +208,9 @@ class ReasoningEngine:
                     source_title=source.title,
                     publisher=source.publisher,
                     content_hash=source.content_hash,
+                    source_type=source.source_type,
+                    independence_group_id=source.independence_group_id,
+                    derived_from_source_ids=list(source.derived_from_source_ids),
                     excerpt=item.excerpt,
                     locator=item.locator,
                 ))
@@ -287,8 +297,29 @@ class ReasoningEngine:
             run.root_claim_id: {item.source_uri for item in run.evidence}
             for run in runs
         }
+        group_sets = {
+            run.root_claim_id: {
+                f"{item.knowledge_id}:{item.independence_group_id}"
+                for item in run.evidence
+                if item.independence_group_id
+            }
+            for run in runs
+        }
+        dependent_edges = sorted({
+            f"{item.knowledge_id}:{item.source_id}<-{parent_id}"
+            for run in runs
+            for item in run.evidence
+            for parent_id in item.derived_from_source_ids
+        })
+        unknown_lineage = sorted({
+            f"{item.knowledge_id}:{item.source_id}"
+            for run in runs
+            for item in run.evidence
+            if not item.independence_group_id and not item.derived_from_source_ids
+        })
         shared_claims = set.intersection(*claim_sets.values())
         shared_sources = set.intersection(*source_sets.values())
+        shared_groups = set.intersection(*group_sets.values())
         return ReasoningComparison(
             query=request.query,
             runs=runs,
@@ -302,9 +333,18 @@ class ReasoningEngine:
                 root_id: sorted(values - shared_sources)
                 for root_id, values in source_sets.items()
             },
+            shared_independence_groups=sorted(shared_groups),
+            unique_independence_groups={
+                root_id: sorted(values - shared_groups)
+                for root_id, values in group_sets.items()
+            },
+            dependent_source_edges=dependent_edges,
+            unknown_lineage_sources=unknown_lineage,
             limitations=[
                 "Comparison is set overlap across bounded graph traversals, not a ranking of hypotheses.",
                 "Shared claims or sources do not establish correctness or independent corroboration.",
+                "Independence groups are reviewer-declared and scoped to parent knowledge records; unknown lineage remains unknown.",
+                "Derived-source edges indicate recorded dependency, not verified copying or publisher identity.",
                 "Each alternative is stored as its own immutable reasoning run.",
             ],
             actor=actor,
