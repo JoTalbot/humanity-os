@@ -10,7 +10,7 @@ from typing import Annotated
 
 from fastapi import FastAPI, HTTPException, Query, Request, Response
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from humanity_os import __version__
 from humanity_os.auth import AuthStore
@@ -18,6 +18,7 @@ from humanity_os.claim_assessments import ClaimAssessmentStore
 from humanity_os.claim_graph import ClaimGraphStore
 from humanity_os.documents import MAX_DOCUMENT_CHARS, DocumentStore
 from humanity_os.evidence import EvidenceAssessmentStore
+from humanity_os.memory import MemoryStore
 from humanity_os.independence import (
     EvidenceIndependenceEngine,
     EvidenceIndependenceReport,
@@ -68,6 +69,15 @@ class LoginRequest(BaseModel):
     password: str = Field(min_length=1, max_length=1024)
 
 
+class MemoryProposalCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    title: str = Field(min_length=1, max_length=200)
+    content: str = Field(min_length=1, max_length=10_000)
+    rationale: str = Field(min_length=1, max_length=2_000)
+    source_document_id: str | None = Field(default=None, max_length=128)
+    source_chunk_id: str | None = Field(default=None, max_length=128)
+
+
 class DocumentCreate(BaseModel):
     filename: str = Field(min_length=1, max_length=255)
     content: str = Field(min_length=1, max_length=MAX_DOCUMENT_CHARS)
@@ -94,6 +104,7 @@ def create_app(
 
     store = KnowledgeStore(path)
     documents = DocumentStore(path)
+    memory = MemoryStore(path)
     auth = AuthStore(path)
     evidence_assessments = EvidenceAssessmentStore(store.database_path)
     claim_graph = ClaimGraphStore(store.database_path)
@@ -108,6 +119,7 @@ def create_app(
     )
     app.state.knowledge_store = store
     app.state.document_store = documents
+    app.state.memory_store = memory
     app.state.auth_store = auth
     app.state.evidence_assessment_store = evidence_assessments
     app.state.claim_graph_store = claim_graph
@@ -474,6 +486,93 @@ def create_app(
         if store.get(knowledge_id) is None:
             raise HTTPException(status_code=404, detail="Knowledge record not found")
         return evidence_assessments.list_for_knowledge(knowledge_id, limit=limit)
+
+    @app.post("/v1/memory/proposals", status_code=201)
+    def create_memory_proposal(payload: MemoryProposalCreate) -> dict:
+        try:
+            return memory.create_proposal(**payload.model_dump())
+        except LookupError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    @app.get("/v1/memory/proposals")
+    def list_memory_proposals(
+        status: Annotated[
+            str | None, Query(pattern="^(pending_review|approved|rejected)$")
+        ] = None,
+        limit: Annotated[int, Query(ge=1, le=100)] = 50,
+    ) -> dict[str, list[dict]]:
+        return {"items": memory.list_proposals(status=status, limit=limit)}
+
+    @app.get("/v1/memory/proposals/{proposal_id}")
+    def get_memory_proposal(proposal_id: str) -> dict:
+        proposal = memory.get_proposal(proposal_id)
+        if proposal is None:
+            raise HTTPException(status_code=404, detail="Memory proposal not found")
+        return proposal
+
+    @app.post("/v1/memory/proposals/{proposal_id}/approve", status_code=201)
+    def approve_memory_proposal(proposal_id: str) -> dict:
+        try:
+            return memory.approve(proposal_id)
+        except LookupError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    @app.post("/v1/memory/proposals/{proposal_id}/reject")
+    def reject_memory_proposal(proposal_id: str) -> dict:
+        try:
+            return memory.reject(proposal_id)
+        except LookupError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    @app.get("/v1/memories")
+    def list_memories(
+        status: Annotated[str | None, Query(pattern="^(active|archived)$")] = None,
+        limit: Annotated[int, Query(ge=1, le=100)] = 50,
+    ) -> dict[str, list[dict]]:
+        return {"items": memory.list_memories(status=status, limit=limit)}
+
+    @app.get("/v1/memories/{memory_id}")
+    def get_memory(memory_id: str) -> dict:
+        item = memory.get_memory(memory_id)
+        if item is None:
+            raise HTTPException(status_code=404, detail="Memory item not found")
+        return item
+
+    @app.post("/v1/memories/{memory_id}/archive")
+    def archive_memory(memory_id: str) -> dict:
+        try:
+            item = memory.set_archived(memory_id, True)
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        if item is None:
+            raise HTTPException(status_code=404, detail="Memory item not found")
+        return item
+
+    @app.post("/v1/memories/{memory_id}/restore")
+    def restore_memory(memory_id: str) -> dict:
+        try:
+            item = memory.set_archived(memory_id, False)
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        if item is None:
+            raise HTTPException(status_code=404, detail="Memory item not found")
+        return item
+
+    @app.get("/v1/memory/events")
+    def list_memory_events(
+        proposal_id: Annotated[str | None, Query(max_length=128)] = None,
+        memory_id: Annotated[str | None, Query(max_length=128)] = None,
+    ) -> dict[str, list[dict]]:
+        try:
+            return {"items": memory.list_events(proposal_id=proposal_id, memory_id=memory_id)}
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
 
     @app.post("/v1/documents", status_code=201)
     def create_document(payload: DocumentCreate) -> dict:
