@@ -16,6 +16,7 @@ from humanity_os import __version__
 from humanity_os.auth import AuthStore
 from humanity_os.claim_assessments import ClaimAssessmentStore
 from humanity_os.claim_graph import ClaimGraphStore
+from humanity_os.documents import MAX_DOCUMENT_CHARS, DocumentStore
 from humanity_os.evidence import EvidenceAssessmentStore
 from humanity_os.independence import (
     EvidenceIndependenceEngine,
@@ -67,6 +68,16 @@ class LoginRequest(BaseModel):
     password: str = Field(min_length=1, max_length=1024)
 
 
+class DocumentCreate(BaseModel):
+    filename: str = Field(min_length=1, max_length=255)
+    content: str = Field(min_length=1, max_length=MAX_DOCUMENT_CHARS)
+
+
+class DocumentSearch(BaseModel):
+    query: str = Field(min_length=2, max_length=200)
+    limit: int = Field(default=20, ge=1, le=50)
+
+
 def create_app(
     database_path: str | None = None,
     api_token: str | None = None,
@@ -82,6 +93,7 @@ def create_app(
         raise ValueError("HUMANITY_OS_API_TOKEN must contain at least 32 characters")
 
     store = KnowledgeStore(path)
+    documents = DocumentStore(path)
     auth = AuthStore(path)
     evidence_assessments = EvidenceAssessmentStore(store.database_path)
     claim_graph = ClaimGraphStore(store.database_path)
@@ -95,6 +107,7 @@ def create_app(
         description="Loopback-only personal workspace with mandatory authentication by default.",
     )
     app.state.knowledge_store = store
+    app.state.document_store = documents
     app.state.auth_store = auth
     app.state.evidence_assessment_store = evidence_assessments
     app.state.claim_graph_store = claim_graph
@@ -461,6 +474,33 @@ def create_app(
         if store.get(knowledge_id) is None:
             raise HTTPException(status_code=404, detail="Knowledge record not found")
         return evidence_assessments.list_for_knowledge(knowledge_id, limit=limit)
+
+    @app.post("/v1/documents", status_code=201)
+    def create_document(payload: DocumentCreate) -> dict:
+        try:
+            return documents.create(payload.filename, payload.content)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    @app.get("/v1/documents")
+    def list_documents(
+        limit: Annotated[int, Query(ge=1, le=100)] = 50,
+    ) -> dict[str, list[dict]]:
+        return {"items": documents.list(limit=limit)}
+
+    @app.get("/v1/documents/{document_id}")
+    def get_document(document_id: str) -> dict:
+        result = documents.get(document_id)
+        if result is None:
+            raise HTTPException(status_code=404, detail="Document not found")
+        return result
+
+    @app.post("/v1/documents/search")
+    def search_documents(payload: DocumentSearch) -> dict[str, list[dict]]:
+        try:
+            return {"items": documents.search(payload.query, limit=payload.limit)}
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
 
     @app.post("/v1/knowledge", response_model=KnowledgeRecord, status_code=201)
     def create_knowledge(payload: KnowledgeCreate) -> KnowledgeRecord:
