@@ -762,7 +762,7 @@ class KnowledgeStore:
             "schema_version": "1.2.0",
             "exported_at": datetime.now(UTC).isoformat(),
             "data_policy": {
-                "included": "workspace domain records, provenance, immutable history, and security audit metadata",
+                "included": "workspace domain records, document provenance, explicit memory lifecycle, immutable history, and security audit metadata",
                 "excluded": [
                     "owner password hashes",
                     "live session and CSRF token hashes",
