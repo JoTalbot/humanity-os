@@ -509,3 +509,75 @@ def test_restore_migrates_legacy_snapshot_without_conflict_table(tmp_path):
     restored_store = KnowledgeStore(active_database)
     assert [record.title for record in restored_store.list()] == ["Legacy"]
     assert restored_store.list_conflicts() == []
+
+
+
+def test_knowledge_updates_create_immutable_revision_history(tmp_path):
+    client = TestClient(create_app(str(tmp_path / "revisions.sqlite3")))
+    created = client.post("/v1/knowledge", json={
+        "kind": "claim", "title": "Original", "content": "First state"
+    })
+    assert created.status_code == 201
+    record = created.json()
+    record_id = record["id"]
+    assert record["revision"] == 1
+
+    updated = client.put(f"/v1/knowledge/{record_id}", json={
+        "kind": "claim", "title": "Revised", "content": "Second state"
+    })
+    assert updated.status_code == 200
+    assert updated.json()["revision"] == 2
+
+    history = client.get(f"/v1/knowledge/{record_id}/revisions")
+    assert history.status_code == 200
+    revisions = history.json()
+    assert [item["revision"] for item in revisions] == [2, 1]
+    assert revisions[0]["snapshot"]["title"] == "Revised"
+    assert revisions[1]["snapshot"]["title"] == "Original"
+    assert revisions[1]["snapshot"]["content"] == "First state"
+    assert revisions[0]["change_reason"] == "updated via API"
+
+
+def test_revision_history_rejects_unknown_record_and_bounds_limit(tmp_path):
+    client = TestClient(create_app(str(tmp_path / "revisions.sqlite3")))
+    assert client.get("/v1/knowledge/missing/revisions").status_code == 404
+    record = client.post("/v1/knowledge", json={
+        "kind": "concept", "title": "History", "content": "One"
+    }).json()
+    assert client.get(f"/v1/knowledge/{record['id']}/revisions?limit=101").status_code == 422
+
+
+def test_revision_history_survives_backup_and_restore(tmp_path):
+    database = tmp_path / "active.sqlite3"
+    backup = tmp_path / "backup.sqlite3"
+    safety = tmp_path / "safety.sqlite3"
+    client = TestClient(create_app(str(database)))
+    created = client.post("/v1/knowledge", json={
+        "kind": "observation", "title": "Before", "content": "v1"
+    }).json()
+    client.put(f"/v1/knowledge/{created['id']}", json={
+        "kind": "observation", "title": "After", "content": "v2"
+    })
+    store = KnowledgeStore(database)
+    store.backup(backup)
+    assert store.verify_backup(backup) == 1
+    store.restore(backup, safety)
+    restored = KnowledgeStore(database)
+    history = restored.list_revisions(created["id"])
+    assert [item.revision for item in history] == [2, 1]
+
+
+def test_revision_history_is_not_mutated_by_later_updates(tmp_path):
+    database = tmp_path / "revisions.sqlite3"
+    client = TestClient(create_app(str(database)))
+    record = client.post("/v1/knowledge", json={
+        "kind": "concept", "title": "v1", "content": "original"
+    }).json()
+    for version in (2, 3):
+        response = client.put(f"/v1/knowledge/{record['id']}", json={
+            "kind": "concept", "title": f"v{version}", "content": f"content-{version}"
+        })
+        assert response.json()["revision"] == version
+    history = KnowledgeStore(database).list_revisions(record["id"])
+    assert [item.snapshot.title for item in history] == ["v3", "v2", "v1"]
+    assert [item.revision for item in history] == [3, 2, 1]
