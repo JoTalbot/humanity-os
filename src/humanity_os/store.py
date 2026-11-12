@@ -3,6 +3,9 @@ from __future__ import annotations
 
 import base64
 import binascii
+import hashlib
+import hmac
+import json
 import os
 import sqlite3
 import tempfile
@@ -159,6 +162,18 @@ class KnowledgeStore:
                    BEFORE DELETE ON evidence_assessments
                    BEGIN SELECT RAISE(ABORT, 'evidence assessments are append-only'); END"""
             )
+
+
+    @staticmethod
+    def checkpoint_database(database_path: str | Path) -> None:
+        """Checkpoint committed WAL pages before offline replacement or deletion."""
+        path = Path(database_path).expanduser()
+        with closing(sqlite3.connect(str(path), timeout=10)) as connection:
+            result = connection.execute("PRAGMA wal_checkpoint(TRUNCATE)").fetchone()
+            if result is not None and result[0] != 0:
+                raise sqlite3.DatabaseError(
+                    "SQLite WAL checkpoint is busy; stop all workspace processes and retry"
+                )
 
     def backup(self, destination: str | Path) -> Path:
         """Create a consistent SQLite snapshot without overwriting an existing file."""
@@ -552,6 +567,208 @@ class KnowledgeStore:
                 (limit,),
             ).fetchall()
         return [DecisionRecord.model_validate_json(row["payload"]) for row in rows]
+
+
+    def export_workspace(self) -> dict:
+        """Return a versioned portable export of domain data, excluding live credentials."""
+        table_columns = {
+            "knowledge": ("id", "visibility", "created_at", "payload"),
+            "knowledge_revisions": ("record_id", "revision", "actor", "change_reason", "created_at", "payload"),
+            "decisions": ("id", "created_at", "payload"),
+            "knowledge_conflicts": ("id", "record_a_id", "record_b_id", "status", "created_at", "payload"),
+            "evidence_assessments": ("id", "knowledge_id", "source_id", "assessed_at", "payload"),
+            "claims": ("id", "knowledge_id", "created_at", "payload"),
+            "claim_relations": ("id", "source_claim_id", "target_claim_id", "relation", "created_at", "payload"),
+            "reasoning_runs": ("id", "created_at", "payload"),
+            "claim_assessments": ("id", "claim_id", "assessed_at", "payload"),
+            "auth_audit_events": ("id", "occurred_at", "event_type", "subject"),
+        }
+        exported: dict[str, list[dict]] = {}
+        with self._connect() as connection:
+            # Keep all table reads on one SQLite snapshot while writers may be active.
+            connection.execute("BEGIN")
+            available = {
+                row["name"]
+                for row in connection.execute(
+                    "SELECT name FROM sqlite_master WHERE type = 'table'"
+                ).fetchall()
+            }
+            for table, columns in table_columns.items():
+                if table not in available:
+                    exported[table] = []
+                    continue
+                actual_columns = {
+                    row["name"]
+                    for row in connection.execute(f'PRAGMA table_info("{table}")').fetchall()
+                }
+                if actual_columns != set(columns):
+                    raise ValueError(
+                        f"Unsupported {table} schema; update the workspace export version"
+                    )
+                primary_key_info = connection.execute(
+                    f'PRAGMA table_info("{table}")'
+                ).fetchall()
+                primary_key = [
+                    row["name"]
+                    for row in sorted(primary_key_info, key=lambda item: item["pk"])
+                    if row["pk"]
+                ]
+                order = ", ".join(f'"{name}"' for name in primary_key) or "rowid"
+                column_sql = ", ".join(f'"{name}"' for name in columns)
+                rows = connection.execute(
+                    f'SELECT {column_sql} FROM "{table}" ORDER BY {order}'
+                ).fetchall()
+                exported[table] = [dict(row) for row in rows]
+
+        document = {
+            "format": "humanity-os-workspace",
+            "schema_version": "1.0.0",
+            "exported_at": datetime.now(UTC).isoformat(),
+            "data_policy": {
+                "included": "workspace domain records, provenance, immutable history, and security audit metadata",
+                "excluded": [
+                    "owner password hashes",
+                    "live session and CSRF token hashes",
+                    "login throttling buckets",
+                    "environment bearer tokens",
+                    "derived search indexes and SQLite implementation metadata",
+                ],
+                "backup_note": "This export does not erase or supersede existing backups.",
+            },
+            "tables": exported,
+        }
+        canonical = json.dumps(
+            document, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+        ).encode("utf-8")
+        document["integrity"] = {
+            "algorithm": "sha256",
+            "canonical_document_sha256": hashlib.sha256(canonical).hexdigest(),
+        }
+        return document
+
+
+    def import_workspace(
+        self, source_path: str | Path, safety_backup_path: str | Path
+    ) -> int:
+        """Validate a portable export, stage it, back up the active DB, then replace it."""
+        if self.database_path == ":memory:":
+            raise ValueError("Workspace import requires a file-backed database")
+        database = Path(self.database_path).expanduser()
+        if database.is_symlink():
+            raise ValueError("Refusing to replace a database symlink")
+        source = Path(source_path).expanduser()
+        safety = Path(safety_backup_path).expanduser()
+        if source.is_symlink() or not source.is_file():
+            raise ValueError("Workspace export must be a regular file, not a symlink")
+        protected_paths = {
+            database.resolve(),
+            Path(str(database) + "-wal").resolve(),
+            Path(str(database) + "-shm").resolve(),
+        }
+        if source.resolve() in protected_paths:
+            raise ValueError("Workspace export must differ from the active database and SQLite sidecars")
+        if safety.resolve() in protected_paths:
+            raise ValueError("Safety backup must differ from the active database and SQLite sidecars")
+        if source.resolve() == safety.resolve():
+            raise ValueError("Workspace export and safety backup must be separate files")
+
+        document = json.loads(source.read_text(encoding="utf-8"))
+        if not isinstance(document, dict) or document.get("format") != "humanity-os-workspace":
+            raise ValueError("Unsupported workspace export format")
+        if document.get("schema_version") != "1.0.0":
+            raise ValueError("Unsupported workspace export schema version")
+        integrity = document.get("integrity")
+        if not isinstance(integrity, dict) or integrity.get("algorithm") != "sha256":
+            raise ValueError("Workspace export has no supported integrity metadata")
+        unsigned = {key: value for key, value in document.items() if key != "integrity"}
+        canonical = json.dumps(
+            unsigned, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+        ).encode("utf-8")
+        actual_digest = hashlib.sha256(canonical).hexdigest()
+        expected_digest = integrity.get("canonical_document_sha256")
+        if not isinstance(expected_digest, str) or not hmac.compare_digest(
+            actual_digest, expected_digest
+        ):
+            raise ValueError("Workspace export integrity check failed")
+
+        tables = document.get("tables")
+        table_names = (
+            "knowledge",
+            "knowledge_revisions",
+            "decisions",
+            "knowledge_conflicts",
+            "evidence_assessments",
+            "claims",
+            "claim_relations",
+            "reasoning_runs",
+            "claim_assessments",
+            "auth_audit_events",
+        )
+        if not isinstance(tables, dict) or set(tables) != set(table_names):
+            raise ValueError("Workspace export table set does not match schema 1.0.0")
+        if any(not isinstance(tables[name], list) for name in table_names):
+            raise ValueError("Every exported table must contain a list of rows")
+
+        descriptor, temporary_name = tempfile.mkstemp(
+            prefix=f".{database.name}.import-",
+            suffix=".sqlite3",
+            dir=str(database.parent),
+        )
+        os.close(descriptor)
+        temporary = Path(temporary_name)
+        temporary.unlink()
+        try:
+            # Build every supported schema before inserting records. Authentication
+            # identities and sessions are intentionally initialized empty.
+            KnowledgeStore(temporary)
+            from humanity_os.auth import AuthStore
+            from humanity_os.claim_assessments import ClaimAssessmentStore
+            from humanity_os.claim_graph import ClaimGraphStore
+            from humanity_os.evidence import EvidenceAssessmentStore
+            from humanity_os.reasoning import ReasoningEngine
+
+            AuthStore(temporary)
+            EvidenceAssessmentStore(temporary)
+            graph = ClaimGraphStore(temporary)
+            ClaimAssessmentStore(temporary)
+            knowledge = KnowledgeStore(temporary)
+            ReasoningEngine(temporary, knowledge, graph)
+
+            with closing(sqlite3.connect(str(temporary))) as connection:
+                connection.execute("PRAGMA foreign_keys = ON")
+                for table in table_names:
+                    columns = [
+                        row[1]
+                        for row in connection.execute(
+                            f'PRAGMA table_info("{table}")'
+                        ).fetchall()
+                    ]
+                    if not columns:
+                        raise ValueError(f"Workspace schema is missing table: {table}")
+                    placeholders = ", ".join("?" for _ in columns)
+                    column_sql = ", ".join(f'"{column}"' for column in columns)
+                    for row in tables[table]:
+                        if not isinstance(row, dict) or set(row) != set(columns):
+                            raise ValueError(f"Invalid row shape in workspace table: {table}")
+                        values = tuple(row[column] for column in columns)
+                        connection.execute(
+                            f'INSERT INTO "{table}" ({column_sql}) VALUES ({placeholders})',
+                            values,
+                        )
+                violations = connection.execute("PRAGMA foreign_key_check").fetchall()
+                if violations:
+                    raise ValueError("Workspace export contains broken foreign-key references")
+                connection.commit()
+
+            record_count = self.verify_backup(temporary)
+            self.backup(safety)
+            self.checkpoint_database(database)
+            for suffix in ("-wal", "-shm"):
+                Path(str(database) + suffix).unlink(missing_ok=True)
+            os.replace(temporary, database)
+            return record_count
+        finally:
+            temporary.unlink(missing_ok=True)
 
     def export_all(self) -> list[KnowledgeRecord]:
         with self._connect() as connection:

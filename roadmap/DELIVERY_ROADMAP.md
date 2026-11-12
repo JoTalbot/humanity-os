@@ -4,7 +4,7 @@
 Deliver constitution draft, architecture, data model, agent contract, threat model, governance, product spec and acceptance criteria. Exit: consistency review complete; open decisions recorded.
 
 ## 1 — Personal Core
-Implement private workspace, identity, authorisation, event history, storage adapters, export/deletion, backup and restore. Exit: isolation and restore demonstrated.
+Implement private workspace, identity, authorisation, event history, storage adapters, versioned full-workspace export, verified deletion, backup and restore. Exit: export coverage and secret exclusion verified; deletion requires an explicit offline confirmation and a verified safety backup; restore demonstrated.
 
 ## 2 — HUMANITY ONE
 Implement model gateway, document ingestion, source-aware search, provenance, explicit memory, responsive UI and local deployment. Exit: primary journey works end-to-end.

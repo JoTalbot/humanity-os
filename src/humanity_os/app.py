@@ -454,6 +454,17 @@ def create_app(
         next_cursor = store.encode_cursor(records[-1]) if len(records) == limit else None
         return KnowledgeList(items=records, next_cursor=next_cursor)
 
+    @app.get("/v1/workspace/export")
+    def export_workspace() -> JSONResponse:
+        document = store.export_workspace()
+        return JSONResponse(
+            content=document,
+            headers={
+                "Content-Disposition": 'attachment; filename="humanity-os-workspace.json"',
+                "Cache-Control": "no-store",
+            },
+        )
+
     @app.get("/v1/knowledge/export")
     def export_knowledge() -> JSONResponse:
         records = store.export_all()
