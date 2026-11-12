@@ -33,22 +33,25 @@ class KnowledgeSource(BaseModel):
         original = self.uri.strip()
         parts = urlsplit(original)
         normalized = original
-        if parts.scheme.lower() in {"http", "https"} and parts.netloc:
-            if not (parts.username or parts.password):
-                host = (parts.hostname or "").lower()
-                if ":" in host:
-                    host = f"[{host}]"
-                port = parts.port
-                netloc = host
-                if port and not (
-                    (parts.scheme.lower() == "http" and port == 80)
-                    or (parts.scheme.lower() == "https" and port == 443)
-                ):
-                    netloc = f"{host}:{port}"
-                path = parts.path or "/"
-                if path != "/":
-                    path = path.rstrip("/")
-                normalized = urlunsplit((parts.scheme.lower(), netloc, path, parts.query, ""))
+        if (
+            parts.scheme.lower() in {"http", "https"}
+            and parts.netloc
+            and not (parts.username or parts.password)
+        ):
+            host = (parts.hostname or "").lower()
+            if ":" in host:
+                host = f"[{host}]"
+            port = parts.port
+            netloc = host
+            if port and not (
+                (parts.scheme.lower() == "http" and port == 80)
+                or (parts.scheme.lower() == "https" and port == 443)
+            ):
+                netloc = f"{host}:{port}"
+            path = parts.path or "/"
+            if path != "/":
+                path = path.rstrip("/")
+            normalized = urlunsplit((parts.scheme.lower(), netloc, path, parts.query, ""))
         if self.canonical_uri is not None and self.canonical_uri != normalized:
             raise ValueError("Canonical URI must match the normalized source URI")
         self.canonical_uri = normalized
