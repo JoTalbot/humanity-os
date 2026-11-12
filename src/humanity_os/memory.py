@@ -184,17 +184,20 @@ class MemoryStore:
                 raise ValueError("Only pending proposals can be approved")
             content_hash = hashlib.sha256(proposal["content"].encode("utf-8")).hexdigest()
             memory_id = str(uuid4())
-            connection.execute(
-                """INSERT INTO memory_items(
-                    id, proposal_id, title, content, content_hash, rationale,
-                    source_document_id, source_chunk_id, status, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?)""",
-                (
-                    memory_id, proposal_id, proposal["title"], proposal["content"],
-                    content_hash, proposal["rationale"], proposal["source_document_id"],
-                    proposal["source_chunk_id"], approved_at, approved_at,
-                ),
-            )
+            try:
+                connection.execute(
+                    """INSERT INTO memory_items(
+                        id, proposal_id, title, content, content_hash, rationale,
+                        source_document_id, source_chunk_id, status, created_at, updated_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?)""",
+                    (
+                        memory_id, proposal_id, proposal["title"], proposal["content"],
+                        content_hash, proposal["rationale"], proposal["source_document_id"],
+                        proposal["source_chunk_id"], approved_at, approved_at,
+                    ),
+                )
+            except sqlite3.IntegrityError as exc:
+                raise ValueError("Identical content already exists in durable memory") from exc
             connection.execute(
                 """UPDATE memory_proposals SET status = 'approved',
                    reviewed_at = ?, approved_memory_id = ? WHERE id = ?""",
@@ -210,6 +213,31 @@ class MemoryStore:
                 occurred_at=approved_at,
             )
         return self.get_memory(memory_id)
+
+    def reject(self, proposal_id: str) -> dict:
+        rejected_at = datetime.now(UTC).isoformat()
+        with self._connect() as connection:
+            proposal = connection.execute(
+                "SELECT status FROM memory_proposals WHERE id = ?", (proposal_id,)
+            ).fetchone()
+            if proposal is None:
+                raise LookupError("Memory proposal was not found")
+            if proposal["status"] != "pending_review":
+                raise ValueError("Only pending proposals can be rejected")
+            connection.execute(
+                """UPDATE memory_proposals SET status = 'rejected', reviewed_at = ?
+                   WHERE id = ?""",
+                (rejected_at, proposal_id),
+            )
+            self._event(
+                connection,
+                event_type="proposal_rejected",
+                actor="owner",
+                details={"status": "rejected"},
+                proposal_id=proposal_id,
+                occurred_at=rejected_at,
+            )
+        return self.get_proposal(proposal_id)
 
     def get_memory(self, memory_id: str) -> dict | None:
         with self._connect() as connection:
