@@ -7,7 +7,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from humanity_os.app import create_app
-from humanity_os.documents import CHUNK_OVERLAP, CHUNK_SIZE, DocumentStore
+from humanity_os.documents import CHUNK_SIZE, DocumentStore
 from humanity_os.store import KnowledgeStore
 
 
