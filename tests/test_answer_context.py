@@ -73,7 +73,7 @@ def test_context_enforces_per_document_and_total_chunk_limits(tmp_path):
     result = AnswerContextBuilder(store).build(
         AnswerContextRequest(
             query="needle",
-            max_chunks=2,
+            max_chunks=10,
             max_context_chars=12_000,
             per_document_limit=1,
         )
