@@ -10,7 +10,7 @@ from contextlib import closing
 from datetime import UTC, datetime
 from pathlib import Path
 
-from humanity_os.models import KnowledgeConflict, KnowledgeRecord, KnowledgeRevision
+from humanity_os.models import DecisionRecord, KnowledgeConflict, KnowledgeRecord, KnowledgeRevision
 
 
 class KnowledgeStore:
@@ -92,6 +92,27 @@ class KnowledgeStore:
                          baseline.model_dump_json()),
                     )
             connection.execute(
+                """CREATE TABLE IF NOT EXISTS decisions (
+                    id TEXT PRIMARY KEY,
+                    created_at TEXT NOT NULL,
+                    payload TEXT NOT NULL
+                )"""
+            )
+            connection.execute(
+                "CREATE INDEX IF NOT EXISTS idx_decisions_created "
+                "ON decisions(created_at DESC, id DESC)"
+            )
+            connection.execute(
+                """CREATE TRIGGER IF NOT EXISTS decisions_no_update
+                   BEFORE UPDATE ON decisions
+                   BEGIN SELECT RAISE(ABORT, 'decision ledger is append-only'); END"""
+            )
+            connection.execute(
+                """CREATE TRIGGER IF NOT EXISTS decisions_no_delete
+                   BEFORE DELETE ON decisions
+                   BEGIN SELECT RAISE(ABORT, 'decision ledger is append-only'); END"""
+            )
+            connection.execute(
                 """CREATE TABLE IF NOT EXISTS knowledge_conflicts (
                     id TEXT PRIMARY KEY,
                     record_a_id TEXT NOT NULL REFERENCES knowledge(id),
@@ -160,6 +181,14 @@ class KnowledgeStore:
                 if conflict_table
                 else []
             )
+            decision_table = connection.execute(
+                "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'decisions'"
+            ).fetchone()
+            decision_rows = (
+                connection.execute("SELECT payload FROM decisions").fetchall()
+                if decision_table
+                else []
+            )
             revision_table = connection.execute(
                 "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'knowledge_revisions'"
             ).fetchone()
@@ -174,6 +203,8 @@ class KnowledgeStore:
             KnowledgeConflict.model_validate_json(row[0])
         for row in revision_rows:
             KnowledgeRevision.model_validate_json(row[0])
+        for row in decision_rows:
+            DecisionRecord.model_validate_json(row[0])
         return len(rows)
 
 
@@ -404,6 +435,31 @@ class KnowledgeStore:
                 (updated.status, updated.model_dump_json(), conflict_id),
             )
         return updated if result.rowcount else None
+
+    def create_decision(self, decision: DecisionRecord) -> DecisionRecord:
+        with self._connect() as connection:
+            connection.execute(
+                "INSERT INTO decisions(id, created_at, payload) VALUES (?, ?, ?)",
+                (decision.id, decision.created_at.isoformat(), decision.model_dump_json()),
+            )
+        return decision
+
+    def get_decision(self, decision_id: str) -> DecisionRecord | None:
+        with self._connect() as connection:
+            row = connection.execute(
+                "SELECT payload FROM decisions WHERE id = ?", (decision_id,)
+            ).fetchone()
+        return DecisionRecord.model_validate_json(row["payload"]) if row else None
+
+    def list_decisions(self, limit: int = 50) -> list[DecisionRecord]:
+        if not 1 <= limit <= 100:
+            raise ValueError("Decision limit must be between 1 and 100")
+        with self._connect() as connection:
+            rows = connection.execute(
+                "SELECT payload FROM decisions ORDER BY created_at DESC, id DESC LIMIT ?",
+                (limit,),
+            ).fetchall()
+        return [DecisionRecord.model_validate_json(row["payload"]) for row in rows]
 
     def export_all(self) -> list[KnowledgeRecord]:
         with self._connect() as connection:
