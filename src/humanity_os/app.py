@@ -22,6 +22,15 @@ from humanity_os.independence import (
     EvidenceIndependenceReport,
     IndependenceQuery,
 )
+from humanity_os.model_gateway import (
+    ModelGateway,
+    ModelGenerationRequest,
+    ModelGenerationResponse,
+    ModelProvider,
+    ModelProviderFailure,
+    ModelProviderTimeout,
+    ModelProviderUnavailable,
+)
 from humanity_os.models import (
     ClaimAssessment,
     ClaimAssessmentCreate,
@@ -63,6 +72,7 @@ def create_app(
     api_token: str | None = None,
     *,
     allow_unauthenticated_local: bool = False,
+    model_provider: ModelProvider | None = None,
 ) -> FastAPI:
     path = database_path or os.environ.get(
         "HUMANITY_OS_DB", str(Path.home() / ".humanity-os" / "knowledge.sqlite3")
@@ -78,6 +88,7 @@ def create_app(
     claim_assessments = ClaimAssessmentStore(store.database_path)
     reasoning = ReasoningEngine(store.database_path, store, claim_graph)
     independence = EvidenceIndependenceEngine(store)
+    model_gateway = ModelGateway(model_provider)
     app = FastAPI(
         title="HUMANITY OS Personal Core",
         version=__version__,
@@ -90,6 +101,7 @@ def create_app(
     app.state.claim_assessment_store = claim_assessments
     app.state.reasoning_engine = reasoning
     app.state.evidence_independence_engine = independence
+    app.state.model_gateway = model_gateway
     app.state.authentication_enabled = not allow_unauthenticated_local or bool(token) or auth.has_owner()
 
     @app.middleware("http")
@@ -134,6 +146,19 @@ def create_app(
                 )
         request.state.auth_session_token = session_token if session_valid else None
         return await call_next(request)
+
+    @app.post("/v1/models/generate", response_model=ModelGenerationResponse)
+    async def generate_model_output(
+        payload: ModelGenerationRequest,
+    ) -> ModelGenerationResponse:
+        try:
+            return await model_gateway.generate(payload)
+        except ModelProviderUnavailable as exc:
+            raise HTTPException(status_code=503, detail="No model provider is configured") from exc
+        except ModelProviderTimeout as exc:
+            raise HTTPException(status_code=504, detail="Model provider timed out") from exc
+        except ModelProviderFailure as exc:
+            raise HTTPException(status_code=502, detail="Model provider request failed") from exc
 
     @app.get("/health")
     def health() -> dict[str, str]:
