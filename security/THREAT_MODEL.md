@@ -51,3 +51,7 @@ The context-preparation endpoint performs local lexical retrieval only and repor
 ## Provider-backed document answers
 
 The document answer endpoint requires a distinct per-request provider-processing consent flag before retrieved source passages are passed to an injected model provider. The default application has no provider. Provider/model identifiers are disclosed through a capabilities endpoint, but provider locality and behavior are not independently attested. Citation-label checks only verify that returned labels map to retrieved passages; they do not establish semantic entailment or source truth. A future real provider integration requires a provider-specific data-flow review and security assessment.
+
+## Constrained Agent Runtime
+
+The initial runtime permits one explicitly requested local tool invocation at a time. Profiles have static allowlists for knowledge/document reads and pending memory proposal creation. No profile can approve memory. No shell, arbitrary code, filesystem write, network fetch, credential access, provider activation or external side-effect tool is registered. Tool arguments/results are bounded. Run history stores hashes and minimal metadata, not raw arguments or outputs; event records are append-only. This is not OS-level sandboxing and does not establish production safety.

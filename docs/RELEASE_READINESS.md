@@ -8,11 +8,12 @@
 
 - Fail-closed authentication boundary and loopback-only ASGI peer enforcement.
 - Local SQLite personal knowledge records, evidence/decision structures and portable export/import.
-- Portable workspace schema 1.2.0 with document and explicit memory records; imports from schemas 1.0.0 and 1.1.0 remain supported.
+- Portable workspace schema 1.3.0 with document and explicit memory records; imports from schemas 1.0.0 and 1.1.0 remain supported.
 - Local UTF-8 TXT/Markdown ingestion, source-preserving chunks, lexical search and bounded source-cited context packets.
 - Explicit memory proposal, owner approval/rejection, archive/restore and append-only lifecycle events.
 - Responsive local browser interface for notes, documents and memory review.
 - Provider-neutral model gateway and source-grounded answer orchestration with per-request provider-processing consent.
+- Constrained local Agent Runtime with static tool allowlists, one-tool owner invocation, minimal audit metadata and no autonomous execution.
 - No model provider, network integration or production deployment is enabled by default.
 
 ## Required before a public 0.1 release

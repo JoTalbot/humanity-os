@@ -14,6 +14,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field
 
 from humanity_os import __version__
+from humanity_os.agent_runtime import AgentRuntime
 from humanity_os.answering import DocumentAnswerService, InvalidSourceCitation, NoSourceContext
 from humanity_os.auth import AuthStore
 from humanity_os.claim_assessments import ClaimAssessmentStore
@@ -106,6 +107,12 @@ class DocumentAnswerRequest(BaseModel):
     max_output_tokens: int = Field(default=768, ge=1, le=1_024)
 
 
+class AgentInvokeRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    tool_name: str = Field(min_length=1, max_length=100)
+    arguments: dict[str, object] = Field(default_factory=dict)
+
+
 def create_app(
     database_path: str | None = None,
     api_token: str | None = None,
@@ -123,6 +130,7 @@ def create_app(
     store = KnowledgeStore(path)
     documents = DocumentStore(path)
     memory = MemoryStore(path)
+    agents = AgentRuntime(path, store, documents, memory)
     auth = AuthStore(path)
     evidence_assessments = EvidenceAssessmentStore(store.database_path)
     claim_graph = ClaimGraphStore(store.database_path)
@@ -141,6 +149,7 @@ def create_app(
     app.state.knowledge_store = store
     app.state.document_store = documents
     app.state.memory_store = memory
+    app.state.agent_runtime = agents
     app.state.auth_store = auth
     app.state.evidence_assessment_store = evidence_assessments
     app.state.claim_graph_store = claim_graph
@@ -644,6 +653,42 @@ def create_app(
             )
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    @app.get("/v1/agents")
+    def list_agents() -> dict[str, list[dict]]:
+        return {"items": agents.list_agents()}
+
+    @app.get("/v1/agents/tools")
+    def list_agent_tools(
+        agent_id: Annotated[str | None, Query(max_length=64)] = None,
+    ) -> dict[str, list[dict]]:
+        try:
+            return {"items": agents.list_tools(agent_id=agent_id)}
+        except LookupError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    @app.post("/v1/agents/{agent_id}/invoke", status_code=201)
+    def invoke_agent_tool(agent_id: str, payload: AgentInvokeRequest) -> dict:
+        try:
+            return agents.invoke(agent_id, payload.tool_name, payload.arguments)
+        except LookupError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except PermissionError as exc:
+            raise HTTPException(status_code=403, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    @app.get("/v1/agents/runs")
+    def list_agent_runs(
+        limit: Annotated[int, Query(ge=1, le=100)] = 50,
+    ) -> dict[str, list[dict]]:
+        return {"items": agents.store.list_runs(limit=limit)}
+
+    @app.get("/v1/agents/events")
+    def list_agent_events(
+        run_id: Annotated[str | None, Query(max_length=128)] = None,
+    ) -> dict[str, list[dict]]:
+        return {"items": agents.store.list_events(run_id=run_id)}
 
     @app.get("/v1/models/capabilities")
     def model_capabilities() -> dict:

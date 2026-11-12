@@ -182,7 +182,7 @@ def test_memory_export_import_round_trip_and_secret_exclusion(tmp_path):
     ).json()
     client.post(f"/v1/memory/proposals/{proposal['id']}/approve")
     exported = KnowledgeStore(source).export_workspace()
-    assert exported["schema_version"] == "1.2.0"
+    assert exported["schema_version"] == "1.3.0"
     assert len(exported["tables"]["memory_proposals"]) == 1
     assert len(exported["tables"]["memory_items"]) == 1
     assert len(exported["tables"]["memory_events"]) == 2
@@ -250,7 +250,7 @@ def test_memory_events_are_append_only(tmp_path):
         )
 
 
-@pytest.mark.parametrize("legacy_version", ["1.0.0", "1.1.0"])
+@pytest.mark.parametrize("legacy_version", ["1.0.0", "1.1.0", "1.2.0"])
 def test_legacy_workspace_exports_remain_importable_after_memory_schema_upgrade(
     tmp_path, legacy_version
 ):
@@ -265,9 +265,12 @@ def test_legacy_workspace_exports_remain_importable_after_memory_schema_upgrade(
     )
     exported = KnowledgeStore(source).export_workspace()
     tables = dict(exported["tables"])
-    tables.pop("memory_proposals")
-    tables.pop("memory_items")
-    tables.pop("memory_events")
+    if legacy_version in {"1.0.0", "1.1.0"}:
+        tables.pop("memory_proposals")
+        tables.pop("memory_items")
+        tables.pop("memory_events")
+    tables.pop("agent_runs")
+    tables.pop("agent_events")
     if legacy_version == "1.0.0":
         tables.pop("documents")
         tables.pop("document_chunks")

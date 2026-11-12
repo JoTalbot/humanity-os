@@ -25,7 +25,7 @@ Approved memory content is immutable in this milestone. A material change requir
 3. Approval is a separate authenticated HTTP request.
 4. Only pending proposals can be approved or rejected, once.
 5. Every proposal, approval, rejection, archive, and restore is recorded in an append-only event table.
-6. Portable export schema 1.2.0 includes proposals, approved memories, and events; import validates proposal-to-memory linkage and content hashes.
+6. Portable export schema 1.3.0 includes proposals, approved memories, and events; import validates proposal-to-memory linkage and content hashes.
 7. Legacy export schemas 1.0.0 and 1.1.0 remain importable with empty memory tables.
 
 ## Privacy and limitations

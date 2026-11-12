@@ -48,3 +48,12 @@ A checkbox without evidence is not acceptance. CI evidence is recorded in GitHub
 - [x] Approved memory preserves optional document/chunk provenance.
 - [x] Workspace export/import schema 1.2.0 includes memory proposals, items and events with domain integrity checks.
 - [ ] Responsive memory review and correction UI; multi-user approval roles; deletion and retention controls.
+
+## Constrained Agent Runtime
+
+- [x] Built-in researcher/curator profiles have static capability allowlists.
+- [x] Only one local tool can be invoked per explicit authenticated owner request.
+- [x] Agent tools cannot approve memory or access shell, arbitrary code, filesystem writes, network or credentials.
+- [x] Tool inputs/outputs are bounded; audit history stores hashes and metadata only.
+- [x] Agent run and append-only event records are included in workspace export schema 1.3.0.
+- [ ] Autonomous planning, OS-level sandboxing, multi-step workflows and independent abuse testing.

@@ -618,6 +618,8 @@ class KnowledgeStore:
             "memory_proposals": ("id", "title", "content", "rationale", "source_document_id", "source_chunk_id", "status", "created_at", "reviewed_at", "approved_memory_id"),
             "memory_items": ("id", "proposal_id", "title", "content", "content_hash", "rationale", "source_document_id", "source_chunk_id", "status", "created_at", "updated_at"),
             "memory_events": ("id", "proposal_id", "memory_id", "event_type", "actor", "occurred_at", "details"),
+            "agent_runs": ("id", "agent_id", "tool_name", "status", "started_at", "finished_at", "input_digest", "result_digest", "error_code"),
+            "agent_events": ("id", "run_id", "event_type", "occurred_at", "details"),
         }
         exported: dict[str, list[dict]] = {}
         with self._connect() as connection:
@@ -658,7 +660,7 @@ class KnowledgeStore:
 
         document = {
             "format": "humanity-os-workspace",
-            "schema_version": "1.2.0",
+            "schema_version": "1.3.0",
             "exported_at": datetime.now(UTC).isoformat(),
             "data_policy": {
                 "included": "workspace domain records, document provenance, explicit memory lifecycle, immutable history, and security audit metadata",
@@ -712,7 +714,7 @@ class KnowledgeStore:
         if not isinstance(document, dict) or document.get("format") != "humanity-os-workspace":
             raise ValueError("Unsupported workspace export format")
         schema_version = document.get("schema_version")
-        if schema_version not in {"1.0.0", "1.1.0", "1.2.0"}:
+        if schema_version not in {"1.0.0", "1.1.0", "1.2.0", "1.3.0"}:
             raise ValueError("Unsupported workspace export schema version")
         integrity = document.get("integrity")
         if not isinstance(integrity, dict) or integrity.get("algorithm") != "sha256":
@@ -741,21 +743,20 @@ class KnowledgeStore:
             "claim_assessments",
             "auth_audit_events",
         )
-        if schema_version in {"1.1.0", "1.2.0"}:
+        if schema_version in {"1.1.0", "1.2.0", "1.3.0"}:
             table_names = (*table_names, "documents", "document_chunks")
-        if schema_version == "1.2.0":
+        if schema_version in {"1.2.0", "1.3.0"}:
             table_names = (*table_names, "memory_proposals", "memory_items", "memory_events")
+        if schema_version == "1.3.0":
+            table_names = (*table_names, "agent_runs", "agent_events")
         if not isinstance(tables, dict) or set(tables) != set(table_names):
             raise ValueError(f"Workspace export table set does not match schema {schema_version}")
         if schema_version == "1.0.0":
             tables = {**tables, "documents": [], "document_chunks": []}
         if schema_version in {"1.0.0", "1.1.0"}:
-            tables = {
-                **tables,
-                "memory_proposals": [],
-                "memory_items": [],
-                "memory_events": [],
-            }
+            tables = {**tables, "memory_proposals": [], "memory_items": [], "memory_events": []}
+        if schema_version in {"1.0.0", "1.1.0", "1.2.0"}:
+            tables = {**tables, "agent_runs": [], "agent_events": []}
         if any(not isinstance(tables[name], list) for name in table_names):
             raise ValueError("Every exported table must contain a list of rows")
 
@@ -876,6 +877,101 @@ class KnowledgeStore:
             if not isinstance(details, dict):
                 raise TypeError("Memory event details must be an object")
 
+        from humanity_os.agent_runtime import AGENT_PROFILES, TOOL_CATALOG
+
+        runs = {row.get("id"): row for row in tables["agent_runs"] if isinstance(row, dict)}
+        if len(runs) != len(tables["agent_runs"]):
+            raise ValueError("Invalid agent run row in workspace export")
+        events_by_run: dict[str, list[dict]] = {}
+        for run in runs.values():
+            if (
+                run.get("status") not in {"running", "completed", "failed"}
+                or not isinstance(run.get("input_digest"), str)
+                or len(run["input_digest"]) != 64
+                or any(character not in "0123456789abcdef" for character in run["input_digest"])
+                or not isinstance(run.get("agent_id"), str)
+                or not isinstance(run.get("tool_name"), str)
+            ):
+                raise ValueError("Agent run metadata is invalid")
+            if (
+                run["agent_id"] not in AGENT_PROFILES
+                or run["tool_name"] not in TOOL_CATALOG
+                or run["tool_name"] not in AGENT_PROFILES[run["agent_id"]]["tools"]
+            ):
+                raise ValueError("Agent run references an unregistered capability")
+            if run.get("status") == "completed":
+                digest = run.get("result_digest")
+                if (
+                    not isinstance(digest, str)
+                    or len(digest) != 64
+                    or any(character not in "0123456789abcdef" for character in digest)
+                    or run.get("error_code") is not None
+                    or run.get("finished_at") is None
+                ):
+                    raise ValueError("Completed agent run metadata is invalid")
+            if run.get("status") == "failed" and (
+                not run.get("error_code")
+                or run.get("result_digest") is not None
+                or run.get("finished_at") is None
+            ):
+                raise ValueError("Failed agent run metadata is invalid")
+            if run.get("status") == "running" and (
+                run.get("finished_at") is not None or run.get("result_digest") is not None
+            ):
+                raise ValueError("Running agent run cannot have terminal metadata")
+        for event in tables["agent_events"]:
+            if not isinstance(event, dict) or event.get("run_id") not in runs:
+                raise ValueError("Agent event references an unknown run")
+            if event.get("event_type") not in {
+                "tool_invocation_started",
+                "tool_invocation_completed",
+                "tool_invocation_failed",
+            }:
+                raise ValueError("Agent event type is invalid")
+            try:
+                details = json.loads(event.get("details", ""))
+            except (TypeError, json.JSONDecodeError) as exc:
+                raise ValueError("Agent event details are invalid JSON") from exc
+            if not isinstance(details, dict):
+                raise TypeError("Agent event details must be an object")
+            allowed_details = (
+                {"agent_id", "tool_name"}
+                if event["event_type"] == "tool_invocation_started"
+                else {"status", "error_code"}
+            )
+            if set(details) != allowed_details:
+                raise ValueError("Agent event contains unsupported or raw detail fields")
+            events_by_run.setdefault(event["run_id"], []).append(event)
+        for run_id, run in runs.items():
+            run_events = events_by_run.get(run_id, [])
+            types = {event["event_type"] for event in run_events}
+            if "tool_invocation_started" not in types:
+                raise ValueError("Agent run is missing its start event")
+            if run["status"] == "running":
+                if len(run_events) != 1:
+                    raise ValueError("Running agent run cannot have terminal audit events")
+            else:
+                terminal_type = (
+                    "tool_invocation_failed"
+                    if run["status"] == "failed"
+                    else "tool_invocation_completed"
+                )
+                if len(run_events) != 2 or terminal_type not in types:
+                    raise ValueError("Agent run status does not match its audit events")
+                terminal = next(
+                    event for event in run_events if event["event_type"] == terminal_type
+                )
+                terminal_details = json.loads(terminal["details"])
+                if (
+                    terminal_details.get("status") != run["status"]
+                    or terminal_details.get("error_code") != run.get("error_code")
+                ):
+                    raise ValueError("Agent terminal event does not match its run metadata")
+            started = next(event for event in run_events if event["event_type"] == "tool_invocation_started")
+            start_details = json.loads(started["details"])
+            if start_details != {"agent_id": run["agent_id"], "tool_name": run["tool_name"]}:
+                raise ValueError("Agent start event does not match its run metadata")
+
         descriptor, temporary_name = tempfile.mkstemp(
             prefix=f".{database.name}.import-",
             suffix=".sqlite3",
@@ -888,11 +984,13 @@ class KnowledgeStore:
             # Build every supported schema before inserting records. Authentication
             # identities and sessions are intentionally initialized empty.
             KnowledgeStore(temporary)
+            from humanity_os.agent_runtime import AgentRuntimeStore
             from humanity_os.documents import DocumentStore
             from humanity_os.memory import MemoryStore
 
             DocumentStore(temporary)
             MemoryStore(temporary)
+            AgentRuntimeStore(temporary)
             from humanity_os.auth import AuthStore
             from humanity_os.claim_assessments import ClaimAssessmentStore
             from humanity_os.claim_graph import ClaimGraphStore

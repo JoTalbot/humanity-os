@@ -32,6 +32,42 @@ async function loadModelCapabilities(){
   ?"Configured provider: "+capabilities.provider_id+" / "+capabilities.model_id+". Source passages are sent only after your per-request approval."
   :"No model provider is configured. Local source context remains available; answer generation is disabled.";
 }
+function defaultToolArguments(toolName){
+ if(toolName==="memory.propose")return JSON.stringify({title:"Memory title",content:"Content to propose",rationale:"Why this should be remembered"},null,2);
+ if(toolName==="documents.context")return JSON.stringify({query:"source search",passage_limit:5,max_context_chars:4000},null,2);
+ return JSON.stringify({query:"source search",limit:10},null,2);
+}
+async function loadAgentTools(){
+ const agentId=$("#agent-profile").value;
+ const result=await api("/v1/agents/tools?agent_id="+encodeURIComponent(agentId));
+ const select=$("#agent-tool");
+ select.replaceChildren();
+ for(const tool of result.items||[]){
+  const option=element("option","",tool.name+" · "+tool.risk);
+  option.value=tool.name;
+  select.append(option);
+ }
+ const selected=(result.items||[])[0];
+ $("#agent-tool-description").textContent=selected?selected.description+" · side effects: "+selected.side_effects+" · separate approval: "+selected.requires_separate_approval:"No tools are available for this profile.";
+ if(selected)$("#agent-arguments").value=defaultToolArguments(selected.name);
+}
+async function loadAgents(){
+ const result=await api("/v1/agents");
+ const select=$("#agent-profile");
+ select.replaceChildren();
+ for(const profile of result.items||[]){
+  const option=element("option","",profile.name+" · "+profile.id);
+  option.value=profile.id;
+  select.append(option);
+ }
+ await loadAgentTools();
+ await loadAgentRuns();
+}
+async function loadAgentRuns(){
+ const result=await api("/v1/agents/runs?limit=30");
+ renderList($("#agent-runs"),result.items||[],"No agent runs yet.",run=>
+  itemCard(run.agent_id+" · "+run.tool_name,run.status,run.started_at+" · run "+run.id+" · "+(run.error_code||"no error")));
+}
 async function loadMemory(){
  const values=await Promise.all([api("/v1/memory/proposals?status=pending_review&limit=50"),api("/v1/memories?limit=100"),api("/v1/memory/events")]);
  const proposals=values[0].items||[];const memories=values[1].items||[];const events=values[2].items||[];$("#proposal-count").textContent=String(proposals.length);
@@ -51,7 +87,7 @@ async function loadMemory(){
  });
  renderList($("#memory-events"),events,"No memory events yet.",event=>itemCard(event.event_type.replaceAll("_"," "),event.details,event.actor+" · "+event.occurred_at));
 }
-async function refreshAll(){try{await Promise.all([loadNotes(),loadDocuments(),loadMemory(),loadModelCapabilities()]);}catch(error){if(/Authentication required/i.test(error.message)){csrfToken=null;setSignedIn(false);}notify(error.message,true);}}
+async function refreshAll(){try{await Promise.all([loadNotes(),loadDocuments(),loadMemory(),loadModelCapabilities(),loadAgents()]);}catch(error){if(/Authentication required/i.test(error.message)){csrfToken=null;setSignedIn(false);}notify(error.message,true);}}
 $("#login-form").addEventListener("submit",async event=>{event.preventDefault();try{const result=await api("/auth/login",{method:"POST",body:JSON.stringify({password:$("#password").value})});csrfToken=result.csrf_token;$("#password").value="";setSignedIn(true);await refreshAll();notify("Workspace unlocked.");}catch(error){notify(error.message,true);}});
 logoutButton.addEventListener("click",async()=>{try{await api("/auth/logout",{method:"POST"});csrfToken=null;setSignedIn(false);notify("Signed out.");}catch(error){notify(error.message,true);}});
 $("#note-form").addEventListener("submit",async event=>{event.preventDefault();try{await api("/v1/knowledge",{method:"POST",body:JSON.stringify({kind:"observation",title:$("#note-title").value,content:$("#note-content").value,visibility:"private"})});$("#note-form").reset();notify("Note saved.");await loadNotes();}catch(error){notify(error.message,true);}});
@@ -76,7 +112,28 @@ $("#answer-form").addEventListener("submit",async event=>{
  }catch(error){notify(error.message,true);}
 });
 $("#refresh-documents").addEventListener("click",()=>loadDocuments().catch(error=>notify(error.message,true)));
+$("#agent-profile").addEventListener("change",()=>loadAgentTools().catch(error=>notify(error.message,true)));
+$("#agent-tool").addEventListener("change",async()=>{
+ $("#agent-arguments").value=defaultToolArguments($("#agent-tool").value);
+ try{
+  const result=await api("/v1/agents/tools?agent_id="+encodeURIComponent($("#agent-profile").value));
+  const selected=(result.items||[]).find(tool=>tool.name===$("#agent-tool").value);
+  if(selected)$("#agent-tool-description").textContent=selected.description+" · side effects: "+selected.side_effects+" · separate approval: "+selected.requires_separate_approval;
+ }catch(error){notify(error.message,true);}
+});
+$("#agent-form").addEventListener("submit",async event=>{
+ event.preventDefault();
+ try{
+  const argumentsValue=JSON.parse($("#agent-arguments").value);
+  if(!argumentsValue||Array.isArray(argumentsValue)||typeof argumentsValue!=="object")throw new Error("Tool arguments must be a JSON object.");
+  const result=await api("/v1/agents/"+encodeURIComponent($("#agent-profile").value)+"/invoke",{method:"POST",body:JSON.stringify({tool_name:$("#agent-tool").value,arguments:argumentsValue})});
+  $("#agent-result").textContent=JSON.stringify(result,null,2);
+  notify("Local tool run completed.");
+  await loadAgentRuns();
+ }catch(error){notify(error.message,true);}
+});
+$("#refresh-agents").addEventListener("click",()=>loadAgentRuns().catch(error=>notify(error.message,true)));
 $("#refresh-memory").addEventListener("click",()=>loadMemory().catch(error=>notify(error.message,true)));
-document.querySelectorAll("[data-tab],[data-open-tab]").forEach(button=>button.addEventListener("click",()=>{const tab=button.dataset.tab||button.dataset.openTab;document.querySelectorAll(".tab").forEach(item=>{const active=item.dataset.tab===tab;item.classList.toggle("active",active);if(active)item.setAttribute("aria-current","page");else item.removeAttribute("aria-current");});document.querySelectorAll(".tab-panel").forEach(panel=>panel.classList.toggle("hidden",panel.id!=="tab-"+tab));if(tab==="memory")loadMemory().catch(error=>notify(error.message,true));if(tab==="documents")loadDocuments().catch(error=>notify(error.message,true));if(tab==="notes")loadNotes().catch(error=>notify(error.message,true));}));
+document.querySelectorAll("[data-tab],[data-open-tab]").forEach(button=>button.addEventListener("click",()=>{const tab=button.dataset.tab||button.dataset.openTab;document.querySelectorAll(".tab").forEach(item=>{const active=item.dataset.tab===tab;item.classList.toggle("active",active);if(active)item.setAttribute("aria-current","page");else item.removeAttribute("aria-current");});document.querySelectorAll(".tab-panel").forEach(panel=>panel.classList.toggle("hidden",panel.id!=="tab-"+tab));if(tab==="memory")loadMemory().catch(error=>notify(error.message,true));if(tab==="agents"){loadAgents().catch(error=>notify(error.message,true));}if(tab==="documents")loadDocuments().catch(error=>notify(error.message,true));if(tab==="notes")loadNotes().catch(error=>notify(error.message,true));}));
 setSignedIn(false);
 })();

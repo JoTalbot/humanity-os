@@ -2,7 +2,7 @@
 
 ## Delivery
 
-The FastAPI application serves a responsive single-page interface at \`/\` and static assets under \`/static/\`. The interface uses the existing API and does not bypass its authorization boundary.
+The FastAPI application serves a responsive single-page interface at \`/\` and static assets under \`/static/\`. The interface uses the existing API and does not bypass its authorization boundary. Agent runs invoke one static allowlisted local tool per explicit owner request; no autonomous loop is present.
 
 ## Included workflows
 
