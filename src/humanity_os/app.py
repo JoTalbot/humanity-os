@@ -89,6 +89,7 @@ def create_app(database_path: str | None = None, api_token: str | None = None) -
         buckets = ("owner", ip_bucket)
         retry_after = auth.consume_login_attempts(buckets)
         if retry_after:
+            auth.record_audit_event("login_rate_limited", "owner")
             raise HTTPException(
                 status_code=429,
                 detail="Too many login attempts; try again later",
@@ -96,10 +97,12 @@ def create_app(database_path: str | None = None, api_token: str | None = None) -
             )
 
         if not auth.verify_owner_password(payload.password):
+            auth.record_audit_event("login_failed", ip_bucket)
             raise HTTPException(status_code=401, detail="Invalid credentials")
 
         for bucket in buckets:
             auth.clear_login_failures(bucket)
+        auth.record_audit_event("login_succeeded", "owner")
         session_token, csrf_token = auth.create_session()
         response.set_cookie(
             SESSION_COOKIE,
@@ -111,6 +114,13 @@ def create_app(database_path: str | None = None, api_token: str | None = None) -
             path="/",
         )
         return {"authenticated": "true", "csrf_token": csrf_token}
+
+    @app.get("/auth/events")
+    def auth_events(
+        limit: Annotated[int, Query(ge=1, le=100)] = 50,
+        before_id: Annotated[int | None, Query(ge=1)] = None,
+    ) -> dict[str, list[dict]]:
+        return {"items": auth.list_audit_events(limit=limit, before_id=before_id)}
 
     @app.post("/auth/logout", status_code=204)
     def logout(request: Request, response: Response) -> Response:
