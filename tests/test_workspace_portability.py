@@ -1,6 +1,7 @@
 import hashlib
 import json
 
+import pytest
 from fastapi.testclient import TestClient
 
 from humanity_os.app import create_app
