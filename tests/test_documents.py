@@ -65,6 +65,64 @@ def test_source_aware_search_casefolds_ukrainian_text(tmp_path):
     assert results[0]["document_id"] == document["id"]
 
 
+def test_context_packet_is_bounded_and_preserves_exact_citations(tmp_path):
+    store = DocumentStore(tmp_path / "workspace.sqlite3")
+    content = "Context evidence. " * 120
+    document = store.create("context.txt", content)
+    packet = store.prepare_context("context evidence", passage_limit=1, max_context_chars=512)
+
+    assert len(packet["context"]) <= 512
+    assert packet["processing"] == {
+        "model_called": False,
+        "external_processing": False,
+        "retrieval": "local_lexical",
+    }
+    passage = packet["passages"][0]
+    assert passage["citation_id"] == "S1"
+    assert passage["document_id"] == document["id"]
+    assert passage["chunk_id"] == document["chunks"][0]["id"]
+    assert content[passage["start_offset"]:passage["end_offset"]] == passage["excerpt"]
+    assert passage["truncated"] is True
+
+
+def test_context_packet_supports_unicode_and_empty_results(tmp_path):
+    store = DocumentStore(tmp_path / "workspace.sqlite3")
+    store.create("ukrainian.md", "Кропивницький — локальне джерело знань.")
+    packet = store.prepare_context("кропивницький знань")
+    assert len(packet["passages"]) == 1
+    assert "Кропивницький" in packet["context"]
+    assert packet["passages"][0]["end_offset"] > packet["passages"][0]["start_offset"]
+
+    empty = store.prepare_context("nonexistent phrase")
+    assert empty["passages"] == []
+    assert empty["context"] == ""
+    with pytest.raises(ValueError, match="Context character limit"):
+        store.prepare_context("knowledge", max_context_chars=128)
+
+
+def test_document_context_api_requires_auth_and_never_calls_a_model(tmp_path):
+    strict = TestClient(
+        create_app(str(tmp_path / "strict.sqlite3")),
+        client=("127.0.0.1", 50000),
+    )
+    payload = {"query": "source context", "passage_limit": 2, "max_context_chars": 512}
+    assert strict.post("/v1/documents/context", json=payload).status_code == 401
+
+    client = TestClient(
+        create_app(str(tmp_path / "local.sqlite3"), allow_unauthenticated_local=True),
+        client=("127.0.0.1", 50000),
+    )
+    client.post(
+        "/v1/documents",
+        json={"filename": "context.txt", "content": "A source context packet remains local."},
+    )
+    response = client.post("/v1/documents/context", json=payload)
+    assert response.status_code == 200
+    assert response.json()["processing"]["model_called"] is False
+    assert response.json()["processing"]["external_processing"] is False
+    assert response.json()["passages"][0]["chunk_id"]
+
+
 def test_document_api_is_authenticated_by_default_and_supports_search(tmp_path):
     strict = TestClient(create_app(str(tmp_path / "strict.sqlite3")), client=("127.0.0.1", 50000))
     assert strict.post(
