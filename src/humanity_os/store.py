@@ -282,8 +282,8 @@ class KnowledgeStore:
             ClaimNode.model_validate_json(row[0])
         for row in claim_relation_rows:
             ClaimRelation.model_validate_json(row[0])
-        from humanity_os.reasoning import ReasoningRun
         from humanity_os.models import ClaimAssessment
+        from humanity_os.reasoning import ReasoningRun
 
         for row in reasoning_rows:
             ReasoningRun.model_validate_json(row[0])
