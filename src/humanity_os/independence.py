@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Literal
 from uuid import uuid4
 
@@ -84,12 +84,10 @@ class EvidenceIndependenceEngine:
         items: list[SourceLineageItem] = []
         groups: dict[tuple[str, str], list[str]] = defaultdict(list)
         roots_by_record: dict[str, dict[str, set[str]]] = {}
-        sources_by_record: dict[str, dict[str, object]] = {}
         unknown: list[str] = []
 
         for record in records:
             source_map = {source.id: source for source in record.sources}
-            sources_by_record[record.id] = source_map
             memo: dict[str, set[str]] = {}
 
             def roots(source_id: str) -> set[str]:
