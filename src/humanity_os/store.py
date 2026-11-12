@@ -10,7 +10,13 @@ from contextlib import closing
 from datetime import UTC, datetime
 from pathlib import Path
 
-from humanity_os.models import DecisionRecord, EvidenceAssessment, KnowledgeConflict, KnowledgeRecord, KnowledgeRevision
+from humanity_os.models import (
+    DecisionRecord,
+    EvidenceAssessment,
+    KnowledgeConflict,
+    KnowledgeRecord,
+    KnowledgeRevision,
+)
 
 
 class KnowledgeStore:
