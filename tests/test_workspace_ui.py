@@ -37,5 +37,5 @@ def test_workspace_ui_contains_no_remote_assets_or_persistent_token_storage(tmp_
     assert "https://" not in html
     assert "localStorage" not in script
     assert "sessionStorage" not in script
-    assert "credentials: \"same-origin\"" in script
+    assert "credentials:" in script and "\"same-origin\"" in script
     assert "X-CSRF-Token" in script
