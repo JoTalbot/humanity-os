@@ -120,3 +120,14 @@ def test_gateway_timeout_is_bounded():
 
     with pytest.raises(ModelProviderTimeout):
         asyncio.run(gateway.generate(ModelGenerationRequest(prompt="timeout")))
+
+
+def test_model_endpoint_remains_authenticated_by_default(tmp_path):
+    app = create_app(str(tmp_path / "workspace.sqlite3"))
+    client = TestClient(app, client=("127.0.0.1", 50000))
+
+    response = client.post(
+        "/v1/models/generate", json={"prompt": "must be protected"}
+    )
+
+    assert response.status_code == 401
