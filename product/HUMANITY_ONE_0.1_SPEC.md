@@ -7,7 +7,7 @@ A person creates a private knowledge workspace, connects a model of choice, work
 Install locally or use a clearly identified hosted instance → create private workspace → configure provider/local model → add documents/notes → ask questions with source references → explicitly save selected memory → inspect, correct, export or delete data.
 
 ## Included
-Responsive web UI; private workspace and authentication; provider adapter; document/note ingestion; search; source-aware answers; explicit memory save; memory inspection/correction/export/deletion; task history; API docs; local deployment guide.
+Target scope: responsive web UI; private workspace and authentication; provider adapter; document/note ingestion; search; source-aware answers; explicit memory review; task history; API docs; local deployment guide. Current prototype exposes memory lifecycle through authenticated APIs, not a completed responsive UI.
 
 ## Current implementation boundary
 
