@@ -10,7 +10,7 @@ The project's mission and humanity-ownership direction do not establish a legal 
 
 | Category | Examples | 0.1 handling |
 | --- | --- | --- |
-| Workspace content | Knowledge records, text/Markdown documents, document chunks, claims, decisions | Stored locally; private visibility is the default |
+| Workspace content | Knowledge records, text/Markdown documents, document chunks, pending memory proposals, approved memory, claims, decisions | Stored locally; private visibility is the default |
 | Provenance | Sources, evidence links, excerpts, locators and derivation lineage | Stored with associated knowledge |
 | Historical records | Revisions, conflict decisions, evidence/claim assessments, reasoning runs | Append-only where implemented; included in portable export |
 | Security audit metadata | Event type, timestamp and bounded subject | Stored locally and included in portable export; does not include password or session tokens |
@@ -22,13 +22,14 @@ The project's mission and humanity-ownership direction do not establish a legal 
 ## Data flow boundaries
 
 - The 0.1 application does not upload workspace content to a HUMANITY OS cloud service. Document ingestion is limited to bounded UTF-8 text and Markdown; it does not fetch URLs, execute Markdown/HTML, or call model providers.
+- Memory proposals are not durable memory. Only a separate authenticated owner approval request creates an active memory item; model generation and document retrieval have no approval path. See [EXPLICIT_MEMORY.md](EXPLICIT_MEMORY.md).
 - The model gateway contract is present, but no provider is configured by default and no network-backed provider is included. Any future provider connection must be explicit, documented, opt-in, and disclose the exact data sent. See [MODEL_GATEWAY.md](MODEL_GATEWAY.md).
 - The local API is loopback-only. A future remote-access mode requires a separate threat model, secure transport, identity, session, abuse-control and deployment review.
 - Logs and backups are controlled by the host and operator. Operators must not place passwords, bearer tokens, session cookies or raw private content in logs or unprotected backup locations.
 
 ## Export and import
 
-The versioned workspace export schema 1.1.0 contains domain records, provenance, text/Markdown document content and chunks, append-only history, reasoning records and security audit metadata. Schema 1.0.0 exports remain importable. Document text is included in plaintext and must be protected like other private workspace content. It excludes owner identity/password hashes, session and CSRF hashes, login throttling buckets, environment bearer tokens, derived indexes and SQLite implementation metadata.
+The versioned workspace export schema 1.2.0 contains domain records, provenance, text/Markdown document content and chunks, pending memory proposals, approved memory and lifecycle events, append-only history, reasoning records and security audit metadata. Schema 1.0.0 and 1.1.0 exports remain importable. Document text is included in plaintext and must be protected like other private workspace content. It excludes owner identity/password hashes, session and CSRF hashes, login throttling buckets, environment bearer tokens, derived indexes and SQLite implementation metadata.
 
 The export's SHA-256 digest detects accidental modification; it is not a signature, encryption, identity proof or authenticity guarantee. Anyone with access to an export can read its included personal content. Store exports encrypted and restrict access.
 
