@@ -152,6 +152,7 @@ class KnowledgeStore:
             if staged_count != record_count:
                 raise sqlite3.DatabaseError("Staged restore record count changed")
             os.replace(temporary, database)
+            self._initialise()
             return record_count
         finally:
             temporary.unlink(missing_ok=True)
