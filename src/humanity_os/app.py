@@ -32,8 +32,8 @@ from humanity_os.models import (
     KnowledgeRecord,
     KnowledgeRevision,
 )
-from humanity_os.store import KnowledgeStore
 from humanity_os.reasoning import ReasoningEngine, ReasoningQuery, ReasoningRun
+from humanity_os.store import KnowledgeStore
 
 SESSION_COOKIE = "humanity_session"
 SESSION_MAX_AGE = 12 * 60 * 60
