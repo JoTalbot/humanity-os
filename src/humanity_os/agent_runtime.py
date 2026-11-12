@@ -127,6 +127,23 @@ class AgentRuntimeStore:
                 "CREATE INDEX IF NOT EXISTS idx_agent_events_run "
                 "ON agent_events(run_id, occurred_at, id)"
             )
+            interrupted = connection.execute(
+                "SELECT id FROM agent_runs WHERE status = 'running'"
+            ).fetchall()
+            for row in interrupted:
+                finished_at = datetime.now(UTC).isoformat()
+                connection.execute(
+                    """UPDATE agent_runs SET status = 'failed', finished_at = ?,
+                       error_code = 'interrupted' WHERE id = ?""",
+                    (finished_at, row["id"]),
+                )
+                self._append_event(
+                    connection,
+                    row["id"],
+                    "tool_invocation_failed",
+                    finished_at,
+                    {"status": "failed", "error_code": "interrupted"},
+                )
 
     def _connect(self) -> sqlite3.Connection:
         connection = sqlite3.connect(self.database_path, timeout=10)
