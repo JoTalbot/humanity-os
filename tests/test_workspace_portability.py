@@ -1,5 +1,6 @@
 import hashlib
 import json
+import sqlite3
 from pathlib import Path
 
 import pytest
@@ -201,3 +202,13 @@ def test_portable_import_rejects_safety_backup_on_sqlite_sidecar(tmp_path):
             export_path, str(target_db) + "-wal"
         )
     assert KnowledgeStore(target_db).list()[0].title == "Target"
+
+
+def test_workspace_export_fails_closed_on_unversioned_table_schema_change(tmp_path):
+    database = tmp_path / "workspace.sqlite3"
+    KnowledgeStore(database)
+    with sqlite3.connect(database) as connection:
+        connection.execute("ALTER TABLE knowledge ADD COLUMN future_secret TEXT")
+
+    with pytest.raises(ValueError, match="Unsupported knowledge schema"):
+        KnowledgeStore(database).export_workspace()
