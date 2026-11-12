@@ -19,6 +19,8 @@ Personal data, credentials, keys, private knowledge, agent permissions, federati
 - Malicious update: reproducible builds, signed releases, provenance and review.
 - Audit tampering: append-only design, external checkpoints and access separation.
 - Data loss/ransomware: encrypted backups and tested restore.
+- Incomplete export: the full workspace export uses an explicit allowlist covering domain records, provenance, immutable history, reasoning and security audit metadata; credential/session material and live secrets are excluded.
+- Destructive deletion: full workspace deletion is offline-only, requires explicit confirmation and a separate verified pre-deletion backup, and removes the active SQLite database plus WAL/SHM sidecars. Retained backups, snapshots and external copies remain outside the deletion boundary.
 - Hallucinations: evidence references, uncertainty labels and independent verification.
 - Denial of service: quotas, rate limits and graceful degradation.
 
@@ -28,4 +30,4 @@ Private by default; no self-escalation; external side effects authorised and aud
 ## Release gates
 The owner identity and session implementation is single-user local functionality, not a complete identity platform. Password recovery, MFA, session inspection/revocation UI, multi-user isolation, general API rate limits, origin policy, TLS/edge configuration, audit events, dependency/secret scanning and independent review remain incomplete. The API must remain loopback-only, and protected routes must remain authenticated by default. Do not expose it to a LAN or public internet.
 
-Before broad public deployment: independent security review, restore demonstration, export/deletion verification, incident response plan, privacy/legal review and public residual-risk register.
+Before broad public deployment: independent security review, restore demonstration, export/deletion verification, incident response plan, privacy/legal review and public residual-risk register. Workspace deletion is not a claim of cryptographic erasure; retained safety backups and external copies require separate retention and disposal controls.
