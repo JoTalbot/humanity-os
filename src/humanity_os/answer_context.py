@@ -30,6 +30,7 @@ class AnswerContextSource(BaseModel):
     media_type: str
     document_hash: str
     chunk_id: str
+    ordinal: int
     chunk_hash: str
     start_offset: int
     end_offset: int
@@ -106,6 +107,7 @@ class AnswerContextBuilder:
                     media_type=item["media_type"],
                     document_hash=item["document_hash"],
                     chunk_id=chunk_id,
+                    ordinal=item["ordinal"],
                     chunk_hash=item["chunk_hash"],
                     start_offset=item["start_offset"],
                     end_offset=item["end_offset"],
