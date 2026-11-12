@@ -891,12 +891,24 @@ class KnowledgeStore:
                 raise ValueError("Agent run metadata is invalid")
             if run.get("status") == "completed":
                 digest = run.get("result_digest")
-                if not isinstance(digest, str) or len(digest) != 64 or run.get("error_code") is not None:
+                if (
+                    not isinstance(digest, str)
+                    or len(digest) != 64
+                    or any(character not in "0123456789abcdef" for character in digest)
+                    or run.get("error_code") is not None
+                    or run.get("finished_at") is None
+                ):
                     raise ValueError("Completed agent run metadata is invalid")
-            if run.get("status") == "failed" and not run.get("error_code"):
-                raise ValueError("Failed agent run is missing its error code")
-            if run.get("status") == "running" and run.get("finished_at") is not None:
-                raise ValueError("Running agent run cannot have a finish timestamp")
+            if run.get("status") == "failed" and (
+                not run.get("error_code")
+                or run.get("result_digest") is not None
+                or run.get("finished_at") is None
+            ):
+                raise ValueError("Failed agent run metadata is invalid")
+            if run.get("status") == "running" and (
+                run.get("finished_at") is not None or run.get("result_digest") is not None
+            ):
+                raise ValueError("Running agent run cannot have terminal metadata")
         for event in tables["agent_events"]:
             if not isinstance(event, dict) or event.get("run_id") not in runs:
                 raise ValueError("Agent event references an unknown run")
@@ -923,13 +935,28 @@ class KnowledgeStore:
         for run_id, run in runs.items():
             run_events = events_by_run.get(run_id, [])
             types = {event["event_type"] for event in run_events}
-            if len(run_events) != 2 or "tool_invocation_started" not in types:
-                raise ValueError("Agent run must have exactly one start and one terminal event")
-            terminal_type = (
-                "tool_invocation_failed" if run["status"] == "failed" else "tool_invocation_completed"
-            )
-            if terminal_type not in types or run["status"] == "running":
-                raise ValueError("Agent run status does not match its audit events")
+            if "tool_invocation_started" not in types:
+                raise ValueError("Agent run is missing its start event")
+            if run["status"] == "running":
+                if len(run_events) != 1:
+                    raise ValueError("Running agent run cannot have terminal audit events")
+            else:
+                terminal_type = (
+                    "tool_invocation_failed"
+                    if run["status"] == "failed"
+                    else "tool_invocation_completed"
+                )
+                if len(run_events) != 2 or terminal_type not in types:
+                    raise ValueError("Agent run status does not match its audit events")
+                terminal = next(
+                    event for event in run_events if event["event_type"] == terminal_type
+                )
+                terminal_details = json.loads(terminal["details"])
+                if (
+                    terminal_details.get("status") != run["status"]
+                    or terminal_details.get("error_code") != run.get("error_code")
+                ):
+                    raise ValueError("Agent terminal event does not match its run metadata")
             started = next(event for event in run_events if event["event_type"] == "tool_invocation_started")
             start_details = json.loads(started["details"])
             if start_details != {"agent_id": run["agent_id"], "tool_name": run["tool_name"]}:
@@ -949,9 +976,11 @@ class KnowledgeStore:
             KnowledgeStore(temporary)
             from humanity_os.documents import DocumentStore
             from humanity_os.memory import MemoryStore
+            from humanity_os.agent_runtime import AgentRuntimeStore
 
             DocumentStore(temporary)
             MemoryStore(temporary)
+            AgentRuntimeStore(temporary)
             from humanity_os.auth import AuthStore
             from humanity_os.claim_assessments import ClaimAssessmentStore
             from humanity_os.claim_graph import ClaimGraphStore
