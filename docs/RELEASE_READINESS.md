@@ -13,6 +13,7 @@
 - Explicit memory proposal, owner approval/rejection, archive/restore and append-only lifecycle events.
 - Responsive local browser interface for notes, documents and memory review.
 - Provider-neutral model gateway and source-grounded answer orchestration with per-request provider-processing consent.
+- Constrained local Agent Runtime with static tool allowlists, one-tool owner invocation, minimal audit metadata and no autonomous execution.
 - No model provider, network integration or production deployment is enabled by default.
 
 ## Required before a public 0.1 release
