@@ -35,7 +35,13 @@ from humanity_os.models import (
     KnowledgeRecord,
     KnowledgeRevision,
 )
-from humanity_os.reasoning import ReasoningEngine, ReasoningQuery, ReasoningRun
+from humanity_os.reasoning import (
+    ReasoningComparison,
+    ReasoningComparisonQuery,
+    ReasoningEngine,
+    ReasoningQuery,
+    ReasoningRun,
+)
 from humanity_os.store import KnowledgeStore
 
 SESSION_COOKIE = "humanity_session"
@@ -327,6 +333,22 @@ def create_app(database_path: str | None = None, api_token: str | None = None) -
         actor = "owner" if request.state.auth_session_token else "system"
         try:
             return reasoning.run(payload, actor=actor)
+        except LookupError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    @app.post(
+        "/v1/reasoning/compare",
+        response_model=ReasoningComparison,
+        status_code=201,
+    )
+    def compare_reasoning_paths(
+        payload: ReasoningComparisonQuery, request: Request
+    ) -> ReasoningComparison:
+        actor = "owner" if request.state.auth_session_token else "system"
+        try:
+            return reasoning.compare(payload, actor=actor)
         except LookupError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
         except ValueError as exc:
