@@ -113,7 +113,14 @@ $("#answer-form").addEventListener("submit",async event=>{
 });
 $("#refresh-documents").addEventListener("click",()=>loadDocuments().catch(error=>notify(error.message,true)));
 $("#agent-profile").addEventListener("change",()=>loadAgentTools().catch(error=>notify(error.message,true)));
-$("#agent-tool").addEventListener("change",()=>{$("#agent-arguments").value=defaultToolArguments($("#agent-tool").value);const description=$("#agent-tool-description");});
+$("#agent-tool").addEventListener("change",async()=>{
+ $("#agent-arguments").value=defaultToolArguments($("#agent-tool").value);
+ try{
+  const result=await api("/v1/agents/tools?agent_id="+encodeURIComponent($("#agent-profile").value));
+  const selected=(result.items||[]).find(tool=>tool.name===$("#agent-tool").value);
+  if(selected)$("#agent-tool-description").textContent=selected.description+" · side effects: "+selected.side_effects+" · separate approval: "+selected.requires_separate_approval;
+ }catch(error){notify(error.message,true);}
+});
 $("#agent-form").addEventListener("submit",async event=>{
  event.preventDefault();
  try{
