@@ -300,3 +300,73 @@ def test_auth_audit_event_pagination_is_bounded(tmp_path):
     assert first[0]["id"] > second[0]["id"]
     with pytest.raises(ValueError, match="between 1 and 100"):
         auth.list_audit_events(limit=101)
+
+
+def test_knowledge_provenance_sources_and_evidence_round_trip(tmp_path):
+    client = TestClient(create_app(str(tmp_path / "provenance.sqlite3")))
+    source = {
+        "id": "source-paper-1",
+        "uri": "https://example.org/research/paper",
+        "title": "Research paper",
+        "publisher": "Example Institute",
+        "content_hash": "a" * 64,
+    }
+    payload = {
+        "kind": "claim",
+        "title": "A sourced claim",
+        "content": "A statement with traceable evidence.",
+        "sources": [source],
+        "evidence": [{
+            "id": "evidence-1",
+            "source_id": "source-paper-1",
+            "relation": "supports",
+            "excerpt": "A short supporting excerpt.",
+            "locator": "page 4",
+        }],
+    }
+    created = client.post("/v1/knowledge", json=payload)
+    assert created.status_code == 201
+    record_id = created.json()["id"]
+
+    fetched = client.get(f"/v1/knowledge/{record_id}")
+    assert fetched.status_code == 200
+    assert fetched.json()["sources"][0]["content_hash"] == "a" * 64
+    assert fetched.json()["evidence"][0]["source_id"] == "source-paper-1"
+    exported = client.get("/v1/knowledge/export").json()
+    assert exported["items"][0]["evidence"][0]["relation"] == "supports"
+
+
+def test_knowledge_evidence_must_reference_declared_source(tmp_path):
+    client = TestClient(create_app(str(tmp_path / "provenance.sqlite3")))
+    response = client.post("/v1/knowledge", json={
+        "kind": "claim",
+        "title": "Untraceable claim",
+        "content": "Evidence must point to a declared source.",
+        "evidence": [{
+            "source_id": "missing-source",
+            "relation": "supports",
+        }],
+    })
+    assert response.status_code == 422
+
+
+def test_knowledge_provenance_rejects_invalid_hash_and_duplicate_source_ids(tmp_path):
+    client = TestClient(create_app(str(tmp_path / "provenance.sqlite3")))
+    invalid_hash = client.post("/v1/knowledge", json={
+        "kind": "claim",
+        "title": "Bad hash",
+        "content": "Invalid source hash must be rejected.",
+        "sources": [{"id": "s1", "uri": "https://example.org", "content_hash": "not-a-hash"}],
+    })
+    assert invalid_hash.status_code == 422
+
+    duplicate_ids = client.post("/v1/knowledge", json={
+        "kind": "claim",
+        "title": "Duplicate source",
+        "content": "Source identifiers must be unique.",
+        "sources": [
+            {"id": "same", "uri": "https://example.org/one"},
+            {"id": "same", "uri": "https://example.org/two"},
+        ],
+    })
+    assert duplicate_ids.status_code == 422
