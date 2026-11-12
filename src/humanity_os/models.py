@@ -111,3 +111,40 @@ class KnowledgeConflict(BaseModel):
     resolution_note: str | None = None
     created_at: datetime = Field(default_factory=utc_now)
     updated_at: datetime = Field(default_factory=utc_now)
+
+
+DecisionAction = Literal["made", "reaffirmed", "reversed", "superseded"]
+
+
+class DecisionCreate(BaseModel):
+    """A human-accountable decision with explicit alternatives and rationale."""
+    model_config = ConfigDict(extra="forbid")
+    title: str = Field(min_length=1, max_length=300)
+    question: str = Field(min_length=1, max_length=4_000)
+    context: str = Field(min_length=1, max_length=8_000)
+    alternatives: list[str] = Field(min_length=2, max_length=50)
+    selected_option: str = Field(min_length=1, max_length=4_000)
+    rationale: str = Field(min_length=1, max_length=8_000)
+    confidence: float | None = Field(default=None, ge=0, le=1)
+    related_knowledge_ids: list[str] = Field(default_factory=list, max_length=100)
+
+    @model_validator(mode="after")
+    def validate_alternatives(self) -> "DecisionCreate":
+        normalized = [item.strip() for item in self.alternatives]
+        if any(not item for item in normalized):
+            raise ValueError("Decision alternatives cannot be blank")
+        if len(normalized) != len(set(normalized)):
+            raise ValueError("Decision alternatives must be unique")
+        if self.selected_option not in normalized:
+            raise ValueError("Selected option must be one of the declared alternatives")
+        if len(self.related_knowledge_ids) != len(set(self.related_knowledge_ids)):
+            raise ValueError("Related knowledge IDs must be unique")
+        return self
+
+
+class DecisionRecord(DecisionCreate):
+    id: str = Field(default_factory=lambda: str(uuid4()))
+    actor: Literal["owner", "system"]
+    action: DecisionAction = "made"
+    supersedes_decision_id: str | None = None
+    created_at: datetime = Field(default_factory=utc_now)
