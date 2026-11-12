@@ -23,7 +23,7 @@ The password is entered interactively (not as a command-line argument), must con
 
 Log in with `POST /auth/login` and JSON body `{"password":"..."}`. On success, the server sets an opaque, random, HttpOnly, SameSite=Strict session cookie and returns a CSRF token. Keep the CSRF token in client memory and send it as `X-CSRF-Token` on state-changing requests made with the cookie. The cookie is valid for 12 hours; logout at `POST /auth/logout` revokes the server-side session. Session tokens are stored only as SHA-256 digests. Password changes revoke all sessions.
 
-The cookie is marked Secure when the request uses HTTPS. The service still refuses non-loopback binding. Do not place it behind a public reverse proxy or expose it to a LAN. There is no password recovery, account recovery, multi-factor authentication, login rate limiting, session management UI, or multi-user isolation yet. Protect the host account and encrypted backups. A shared bearer token remains available as an optional compatibility mechanism; prefer owner sessions for interactive clients.
+The cookie is marked Secure when the request uses HTTPS. The ASGI application itself rejects every non-loopback peer, including requests to `/health`; the CLI also refuses non-loopback bind addresses. This second check is intentional: starting the exported ASGI app directly with Uvicorn must not bypass the network boundary. Do not place it behind a public reverse proxy or expose it to a LAN. There is no password recovery, account recovery, multi-factor authentication, session management UI, general API rate limiting, or multi-user isolation yet. Protect the host account and encrypted backups. A shared bearer token remains available as an optional compatibility mechanism; prefer owner sessions for interactive clients.
 
 ## Bearer-token compatibility
 
@@ -41,7 +41,7 @@ Generate a cryptographically random 256-bit token with `humanity-os --generate-a
 - `DELETE /v1/knowledge/{id}`: delete a record.
 - `GET /v1/knowledge/export`: export all records as versioned JSON.
 
-When no owner password or bearer token is configured, the prototype remains unauthenticated and loopback-only. Once an owner password is set, all protected routes require a valid owner session or configured bearer token. Cookie-authenticated state-changing requests require a valid CSRF token.
+Authentication is fail-closed by default: if neither an owner password nor a bearer token is configured, every protected route returns `401`; `/health` remains available to loopback clients. Configure the owner password locally with the CLI before using the API. Once an owner password is set, protected routes require a valid owner session or configured bearer token. Cookie-authenticated state-changing requests require a valid CSRF token. The `allow_unauthenticated_local=True` app-factory option exists only for isolated automated tests and must never be enabled in a deployed service.
 
 ## SQLite backup
 
@@ -70,7 +70,7 @@ CI runs Ruff, pytest and `pip-audit`. Dependabot checks Python dependencies and 
 
 ## Security boundary
 
-This is a local, single-owner prototype. It has no multi-tenant isolation, password recovery, MFA, login throttling, session UI, remote deployment hardening, rate limiting, or independent security review. The CLI refuses non-loopback binding. Do not expose it through a reverse proxy or to a LAN. Export and backup files contain personal data.
+This is a local, single-owner prototype. It has no multi-tenant isolation, password recovery, MFA, session UI, remote deployment hardening, general API rate limiting, or independent security review. Both the CLI and ASGI middleware enforce loopback-only access. Direct ASGI/Uvicorn startup does not bypass the restriction. Do not expose it through a reverse proxy or to a LAN. Export and backup files contain personal data.
 
 ## Local checks
 

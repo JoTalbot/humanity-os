@@ -1,6 +1,7 @@
 """HTTP API for the local HUMANITY ONE prototype."""
 import hashlib
 import hmac
+import ipaddress
 import os
 import sqlite3
 from datetime import UTC, datetime
@@ -57,7 +58,12 @@ class LoginRequest(BaseModel):
     password: str = Field(min_length=1, max_length=1024)
 
 
-def create_app(database_path: str | None = None, api_token: str | None = None) -> FastAPI:
+def create_app(
+    database_path: str | None = None,
+    api_token: str | None = None,
+    *,
+    allow_unauthenticated_local: bool = False,
+) -> FastAPI:
     path = database_path or os.environ.get(
         "HUMANITY_OS_DB", str(Path.home() / ".humanity-os" / "knowledge.sqlite3")
     )
@@ -75,7 +81,7 @@ def create_app(database_path: str | None = None, api_token: str | None = None) -
     app = FastAPI(
         title="HUMANITY OS Personal Core",
         version=__version__,
-        description="Local-only personal workspace with optional owner sessions and bearer auth.",
+        description="Loopback-only personal workspace with mandatory authentication by default.",
     )
     app.state.knowledge_store = store
     app.state.auth_store = auth
@@ -84,10 +90,20 @@ def create_app(database_path: str | None = None, api_token: str | None = None) -
     app.state.claim_assessment_store = claim_assessments
     app.state.reasoning_engine = reasoning
     app.state.evidence_independence_engine = independence
-    app.state.authentication_enabled = bool(token) or auth.has_owner()
+    app.state.authentication_enabled = not allow_unauthenticated_local or bool(token) or auth.has_owner()
 
     @app.middleware("http")
     async def require_authentication(request: Request, call_next):
+        # Enforce the network boundary inside the ASGI application as well as in
+        # the CLI. Direct Uvicorn/ASGI startup must not bypass loopback-only mode.
+        peer_host = request.client.host if request.client else ""
+        try:
+            peer_is_loopback = ipaddress.ip_address(peer_host).is_loopback
+        except ValueError:
+            peer_is_loopback = peer_host.lower() == "localhost"
+        if not peer_is_loopback:
+            return JSONResponse(status_code=403, content={"detail": "Loopback clients only"})
+
         if request.url.path in {"/health", "/auth/login"}:
             return await call_next(request)
 
@@ -101,7 +117,7 @@ def create_app(database_path: str | None = None, api_token: str | None = None) -
         )
         session_token = request.cookies.get(SESSION_COOKIE)
         session_valid = bool(session_token and auth.validate_session(session_token))
-        required = bool(token) or auth.has_owner()
+        required = not allow_unauthenticated_local or bool(token) or auth.has_owner()
 
         if required and not (bearer_valid or session_valid):
             return JSONResponse(

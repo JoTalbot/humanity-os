@@ -1,9 +1,9 @@
 import sqlite3
 
 import pytest
-from fastapi.testclient import TestClient
+from fastapi.testclient import TestClient as _TestClient
 
-from humanity_os.app import create_app
+from humanity_os.app import create_app as _create_app
 from humanity_os.store import KnowledgeStore
 
 
@@ -37,6 +37,20 @@ def _create_claim(client, knowledge_id, statement):
         "temporal_scope": "2026",
         "evidence_ids": ["evidence-1"],
     })
+
+
+
+# Existing API behavior tests explicitly opt into the isolated, loopback-only
+# anonymous mode. Production create_app() remains authenticated by default.
+def create_app(*args, **kwargs):
+    kwargs["allow_unauthenticated_local"] = True
+    return _create_app(*args, **kwargs)
+
+
+class TestClient(_TestClient):
+    def __init__(self, app, **kwargs):
+        kwargs.setdefault("client", ("127.0.0.1", 50000))
+        super().__init__(app, **kwargs)
 
 
 def test_claim_node_is_atomic_and_grounded_in_existing_knowledge_evidence(tmp_path):

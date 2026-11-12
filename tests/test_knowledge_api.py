@@ -2,10 +2,23 @@ import sqlite3
 import sys
 
 import pytest
-from fastapi.testclient import TestClient
+from fastapi.testclient import TestClient as _TestClient
 
-from humanity_os.app import create_app
+from humanity_os.app import create_app as _create_app
 from humanity_os.store import KnowledgeStore
+
+
+# Existing API behavior tests explicitly opt into the isolated, loopback-only
+# anonymous mode. Production create_app() remains authenticated by default.
+def create_app(*args, **kwargs):
+    kwargs["allow_unauthenticated_local"] = True
+    return _create_app(*args, **kwargs)
+
+
+class TestClient(_TestClient):
+    def __init__(self, app, **kwargs):
+        kwargs.setdefault("client", ("127.0.0.1", 50000))
+        super().__init__(app, **kwargs)
 
 
 def test_create_read_update_list_and_delete_knowledge(tmp_path):
@@ -40,6 +53,28 @@ def test_rejects_unknown_fields(tmp_path):
 def test_health_endpoint(tmp_path):
     client = TestClient(create_app(str(tmp_path / "test.sqlite3")))
     assert client.get("/health").json()["status"] == "ok"
+
+
+def test_authentication_fails_closed_without_owner_or_token(tmp_path):
+    app = _create_app(str(tmp_path / "strict.sqlite3"))
+    client = TestClient(app)
+
+    assert app.state.authentication_enabled is True
+    assert client.get("/health").status_code == 200
+    assert client.get("/v1/knowledge").status_code == 401
+    assert client.post(
+        "/v1/knowledge",
+        json={"kind": "concept", "title": "private", "content": "blocked"},
+    ).status_code == 401
+
+
+def test_asgi_rejects_non_loopback_clients_even_for_health(tmp_path):
+    app = _create_app(str(tmp_path / "remote.sqlite3"), api_token="a" * 43)
+    client = _TestClient(app, client=("192.0.2.10", 50000))
+    headers = {"Authorization": "Bearer " + "a" * 43}
+
+    assert client.get("/health").status_code == 403
+    assert client.get("/v1/knowledge", headers=headers).status_code == 403
 
 
 def test_bearer_authentication_protects_knowledge_endpoints(tmp_path):
