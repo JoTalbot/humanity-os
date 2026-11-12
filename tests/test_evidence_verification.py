@@ -144,3 +144,25 @@ def test_evidence_assessments_are_append_only_and_survive_backup(tmp_path):
         "/v1/evidence-assessments",
         params={"knowledge_id": record["id"]},
     ).json()[0]["id"] == assessment["id"]
+
+
+def test_restore_initializes_evidence_schema_from_legacy_backup(tmp_path):
+    database = tmp_path / "active.sqlite3"
+    backup = tmp_path / "legacy.sqlite3"
+    safety = tmp_path / "safety.sqlite3"
+    client = TestClient(create_app(str(database)))
+    client.post("/v1/knowledge", json=_knowledge_payload())
+
+    store = KnowledgeStore(database)
+    store.backup(backup)
+    with sqlite3.connect(backup) as connection:
+        connection.execute("DROP TRIGGER evidence_assessments_no_update")
+        connection.execute("DROP TRIGGER evidence_assessments_no_delete")
+        connection.execute("DROP TABLE evidence_assessments")
+
+    assert store.restore(backup, safety) == 1
+    with sqlite3.connect(database) as connection:
+        table = connection.execute(
+            "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'evidence_assessments'"
+        ).fetchone()
+    assert table is not None
