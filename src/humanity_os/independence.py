@@ -8,7 +8,7 @@ from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from humanity_os.models import KnowledgeRecord
+from humanity_os.models import KnowledgeRecord, KnowledgeSource
 from humanity_os.store import KnowledgeStore
 
 
@@ -93,7 +93,7 @@ class EvidenceIndependenceEngine:
             def roots(
                 source_id: str,
                 _memo: dict[str, set[str]] = memo,
-                _source_map: dict[str, object] = source_map,
+                _source_map: dict[str, KnowledgeSource] = source_map,
             ) -> set[str]:
                 if source_id in _memo:
                     return _memo[source_id]
