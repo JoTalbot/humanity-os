@@ -22,7 +22,7 @@ Only pending conflicts accept a decision. Every decision requires a non-empty re
 - Creation never changes either source record.
 - The system does not auto-resolve conflicts or infer truth from recency, popularity, or model confidence.
 - Conflicts and their status are included in SQLite backups and validated during backup verification.
-- Deleting a knowledge record does not silently delete a conflict record; foreign-key enforcement and a future deletion policy must be specified before destructive knowledge deletion is expanded.
+- A knowledge record referenced by a conflict cannot be deleted until the conflict is explicitly reviewed and removed through a future governed workflow. SQLite foreign-key enforcement prevents orphaned conflict records; the current API returns HTTP 409 rather than silently deleting either side.
 
 ## API
 
