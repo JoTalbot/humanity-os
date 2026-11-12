@@ -180,17 +180,22 @@ class DocumentStore:
         terms = [term for term in re.findall(r"[\w-]{2,}", query.casefold())][:12]
         if not terms:
             raise ValueError("Search query must contain at least one word")
-        conditions = " AND ".join("lower(c.content) LIKE ?" for _ in terms)
-        parameters = [f"%{term}%" for term in terms]
         with self._connect() as connection:
             rows = connection.execute(
-                f"""SELECT d.id AS document_id, d.filename, d.content_hash AS document_hash,
-                           c.id AS chunk_id, c.ordinal, c.start_offset, c.end_offset,
-                           c.content_hash AS chunk_hash, c.content AS excerpt
-                    FROM document_chunks c
-                    JOIN documents d ON d.id = c.document_id
-                    WHERE {conditions}
-                    ORDER BY d.created_at DESC, c.ordinal ASC LIMIT ?""",
-                (*parameters, limit),
+                """SELECT d.id AS document_id, d.filename, d.content_hash AS document_hash,
+                          d.created_at, c.id AS chunk_id, c.ordinal, c.start_offset,
+                          c.end_offset, c.content_hash AS chunk_hash, c.content AS excerpt
+                   FROM document_chunks c
+                   JOIN documents d ON d.id = c.document_id
+                   ORDER BY d.created_at DESC, c.ordinal ASC"""
             ).fetchall()
-        return [dict(row) for row in rows]
+        results = []
+        for row in rows:
+            item = dict(row)
+            normalized_excerpt = item["excerpt"].casefold()
+            if all(term in normalized_excerpt for term in terms):
+                item.pop("created_at")
+                results.append(item)
+                if len(results) == limit:
+                    break
+        return results
