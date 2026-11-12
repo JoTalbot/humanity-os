@@ -13,8 +13,13 @@ from pydantic import BaseModel, Field
 
 from humanity_os import __version__
 from humanity_os.auth import AuthStore
+from humanity_os.claim_graph import ClaimGraphStore
 from humanity_os.evidence import EvidenceAssessmentStore
 from humanity_os.models import (
+    ClaimCreate,
+    ClaimNode,
+    ClaimRelation,
+    ClaimRelationCreate,
     ConflictCreate,
     ConflictDecision,
     DecisionCreate,
@@ -48,6 +53,7 @@ def create_app(database_path: str | None = None, api_token: str | None = None) -
     store = KnowledgeStore(path)
     auth = AuthStore(path)
     evidence_assessments = EvidenceAssessmentStore(store.database_path)
+    claim_graph = ClaimGraphStore(store.database_path)
     app = FastAPI(
         title="HUMANITY OS Personal Core",
         version=__version__,
@@ -56,6 +62,7 @@ def create_app(database_path: str | None = None, api_token: str | None = None) -
     app.state.knowledge_store = store
     app.state.auth_store = auth
     app.state.evidence_assessment_store = evidence_assessments
+    app.state.claim_graph_store = claim_graph
     app.state.authentication_enabled = bool(token) or auth.has_owner()
 
     @app.middleware("http")
@@ -215,6 +222,66 @@ def create_app(database_path: str | None = None, api_token: str | None = None) -
                 raise HTTPException(status_code=404, detail="Conflict not found")
             raise HTTPException(status_code=409, detail="Conflict is no longer pending review")
         return decided
+
+    @app.post("/v1/claims", response_model=ClaimNode, status_code=201)
+    def create_claim(payload: ClaimCreate, request: Request) -> ClaimNode:
+        record = store.get(payload.knowledge_id)
+        if record is None:
+            raise HTTPException(status_code=404, detail="Knowledge record not found")
+        if record.kind != "claim":
+            raise HTTPException(status_code=422, detail="Claims must be grounded in a claim knowledge record")
+        declared_evidence_ids = {item.id for item in record.evidence}
+        if set(payload.evidence_ids) - declared_evidence_ids:
+            raise HTTPException(status_code=422, detail="Claim evidence IDs must exist on the linked knowledge record")
+        claim = ClaimNode(
+            **payload.model_dump(),
+            actor="owner" if request.state.auth_session_token else "system",
+        )
+        return claim_graph.create_claim(claim)
+
+    @app.get("/v1/claims", response_model=list[ClaimNode])
+    def list_claims(
+        knowledge_id: Annotated[str | None, Query(min_length=1, max_length=128)] = None,
+        limit: Annotated[int, Query(ge=1, le=100)] = 100,
+    ) -> list[ClaimNode]:
+        if knowledge_id is not None and store.get(knowledge_id) is None:
+            raise HTTPException(status_code=404, detail="Knowledge record not found")
+        return claim_graph.list_claims(knowledge_id=knowledge_id, limit=limit)
+
+    @app.get("/v1/claims/{claim_id}", response_model=ClaimNode)
+    def get_claim(claim_id: str) -> ClaimNode:
+        claim = claim_graph.get_claim(claim_id)
+        if claim is None:
+            raise HTTPException(status_code=404, detail="Claim not found")
+        return claim
+
+    @app.post("/v1/claim-relations", response_model=ClaimRelation, status_code=201)
+    def create_claim_relation(
+        payload: ClaimRelationCreate, request: Request
+    ) -> ClaimRelation:
+        if claim_graph.get_claim(payload.source_claim_id) is None:
+            raise HTTPException(status_code=404, detail="Source claim not found")
+        if claim_graph.get_claim(payload.target_claim_id) is None:
+            raise HTTPException(status_code=404, detail="Target claim not found")
+        relation = ClaimRelation(
+            **payload.model_dump(),
+            actor="owner" if request.state.auth_session_token else "system",
+        )
+        try:
+            return claim_graph.create_relation(relation)
+        except sqlite3.IntegrityError as exc:
+            raise HTTPException(
+                status_code=409, detail="This claim relation already exists"
+            ) from exc
+
+    @app.get("/v1/claim-relations", response_model=list[ClaimRelation])
+    def list_claim_relations(
+        claim_id: Annotated[str | None, Query(min_length=1, max_length=128)] = None,
+        limit: Annotated[int, Query(ge=1, le=100)] = 100,
+    ) -> list[ClaimRelation]:
+        if claim_id is not None and claim_graph.get_claim(claim_id) is None:
+            raise HTTPException(status_code=404, detail="Claim not found")
+        return claim_graph.list_relations(claim_id=claim_id, limit=limit)
 
     @app.post(
         "/v1/evidence-assessments",
