@@ -128,6 +128,29 @@ class KnowledgeStore:
                 "CREATE INDEX IF NOT EXISTS idx_knowledge_conflicts_status "
                 "ON knowledge_conflicts(status, created_at DESC)"
             )
+            connection.execute(
+                """CREATE TABLE IF NOT EXISTS evidence_assessments (
+                    id TEXT PRIMARY KEY,
+                    knowledge_id TEXT NOT NULL,
+                    source_id TEXT NOT NULL,
+                    assessed_at TEXT NOT NULL,
+                    payload TEXT NOT NULL
+                )"""
+            )
+            connection.execute(
+                """CREATE INDEX IF NOT EXISTS idx_evidence_assessments_source_time
+                   ON evidence_assessments(knowledge_id, source_id, assessed_at DESC, id DESC)"""
+            )
+            connection.execute(
+                """CREATE TRIGGER IF NOT EXISTS evidence_assessments_no_update
+                   BEFORE UPDATE ON evidence_assessments
+                   BEGIN SELECT RAISE(ABORT, 'evidence assessments are append-only'); END"""
+            )
+            connection.execute(
+                """CREATE TRIGGER IF NOT EXISTS evidence_assessments_no_delete
+                   BEFORE DELETE ON evidence_assessments
+                   BEGIN SELECT RAISE(ABORT, 'evidence assessments are append-only'); END"""
+            )
 
     def backup(self, destination: str | Path) -> Path:
         """Create a consistent SQLite snapshot without overwriting an existing file."""
