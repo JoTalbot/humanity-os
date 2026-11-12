@@ -7,7 +7,7 @@ Deliver constitution draft, architecture, data model, agent contract, threat mod
 Implement private workspace, identity, authorisation, event history, storage adapters, versioned full-workspace export, verified deletion, backup and restore. Exit: export coverage and secret exclusion verified; deletion requires an explicit offline confirmation and a verified safety backup; restore demonstrated.
 
 ## 2 — HUMANITY ONE
-Implement provider-neutral model gateway, document ingestion, source-aware search, provenance, explicit memory, responsive UI and local deployment. Initial local text/Markdown ingestion and chunk-level lexical retrieval now exist; PDF/DOCX/OCR, semantic retrieval, answer synthesis with citations, explicit memory UX and responsive UI remain open. Exit: primary journey works end-to-end; no model provider receives data without explicit configuration and user disclosure.
+Implement provider-neutral model gateway, document ingestion, source-aware search, provenance, explicit memory, responsive UI and local deployment. Initial local text/Markdown ingestion, chunk-level lexical retrieval, and an explicit owner-approved memory API now exist; PDF/DOCX/OCR, semantic retrieval, answer synthesis with citations, a responsive memory review UI and responsive workspace UI remain open. Exit: primary journey works end-to-end; no model provider receives data without explicit configuration and user disclosure.
 
 ## 3 — Agent Runtime
 Implement bounded lifecycle, capabilities, approvals, tool adapters, quotas, cancellation and audit. Exit: tests prove agents cannot exceed permissions.

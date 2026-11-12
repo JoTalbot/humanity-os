@@ -7,11 +7,11 @@ A person creates a private knowledge workspace, connects a model of choice, work
 Install locally or use a clearly identified hosted instance → create private workspace → configure provider/local model → add documents/notes → ask questions with source references → explicitly save selected memory → inspect, correct, export or delete data.
 
 ## Included
-Responsive web UI; private workspace and authentication; provider adapter; document/note ingestion; search; source-aware answers; explicit memory save; memory inspection/correction/export/deletion; task history; API docs; local deployment guide.
+Target scope: responsive web UI; private workspace and authentication; provider adapter; document/note ingestion; search; source-aware answers; explicit memory review; task history; API docs; local deployment guide. Current prototype exposes memory lifecycle through authenticated APIs, not a completed responsive UI.
 
 ## Current implementation boundary
 
-The current prototype accepts UTF-8 plain text and Markdown up to 1,000,000 characters per document, preserves chunk offsets and includes document content in portable workspace export schema 1.1.0. PDF, DOCX, OCR, semantic retrieval and generated answers with source citations remain future work.
+The current prototype accepts UTF-8 plain text and Markdown up to 1,000,000 characters per document, preserves chunk offsets, and includes document content in portable workspace export schema 1.2.0. Explicit memory proposals require a separate owner approval request; lifecycle events are auditable and model output cannot silently save memory. PDF, DOCX, OCR, semantic retrieval, generated answers with source citations and a responsive memory review UI remain future work.
 
 ## Excluded
 Federation sync, public knowledge marketplace, autonomous external actions, global identity, social network, automated certification, self-modifying agents.

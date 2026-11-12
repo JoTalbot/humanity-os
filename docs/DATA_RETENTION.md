@@ -42,4 +42,8 @@ A future release may add a reviewed retention configuration and auditable backup
 
 ## Document content
 
-Text and Markdown document originals and extracted chunks are stored in the active SQLite database and included in portable workspace exports (schema 1.1.0). Export files and safety backups therefore contain the full document text. The current prototype has no per-document deletion or automatic retention expiry; protect and dispose of the database, exports and backups as sensitive personal data.
+Text and Markdown document originals and extracted chunks are stored in the active SQLite database and included in portable workspace exports (schema 1.2.0). Export files and safety backups therefore contain the full document text. The current prototype has no per-document deletion or automatic retention expiry; protect and dispose of the database, exports and backups as sensitive personal data.
+
+## Explicit memory
+
+Pending memory proposals, approved memory items and append-only lifecycle events are stored in the local SQLite database and included in workspace exports (schema 1.2.0). Archiving changes visibility in the memory lifecycle but does not erase content or event history. The current prototype has no memory deletion or automatic expiry workflow.

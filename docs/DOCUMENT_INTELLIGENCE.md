@@ -17,7 +17,7 @@ Chunks target 1,200 characters with 150-character overlap and prefer newline bou
 
 ## Data and privacy
 
-Original text, metadata, and chunks are stored in the local SQLite workspace. Portable workspace export schema 1.1.0 includes document and chunk rows. Schema 1.0.0 imports remain supported and are upgraded with empty document tables. The export integrity digest covers document content; it is not a signature or authenticity proof.
+Original text, metadata, and chunks are stored in the local SQLite workspace. Portable workspace export schema 1.2.0 includes document and chunk rows. Schema 1.0.0 imports remain supported and are upgraded with empty document tables. The export integrity digest covers document content; it is not a signature or authenticity proof.
 
 No document content is sent to a model provider. The model gateway remains disabled by default. No embeddings, OCR, external fetch, indexing service, or network integration is used.
 

@@ -615,6 +615,9 @@ class KnowledgeStore:
             "auth_audit_events": ("id", "occurred_at", "event_type", "subject"),
             "documents": ("id", "filename", "media_type", "content_hash", "character_count", "chunk_count", "status", "created_at", "content"),
             "document_chunks": ("id", "document_id", "ordinal", "start_offset", "end_offset", "content_hash", "content"),
+            "memory_proposals": ("id", "title", "content", "rationale", "source_document_id", "source_chunk_id", "status", "created_at", "reviewed_at", "approved_memory_id"),
+            "memory_items": ("id", "proposal_id", "title", "content", "content_hash", "rationale", "source_document_id", "source_chunk_id", "status", "created_at", "updated_at"),
+            "memory_events": ("id", "proposal_id", "memory_id", "event_type", "actor", "occurred_at", "details"),
         }
         exported: dict[str, list[dict]] = {}
         with self._connect() as connection:
@@ -655,10 +658,10 @@ class KnowledgeStore:
 
         document = {
             "format": "humanity-os-workspace",
-            "schema_version": "1.1.0",
+            "schema_version": "1.2.0",
             "exported_at": datetime.now(UTC).isoformat(),
             "data_policy": {
-                "included": "workspace domain records, provenance, immutable history, and security audit metadata",
+                "included": "workspace domain records, document provenance, explicit memory lifecycle, immutable history, and security audit metadata",
                 "excluded": [
                     "owner password hashes",
                     "live session and CSRF token hashes",
@@ -709,7 +712,7 @@ class KnowledgeStore:
         if not isinstance(document, dict) or document.get("format") != "humanity-os-workspace":
             raise ValueError("Unsupported workspace export format")
         schema_version = document.get("schema_version")
-        if schema_version not in {"1.0.0", "1.1.0"}:
+        if schema_version not in {"1.0.0", "1.1.0", "1.2.0"}:
             raise ValueError("Unsupported workspace export schema version")
         integrity = document.get("integrity")
         if not isinstance(integrity, dict) or integrity.get("algorithm") != "sha256":
@@ -738,12 +741,21 @@ class KnowledgeStore:
             "claim_assessments",
             "auth_audit_events",
         )
-        if schema_version == "1.1.0":
+        if schema_version in {"1.1.0", "1.2.0"}:
             table_names = (*table_names, "documents", "document_chunks")
+        if schema_version == "1.2.0":
+            table_names = (*table_names, "memory_proposals", "memory_items", "memory_events")
         if not isinstance(tables, dict) or set(tables) != set(table_names):
             raise ValueError(f"Workspace export table set does not match schema {schema_version}")
         if schema_version == "1.0.0":
             tables = {**tables, "documents": [], "document_chunks": []}
+        if schema_version in {"1.0.0", "1.1.0"}:
+            tables = {
+                **tables,
+                "memory_proposals": [],
+                "memory_items": [],
+                "memory_events": [],
+            }
         if any(not isinstance(tables[name], list) for name in table_names):
             raise ValueError("Every exported table must contain a list of rows")
 
@@ -792,6 +804,139 @@ class KnowledgeStore:
             if chunks and (chunks[0]["start_offset"] != 0 or chunks[-1]["end_offset"] != len(document["content"])):
                 raise ValueError("Document chunk offsets do not cover the source document")
 
+        proposals = {
+            row.get("id"): row for row in tables["memory_proposals"] if isinstance(row, dict)
+        }
+        if len(proposals) != len(tables["memory_proposals"]):
+            raise ValueError("Invalid memory proposal row in workspace export")
+        memory_items = {
+            row.get("id"): row for row in tables["memory_items"] if isinstance(row, dict)
+        }
+        if len(memory_items) != len(tables["memory_items"]):
+            raise ValueError("Invalid memory item row in workspace export")
+        chunks_by_id = {row["id"]: row for row in tables["document_chunks"]}
+        for proposal in proposals.values():
+            if proposal.get("status") not in {"pending_review", "approved", "rejected"}:
+                raise ValueError("Memory proposal has an invalid lifecycle status")
+            if proposal.get("status") != "approved" and proposal.get("approved_memory_id") is not None:
+                raise ValueError("Unapproved memory proposal cannot reference durable memory")
+            source_document_id = proposal.get("source_document_id")
+            source_chunk_id = proposal.get("source_chunk_id")
+            if (source_document_id is None) != (source_chunk_id is None):
+                raise ValueError("Memory proposal source references are incomplete")
+            if source_document_id is not None:
+                chunk = chunks_by_id.get(source_chunk_id)
+                if chunk is None or chunk.get("document_id") != source_document_id:
+                    raise ValueError("Memory proposal references an unknown document chunk")
+        for memory in memory_items.values():
+            proposal = proposals.get(memory.get("proposal_id"))
+            content = memory.get("content")
+            if (
+                proposal is None
+                or proposal.get("status") != "approved"
+                or proposal.get("approved_memory_id") != memory.get("id")
+                or not isinstance(content, str)
+                or hashlib.sha256(content.encode("utf-8")).hexdigest() != memory.get("content_hash")
+                or content != proposal.get("content")
+                or memory.get("status") not in {"active", "archived"}
+            ):
+                raise ValueError("Memory item does not match its explicitly approved proposal")
+            source_document_id = memory.get("source_document_id")
+            source_chunk_id = memory.get("source_chunk_id")
+            if (source_document_id is None) != (source_chunk_id is None):
+                raise ValueError("Memory item source references are incomplete")
+            if source_document_id is not None:
+                chunk = chunks_by_id.get(source_chunk_id)
+                if chunk is None or chunk.get("document_id") != source_document_id:
+                    raise ValueError("Memory item references an unknown document chunk")
+        for proposal in proposals.values():
+            if proposal.get("status") == "approved" and proposal.get("approved_memory_id") not in memory_items:
+                raise ValueError("Approved memory proposal is missing its durable memory item")
+        for event in tables["memory_events"]:
+            if not isinstance(event, dict):
+                raise TypeError("Invalid memory event row in workspace export")
+            if event.get("proposal_id") is not None and event["proposal_id"] not in proposals:
+                raise ValueError("Memory event references an unknown proposal")
+            if event.get("memory_id") is not None and event["memory_id"] not in memory_items:
+                raise ValueError("Memory event references an unknown memory item")
+            if event.get("proposal_id") is None and event.get("memory_id") is None:
+                raise ValueError("Memory event has no subject")
+            if event.get("event_type") not in {
+                "proposal_created",
+                "proposal_approved",
+                "proposal_rejected",
+                "memory_archived",
+                "memory_restored",
+            } or event.get("actor") != "owner":
+                raise ValueError("Memory event has an unsupported type or actor")
+            try:
+                details = json.loads(event.get("details", ""))
+            except (TypeError, json.JSONDecodeError) as exc:
+                raise ValueError("Memory event details are invalid JSON") from exc
+            if not isinstance(details, dict):
+                raise TypeError("Memory event details must be an object")
+
+        events_by_proposal: dict[str, list[dict]] = {}
+        events_by_memory: dict[str, list[dict]] = {}
+        for event in tables["memory_events"]:
+            proposal_id = event["proposal_id"]
+            memory_id = event["memory_id"]
+            if proposal_id is not None:
+                events_by_proposal.setdefault(proposal_id, []).append(event)
+            if memory_id is not None:
+                events_by_memory.setdefault(memory_id, []).append(event)
+            event_type = event["event_type"]
+            if event_type in {"proposal_created", "proposal_rejected"} and memory_id is not None:
+                raise ValueError("Proposal lifecycle event cannot reference a memory item")
+            if event_type in {"memory_archived", "memory_restored"} and (
+                proposal_id is not None or memory_id is None
+            ):
+                raise ValueError("Memory status event must reference only a memory item")
+        for proposal_id, proposal in proposals.items():
+            proposal_events = events_by_proposal.get(proposal_id, [])
+            created_events = [item for item in proposal_events if item["event_type"] == "proposal_created"]
+            if len(created_events) != 1:
+                raise ValueError("Every memory proposal must have exactly one creation event")
+            if proposal["status"] == "pending_review":
+                expected_terminal_event = None
+            elif proposal["status"] == "approved":
+                expected_terminal_event = "proposal_approved"
+            else:
+                expected_terminal_event = "proposal_rejected"
+            terminal_events = [
+                item for item in proposal_events
+                if item["event_type"] in {"proposal_approved", "proposal_rejected"}
+            ]
+            if (expected_terminal_event is None and terminal_events) or (
+                expected_terminal_event is not None
+                and (
+                    len(terminal_events) != 1
+                    or terminal_events[0]["event_type"] != expected_terminal_event
+                )
+            ):
+                raise ValueError("Memory proposal status does not match its lifecycle events")
+            if expected_terminal_event == "proposal_approved":
+                approved_event = terminal_events[0]
+                if approved_event.get("memory_id") != proposal.get("approved_memory_id"):
+                    raise ValueError("Memory approval event does not match the approved item")
+        for memory_id, memory in memory_items.items():
+            lifecycle = sorted(
+                events_by_memory.get(memory_id, []),
+                key=lambda item: (item["occurred_at"], item["id"]),
+            )
+            if not lifecycle or lifecycle[0]["event_type"] != "proposal_approved":
+                raise ValueError("Durable memory must begin with an approval event")
+            status = "active"
+            for event in lifecycle[1:]:
+                if event["event_type"] == "memory_archived" and status == "active":
+                    status = "archived"
+                elif event["event_type"] == "memory_restored" and status == "archived":
+                    status = "active"
+                else:
+                    raise ValueError("Memory lifecycle event sequence is invalid")
+            if status != memory.get("status"):
+                raise ValueError("Memory status does not match its lifecycle event history")
+
         descriptor, temporary_name = tempfile.mkstemp(
             prefix=f".{database.name}.import-",
             suffix=".sqlite3",
@@ -805,7 +950,10 @@ class KnowledgeStore:
             # identities and sessions are intentionally initialized empty.
             KnowledgeStore(temporary)
             from humanity_os.documents import DocumentStore
+            from humanity_os.memory import MemoryStore
+
             DocumentStore(temporary)
+            MemoryStore(temporary)
             from humanity_os.auth import AuthStore
             from humanity_os.claim_assessments import ClaimAssessmentStore
             from humanity_os.claim_graph import ClaimGraphStore
