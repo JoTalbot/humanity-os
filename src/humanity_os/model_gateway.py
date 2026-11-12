@@ -94,8 +94,6 @@ class ModelGateway:
             )
         except TimeoutError as exc:
             raise ModelProviderTimeout("Model provider request timed out") from exc
-        except ModelGatewayError:
-            raise
         except Exception as exc:
             raise ModelProviderFailure("Model provider request failed") from exc
         return ModelGenerationResponse(
