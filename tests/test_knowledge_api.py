@@ -581,3 +581,51 @@ def test_revision_history_is_not_mutated_by_later_updates(tmp_path):
     history = KnowledgeStore(database).list_revisions(record["id"])
     assert [item.snapshot.title for item in history] == ["v3", "v2", "v1"]
     assert [item.revision for item in history] == [3, 2, 1]
+
+
+
+def test_knowledge_revision_rows_are_database_append_only(tmp_path):
+    database = tmp_path / "append-only.sqlite3"
+    client = TestClient(create_app(str(database)))
+    record = client.post("/v1/knowledge", json={
+        "kind": "concept", "title": "Immutable", "content": "Original"
+    }).json()
+    with sqlite3.connect(database) as connection:
+        with pytest.raises(sqlite3.IntegrityError, match="immutable"):
+            connection.execute(
+                "UPDATE knowledge_revisions SET change_reason = 'tampered' WHERE record_id = ?",
+                (record["id"],),
+            )
+        with pytest.raises(sqlite3.IntegrityError, match="immutable"):
+            connection.execute(
+                "DELETE FROM knowledge_revisions WHERE record_id = ?",
+                (record["id"],),
+            )
+
+
+def test_legacy_record_gets_baseline_revision_during_schema_migration(tmp_path):
+    database = tmp_path / "legacy.sqlite3"
+    client = TestClient(create_app(str(database)))
+    record = client.post("/v1/knowledge", json={
+        "kind": "claim", "title": "Legacy", "content": "Existing knowledge"
+    }).json()
+    with sqlite3.connect(database) as connection:
+        connection.execute("DROP TRIGGER knowledge_revisions_no_update")
+        connection.execute("DROP TRIGGER knowledge_revisions_no_delete")
+        connection.execute("DROP TABLE knowledge_revisions")
+    migrated = KnowledgeStore(database)
+    history = migrated.list_revisions(record["id"])
+    assert len(history) == 1
+    assert history[0].revision == 1
+    assert history[0].change_reason == "history initialized during migration"
+
+
+def test_deleted_knowledge_keeps_its_revision_audit_trail(tmp_path):
+    client = TestClient(create_app(str(tmp_path / "deleted-history.sqlite3")))
+    record = client.post("/v1/knowledge", json={
+        "kind": "observation", "title": "To delete", "content": "Preserve audit trail"
+    }).json()
+    assert client.delete(f"/v1/knowledge/{record['id']}").status_code == 204
+    history = client.get(f"/v1/knowledge/{record['id']}/revisions")
+    assert history.status_code == 200
+    assert history.json()[0]["snapshot"]["content"] == "Preserve audit trail"
