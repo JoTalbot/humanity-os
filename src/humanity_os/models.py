@@ -3,7 +3,7 @@ from datetime import UTC, datetime
 from typing import Literal
 from uuid import uuid4
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, computed_field, model_validator
 
 Visibility = Literal["private", "shared", "public"]
 KnowledgeKind = Literal["claim", "concept", "procedure", "observation", "hypothesis", "question", "dataset", "document"]
@@ -25,20 +25,27 @@ class KnowledgeSource(BaseModel):
     independence_group_id: str | None = Field(default=None, min_length=1, max_length=128)
     derived_from_source_ids: list[str] = Field(default_factory=list, max_length=100)
 
+    @computed_field
     @property
     def canonical_uri(self) -> str:
         from urllib.parse import urlsplit, urlunsplit
-        parts = urlsplit(self.uri.strip())
+
+        original = self.uri.strip()
+        parts = urlsplit(original)
         if parts.scheme.lower() not in {"http", "https"} or not parts.netloc:
-            return self.uri.strip()
+            return original
+        if parts.username or parts.password:
+            return original
         host = (parts.hostname or "").lower()
+        if ":" in host:
+            host = f"[{host}]"
         port = parts.port
         netloc = host
-        if port and not ((parts.scheme.lower() == "http" and port == 80) or
-                         (parts.scheme.lower() == "https" and port == 443)):
+        if port and not (
+            (parts.scheme.lower() == "http" and port == 80)
+            or (parts.scheme.lower() == "https" and port == 443)
+        ):
             netloc = f"{host}:{port}"
-        if parts.username or parts.password:
-            return self.uri.strip()
         path = parts.path or "/"
         if path != "/":
             path = path.rstrip("/")
