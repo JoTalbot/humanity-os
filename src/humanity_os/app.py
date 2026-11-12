@@ -16,6 +16,8 @@ from humanity_os.auth import AuthStore
 from humanity_os.models import (
     ConflictCreate,
     ConflictDecision,
+    DecisionCreate,
+    DecisionRecord,
     KnowledgeConflict,
     KnowledgeCreate,
     KnowledgeList,
@@ -148,7 +150,7 @@ def create_app(database_path: str | None = None, api_token: str | None = None) -
                     status_code=404,
                     detail=f"Related knowledge record not found: {record_id}",
                 )
-        actor = "owner" if request.cookies.get(SESSION_COOKIE) else "system"
+        actor = "owner" if request.state.auth_session_token else "system"
         decision = DecisionRecord(**payload.model_dump(), actor=actor)
         return store.create_decision(decision)
 
