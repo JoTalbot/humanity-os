@@ -747,6 +747,51 @@ class KnowledgeStore:
         if any(not isinstance(tables[name], list) for name in table_names):
             raise ValueError("Every exported table must contain a list of rows")
 
+        # Validate document domain invariants independently of the outer export digest.
+        document_rows = {row.get("id"): row for row in tables["documents"] if isinstance(row, dict)}
+        if len(document_rows) != len(tables["documents"]):
+            raise ValueError("Invalid document row in workspace export")
+        for document in document_rows.values():
+            content = document.get("content")
+            if (
+                not isinstance(content, str)
+                or hashlib.sha256(content.encode("utf-8")).hexdigest() != document.get("content_hash")
+                or len(content) != document.get("character_count")
+            ):
+                raise ValueError("Document content hash or character count is invalid")
+        chunks_by_document: dict[str, list[dict]] = {}
+        for chunk in tables["document_chunks"]:
+            if not isinstance(chunk, dict):
+                raise ValueError("Invalid document chunk row in workspace export")
+            document_id = chunk.get("document_id")
+            document = document_rows.get(document_id)
+            content = chunk.get("content")
+            start = chunk.get("start_offset")
+            end = chunk.get("end_offset")
+            if (
+                document is None
+                or not isinstance(content, str)
+                or not isinstance(start, int)
+                or not isinstance(end, int)
+                or start < 0
+                or end < start
+                or document["content"][start:end] != content
+                or hashlib.sha256(content.encode("utf-8")).hexdigest() != chunk.get("content_hash")
+            ):
+                raise ValueError("Document chunk provenance or content hash is invalid")
+            expected_id = hashlib.sha256(
+                f"{document_id}:{chunk.get('ordinal')}:{start}:{end}:{chunk.get('content_hash')}".encode()
+            ).hexdigest()
+            if chunk.get("id") != expected_id:
+                raise ValueError("Document chunk identity is invalid")
+            chunks_by_document.setdefault(document_id, []).append(chunk)
+        for document_id, document in document_rows.items():
+            chunks = sorted(chunks_by_document.get(document_id, []), key=lambda item: item["ordinal"])
+            if len(chunks) != document["chunk_count"]:
+                raise ValueError("Document chunk count does not match document metadata")
+            if chunks and (chunks[0]["start_offset"] != 0 or chunks[-1]["end_offset"] != len(document["content"])):
+                raise ValueError("Document chunk offsets do not cover the source document")
+
         descriptor, temporary_name = tempfile.mkstemp(
             prefix=f".{database.name}.import-",
             suffix=".sqlite3",
