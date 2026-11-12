@@ -14,6 +14,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field
 
 from humanity_os import __version__
+from humanity_os.answering import DocumentAnswerService, InvalidSourceCitation, NoSourceContext
 from humanity_os.auth import AuthStore
 from humanity_os.claim_assessments import ClaimAssessmentStore
 from humanity_os.claim_graph import ClaimGraphStore
@@ -96,6 +97,15 @@ class DocumentContextRequest(BaseModel):
     max_context_chars: int = Field(default=8_000, ge=512, le=16_000)
 
 
+class DocumentAnswerRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    query: str = Field(min_length=2, max_length=200)
+    allow_provider_processing: bool = False
+    passage_limit: int = Field(default=5, ge=1, le=10)
+    max_context_chars: int = Field(default=8_000, ge=512, le=16_000)
+    max_output_tokens: int = Field(default=768, ge=1, le=1_024)
+
+
 def create_app(
     database_path: str | None = None,
     api_token: str | None = None,
@@ -138,6 +148,8 @@ def create_app(
     app.state.reasoning_engine = reasoning
     app.state.evidence_independence_engine = independence
     app.state.model_gateway = model_gateway
+    answer_service = DocumentAnswerService(documents, model_gateway)
+    app.state.document_answer_service = answer_service
     app.state.authentication_enabled = not allow_unauthenticated_local or bool(token) or auth.has_owner()
 
     @app.middleware("http")
@@ -632,6 +644,33 @@ def create_app(
             )
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    @app.get("/v1/models/capabilities")
+    def model_capabilities() -> dict:
+        return answer_service.capabilities()
+
+    @app.post("/v1/documents/answer")
+    async def answer_from_documents(payload: DocumentAnswerRequest) -> dict:
+        try:
+            return await answer_service.answer(
+                payload.query,
+                allow_provider_processing=payload.allow_provider_processing,
+                passage_limit=payload.passage_limit,
+                max_context_chars=payload.max_context_chars,
+                max_output_tokens=payload.max_output_tokens,
+            )
+        except PermissionError as exc:
+            raise HTTPException(status_code=403, detail=str(exc)) from exc
+        except NoSourceContext as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        except InvalidSourceCitation as exc:
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
+        except ModelProviderUnavailable as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
+        except ModelProviderTimeout as exc:
+            raise HTTPException(status_code=504, detail=str(exc)) from exc
+        except ModelProviderFailure as exc:
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
 
     @app.post("/v1/knowledge", response_model=KnowledgeRecord, status_code=201)
     def create_knowledge(payload: KnowledgeCreate) -> KnowledgeRecord:

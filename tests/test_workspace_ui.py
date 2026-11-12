@@ -13,6 +13,7 @@ def test_workspace_ui_and_assets_are_served_without_unlocking_api(tmp_path):
     assert home.headers["cache-control"] == "no-store"
     assert "HUMANITY ONE" in home.text
     assert 'id="memory-proposal-form"' in home.text
+    assert 'id="provider-consent"' in home.text
     assert client.get("/static/styles.css").status_code == 200
     assert client.get("/static/app.js").status_code == 200
     assert client.get("/v1/knowledge").status_code == 401
@@ -41,4 +42,6 @@ def test_workspace_ui_contains_no_remote_assets_or_persistent_token_storage(tmp_
     assert "credentials:" in script and "\"same-origin\"" in script
     assert "X-CSRF-Token" in script
     assert 'api("/v1/memory/proposals"' in script
+    assert 'allow_provider_processing:true' in script
+    assert 'api("/v1/models/capabilities")' in script
     assert "/approve" in script and "/reject" in script

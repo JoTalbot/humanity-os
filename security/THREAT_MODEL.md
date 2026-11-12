@@ -47,3 +47,7 @@ The root login page and static assets are exempt from API authentication only to
 ## Source context assembly
 
 The context-preparation endpoint performs local lexical retrieval only and reports that no model call or external processing occurred. It bounds passage count and context characters and carries source document/chunk IDs, hashes and exact excerpt offsets. A future provider-backed answer flow must add explicit disclosure and consent for any external data transfer; this endpoint must not be treated as that consent.
+
+## Provider-backed document answers
+
+The document answer endpoint requires a distinct per-request provider-processing consent flag before retrieved source passages are passed to an injected model provider. The default application has no provider. Provider/model identifiers are disclosed through a capabilities endpoint, but provider locality and behavior are not independently attested. Citation-label checks only verify that returned labels map to retrieved passages; they do not establish semantic entailment or source truth. A future real provider integration requires a provider-specific data-flow review and security assessment.

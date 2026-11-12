@@ -24,6 +24,14 @@ function actionButton(label,action,danger=false){const button=element("button","
 function renderList(target,items,emptyText,renderer){target.replaceChildren();if(!items.length){target.classList.add("empty-state");target.textContent=emptyText;return;}target.classList.remove("empty-state");for(const item of items)target.append(renderer(item));}
 async function loadNotes(){const query=$("#note-search").value.trim();const path=query?"/v1/knowledge?limit=30&q="+encodeURIComponent(query):"/v1/knowledge?limit=30";const result=await api(path);const items=result.items||[];$("#note-count").textContent=String(items.length);renderList($("#notes-list"),items,"No matching notes.",note=>itemCard(note.title,note.content,note.kind+" · "+note.visibility+" · "+note.id));renderList($("#overview-notes"),items.slice(0,4),"No notes yet.",note=>itemCard(note.title,note.content.slice(0,160),note.kind+" · "+note.id));}
 async function loadDocuments(){const result=await api("/v1/documents?limit=50");const items=result.items||[];$("#document-count").textContent=String(items.length);renderList($("#documents-list"),items,"No documents yet.",doc=>itemCard(doc.filename,doc.character_count+" characters · "+doc.chunk_count+" chunks",doc.media_type+" · SHA-256 "+doc.content_hash));}
+async function loadModelCapabilities(){
+ const capabilities=await api("/v1/models/capabilities");
+ const configured=capabilities.provider_configured;
+ $("#answer-submit").disabled=!configured;
+ $("#provider-status").textContent=configured
+  ?"Configured provider: "+capabilities.provider_id+" / "+capabilities.model_id+". Source passages are sent only after your per-request approval."
+  :"No model provider is configured. Local source context remains available; answer generation is disabled.";
+}
 async function loadMemory(){
  const values=await Promise.all([api("/v1/memory/proposals?status=pending_review&limit=50"),api("/v1/memories?limit=100"),api("/v1/memory/events")]);
  const proposals=values[0].items||[];const memories=values[1].items||[];const events=values[2].items||[];$("#proposal-count").textContent=String(proposals.length);
@@ -43,7 +51,7 @@ async function loadMemory(){
  });
  renderList($("#memory-events"),events,"No memory events yet.",event=>itemCard(event.event_type.replaceAll("_"," "),event.details,event.actor+" · "+event.occurred_at));
 }
-async function refreshAll(){try{await Promise.all([loadNotes(),loadDocuments(),loadMemory()]);}catch(error){if(/Authentication required/i.test(error.message)){csrfToken=null;setSignedIn(false);}notify(error.message,true);}}
+async function refreshAll(){try{await Promise.all([loadNotes(),loadDocuments(),loadMemory(),loadModelCapabilities()]);}catch(error){if(/Authentication required/i.test(error.message)){csrfToken=null;setSignedIn(false);}notify(error.message,true);}}
 $("#login-form").addEventListener("submit",async event=>{event.preventDefault();try{const result=await api("/auth/login",{method:"POST",body:JSON.stringify({password:$("#password").value})});csrfToken=result.csrf_token;$("#password").value="";setSignedIn(true);await refreshAll();notify("Workspace unlocked.");}catch(error){notify(error.message,true);}});
 logoutButton.addEventListener("click",async()=>{try{await api("/auth/logout",{method:"POST"});csrfToken=null;setSignedIn(false);notify("Signed out.");}catch(error){notify(error.message,true);}});
 $("#note-form").addEventListener("submit",async event=>{event.preventDefault();try{await api("/v1/knowledge",{method:"POST",body:JSON.stringify({kind:"observation",title:$("#note-title").value,content:$("#note-content").value,visibility:"private"})});$("#note-form").reset();notify("Note saved.");await loadNotes();}catch(error){notify(error.message,true);}});
@@ -53,6 +61,20 @@ $("#document-form").addEventListener("submit",async event=>{event.preventDefault
 $("#document-search-form").addEventListener("submit",async event=>{event.preventDefault();try{const result=await api("/v1/documents/search",{method:"POST",body:JSON.stringify({query:$("#document-query").value,limit:20})});renderList($("#document-results"),result.items||[],"No matching source chunks.",match=>itemCard(match.filename,match.excerpt,"Document "+match.document_id+" · chunk "+match.chunk_id+" · chars "+match.start_offset+"-"+match.end_offset));}catch(error){notify(error.message,true);}});
 $("#memory-proposal-form").addEventListener("submit",async event=>{event.preventDefault();try{await api("/v1/memory/proposals",{method:"POST",body:JSON.stringify({title:$("#memory-title").value,content:$("#memory-content").value,rationale:$("#memory-rationale").value})});$("#memory-proposal-form").reset();notify("Proposal submitted. Approval is still required.");await loadMemory();}catch(error){notify(error.message,true);}});
 $("#prepare-context").addEventListener("click",async()=>{const query=$("#document-query").value.trim();if(!query){notify("Enter a search query first.",true);return;}try{const result=await api("/v1/documents/context",{method:"POST",body:JSON.stringify({query:query,passage_limit:5,max_context_chars:8000})});const card=itemCard("Prepared source context",result.context,"Local lexical retrieval · model called: "+result.processing.model_called+" · external processing: "+result.processing.external_processing);for(const source of result.passages){card.append(element("div","item-meta","["+source.citation_id+"] "+source.filename+" · document "+source.document_id+" · chunk "+source.chunk_id+" · chars "+source.start_offset+"-"+source.end_offset+(source.truncated?" · excerpt truncated":"")));}renderList($("#context-results"),[card],"No matching source context.",item=>item);notify("Source context prepared locally.");}catch(error){notify(error.message,true);}});
+$("#answer-form").addEventListener("submit",async event=>{
+ event.preventDefault();
+ if(!$("#provider-consent").checked){notify("Explicit provider consent is required.",true);return;}
+ const query=$("#document-query").value.trim();
+ if(!query){notify("Enter a source search query first.",true);return;}
+ try{
+  const result=await api("/v1/documents/answer",{method:"POST",body:JSON.stringify({query:query,allow_provider_processing:true,passage_limit:5,max_context_chars:8000,max_output_tokens:768})});
+  const card=itemCard("Grounded answer",result.answer,"Provider "+result.provider+" · model "+result.model+" · semantic entailment independently verified: "+result.processing.semantic_entailment_verified);
+  for(const source of result.citations)card.append(element("div","item-meta","["+source.citation_id+"] "+source.filename+" · document "+source.document_id+" · chunk "+source.chunk_id+" · chars "+source.start_offset+"-"+source.end_offset));
+  renderList($("#answer-results"),[card],"No grounded answer returned.",item=>item);
+  $("#provider-consent").checked=false;
+  notify("Answer generated. Review its source citations.");
+ }catch(error){notify(error.message,true);}
+});
 $("#refresh-documents").addEventListener("click",()=>loadDocuments().catch(error=>notify(error.message,true)));
 $("#refresh-memory").addEventListener("click",()=>loadMemory().catch(error=>notify(error.message,true)));
 document.querySelectorAll("[data-tab],[data-open-tab]").forEach(button=>button.addEventListener("click",()=>{const tab=button.dataset.tab||button.dataset.openTab;document.querySelectorAll(".tab").forEach(item=>{const active=item.dataset.tab===tab;item.classList.toggle("active",active);if(active)item.setAttribute("aria-current","page");else item.removeAttribute("aria-current");});document.querySelectorAll(".tab-panel").forEach(panel=>panel.classList.toggle("hidden",panel.id!=="tab-"+tab));if(tab==="memory")loadMemory().catch(error=>notify(error.message,true));if(tab==="documents")loadDocuments().catch(error=>notify(error.message,true));if(tab==="notes")loadNotes().catch(error=>notify(error.message,true));}));

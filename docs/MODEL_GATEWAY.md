@@ -55,3 +55,7 @@ A future provider switch must be explicit and visible. No provider may be silent
 - There is no retrieval-augmented generation or source citation layer yet.
 - Token usage is provider-reported and cannot be independently verified by the gateway.
 - The timeout bounds the awaited provider call; adapter implementations must also enforce transport-level connection and read timeouts.
+
+## Document context and provider consent
+
+The source-grounded document answer endpoint is separate from local context preparation. It requires an explicit per-request provider-processing consent flag before passing retrieved document passages to the injected provider. No provider is configured by default. See [ANSWER_GENERATION.md](ANSWER_GENERATION.md).
