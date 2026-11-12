@@ -3,13 +3,35 @@ from datetime import UTC, datetime
 from typing import Literal
 from uuid import uuid4
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 Visibility = Literal["private", "shared", "public"]
 KnowledgeKind = Literal["claim", "concept", "procedure", "observation", "hypothesis", "question", "dataset", "document"]
 
 def utc_now() -> datetime:
     return datetime.now(UTC)
+
+class KnowledgeSource(BaseModel):
+    """A durable, inspectable origin for a knowledge record."""
+    model_config = ConfigDict(extra="forbid")
+    id: str = Field(default_factory=lambda: str(uuid4()), min_length=1, max_length=128)
+    uri: str = Field(min_length=1, max_length=2_048)
+    title: str | None = Field(default=None, max_length=500)
+    publisher: str | None = Field(default=None, max_length=300)
+    published_at: datetime | None = None
+    accessed_at: datetime | None = None
+    content_hash: str | None = Field(default=None, pattern=r"^[a-fA-F0-9]{64}$")
+
+
+class EvidenceLink(BaseModel):
+    """A bounded relation between a knowledge record and one declared source."""
+    model_config = ConfigDict(extra="forbid")
+    id: str = Field(default_factory=lambda: str(uuid4()), min_length=1, max_length=128)
+    source_id: str = Field(min_length=1, max_length=128)
+    relation: Literal["supports", "refutes", "mentions", "context"]
+    excerpt: str | None = Field(default=None, max_length=4_000)
+    locator: str | None = Field(default=None, max_length=500)
+
 
 class KnowledgeCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -19,6 +41,22 @@ class KnowledgeCreate(BaseModel):
     language: str = Field(default="und", min_length=2, max_length=35)
     visibility: Visibility = "private"
     source_uri: str | None = Field(default=None, max_length=2_048)
+    sources: list[KnowledgeSource] = Field(default_factory=list, max_length=100)
+    evidence: list[EvidenceLink] = Field(default_factory=list, max_length=500)
+
+    @model_validator(mode="after")
+    def validate_evidence_sources(self) -> "KnowledgeCreate":
+        source_ids = [source.id for source in self.sources]
+        if len(source_ids) != len(set(source_ids)):
+            raise ValueError("Knowledge source IDs must be unique")
+        evidence_ids = [item.id for item in self.evidence]
+        if len(evidence_ids) != len(set(evidence_ids)):
+            raise ValueError("Evidence IDs must be unique")
+        declared = set(source_ids)
+        missing = sorted({item.source_id for item in self.evidence} - declared)
+        if missing:
+            raise ValueError("Evidence references an undeclared source ID")
+        return self
 
 class KnowledgeRecord(KnowledgeCreate):
     id: str = Field(default_factory=lambda: str(uuid4()))
