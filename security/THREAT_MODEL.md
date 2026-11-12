@@ -35,3 +35,7 @@ Before broad public deployment: independent security review, restore demonstrati
 ## Document ingestion risks
 
 The current ingestion endpoint accepts only bounded UTF-8 `.txt`, `.md`, and `.markdown` content. It does not parse archives, PDFs, DOCX, images, macros, or HTML, and does not fetch remote URLs. Markdown must remain inert text and must not be rendered as trusted HTML. Document content and chunks are sensitive local data and are included in portable exports. Future binary parsers require decompression limits, parser sandboxing, malformed-file fuzzing, and separate security review.
+
+## Explicit memory risks
+
+The memory API separates pending proposals from approved memory. Only a distinct authenticated owner approval endpoint creates durable memory; model generation and document retrieval do not call that endpoint. Proposal approval, rejection, archive and restore events are append-only. Portable exports include pending proposals and approved memory content, so exports and backups remain sensitive. This milestone does not provide multi-user approval, cryptographic signatures, per-item deletion, or independent security certification.
