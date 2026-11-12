@@ -278,7 +278,7 @@ class AgentRuntime:
         if tool_name not in profile["tools"]:
             raise PermissionError("Tool is not granted to this agent profile")
         if not isinstance(arguments, dict):
-            raise ValueError("Tool arguments must be an object")
+            raise TypeError("Tool arguments must be an object")
         input_bytes = json.dumps(
             arguments, ensure_ascii=False, sort_keys=True, separators=(",", ":")
         ).encode("utf-8")
