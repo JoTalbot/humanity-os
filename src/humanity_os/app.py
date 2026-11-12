@@ -33,6 +33,7 @@ from humanity_os.models import (
     KnowledgeRevision,
 )
 from humanity_os.store import KnowledgeStore
+from humanity_os.reasoning import ReasoningEngine, ReasoningQuery, ReasoningRun
 
 SESSION_COOKIE = "humanity_session"
 SESSION_MAX_AGE = 12 * 60 * 60
@@ -54,6 +55,7 @@ def create_app(database_path: str | None = None, api_token: str | None = None) -
     auth = AuthStore(path)
     evidence_assessments = EvidenceAssessmentStore(store.database_path)
     claim_graph = ClaimGraphStore(store.database_path)
+    reasoning = ReasoningEngine(store.database_path, store, claim_graph)
     app = FastAPI(
         title="HUMANITY OS Personal Core",
         version=__version__,
@@ -63,6 +65,7 @@ def create_app(database_path: str | None = None, api_token: str | None = None) -
     app.state.auth_store = auth
     app.state.evidence_assessment_store = evidence_assessments
     app.state.claim_graph_store = claim_graph
+    app.state.reasoning_engine = reasoning
     app.state.authentication_enabled = bool(token) or auth.has_owner()
 
     @app.middleware("http")
@@ -284,6 +287,23 @@ def create_app(database_path: str | None = None, api_token: str | None = None) -
         if claim_id is not None and claim_graph.get_claim(claim_id) is None:
             raise HTTPException(status_code=404, detail="Claim not found")
         return claim_graph.list_relations(claim_id=claim_id, limit=limit)
+
+    @app.post("/v1/reasoning/runs", response_model=ReasoningRun, status_code=201)
+    def create_reasoning_run(payload: ReasoningQuery, request: Request) -> ReasoningRun:
+        actor = "owner" if request.state.auth_session_token else "system"
+        try:
+            return reasoning.run(payload, actor=actor)
+        except LookupError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    @app.get("/v1/reasoning/runs/{run_id}", response_model=ReasoningRun)
+    def get_reasoning_run(run_id: str) -> ReasoningRun:
+        result = reasoning.get(run_id)
+        if result is None:
+            raise HTTPException(status_code=404, detail="Reasoning run not found")
+        return result
 
     @app.post(
         "/v1/evidence-assessments",
