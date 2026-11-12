@@ -573,6 +573,8 @@ class KnowledgeStore:
         )
         exported: dict[str, list[dict]] = {}
         with self._connect() as connection:
+            # Keep all table reads on one SQLite snapshot while writers may be active.
+            connection.execute("BEGIN")
             available = {
                 row["name"]
                 for row in connection.execute(
@@ -631,10 +633,17 @@ class KnowledgeStore:
         safety = Path(safety_backup_path).expanduser()
         if source.is_symlink() or not source.is_file():
             raise ValueError("Workspace export must be a regular file, not a symlink")
-        if source.resolve() in {database.resolve(), safety.resolve()}:
-            raise ValueError("Workspace export must differ from the database and safety backup")
-        if safety.resolve() == database.resolve():
-            raise ValueError("Safety backup must differ from the active database")
+        protected_paths = {
+            database.resolve(),
+            Path(str(database) + "-wal").resolve(),
+            Path(str(database) + "-shm").resolve(),
+        }
+        if source.resolve() in protected_paths:
+            raise ValueError("Workspace export must differ from the active database and SQLite sidecars")
+        if safety.resolve() in protected_paths:
+            raise ValueError("Safety backup must differ from the active database and SQLite sidecars")
+        if source.resolve() == safety.resolve():
+            raise ValueError("Workspace export and safety backup must be separate files")
 
         document = json.loads(source.read_text(encoding="utf-8"))
         if not isinstance(document, dict) or document.get("format") != "humanity-os-workspace":
