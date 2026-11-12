@@ -39,3 +39,7 @@ The current ingestion endpoint accepts only bounded UTF-8 `.txt`, `.md`, and `.m
 ## Explicit memory risks
 
 The memory API separates pending proposals from approved memory. Only a distinct authenticated owner approval endpoint creates durable memory; model generation and document retrieval do not call that endpoint. Proposal approval, rejection, archive and restore events are append-only. Portable exports include pending proposals and approved memory content, so exports and backups remain sensitive. This milestone does not provide multi-user approval, cryptographic signatures, per-item deletion, or independent security certification.
+
+## Retrieved-content and prompt-injection risks
+
+The `/v1/answers/context` endpoint returns source excerpts as untrusted data with document/chunk identifiers, hashes and offsets. A source may contain adversarial instructions or misleading content. A future model caller must preserve a strict separation between trusted system policy and retrieved excerpts, must not treat excerpts as instructions, and must not grant them tool permissions. The context endpoint itself does not call a model or execute source content. Its manifest SHA-256 detects accidental modification but is not a signature or authenticity proof.

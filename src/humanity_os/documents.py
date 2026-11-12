@@ -183,8 +183,8 @@ class DocumentStore:
         results = []
         with self._connect() as connection:
             rows = connection.execute(
-                """SELECT d.id AS document_id, d.filename, d.content_hash AS document_hash,
-                          d.created_at, c.id AS chunk_id, c.ordinal, c.start_offset,
+                """SELECT d.id AS document_id, d.filename, d.media_type,
+                          d.content_hash AS document_hash, d.created_at, c.id AS chunk_id, c.ordinal, c.start_offset,
                           c.end_offset, c.content_hash AS chunk_hash, c.content AS excerpt
                    FROM document_chunks c
                    JOIN documents d ON d.id = c.document_id
