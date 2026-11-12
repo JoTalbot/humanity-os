@@ -370,3 +370,99 @@ def test_knowledge_provenance_rejects_invalid_hash_and_duplicate_source_ids(tmp_
         ],
     })
     assert duplicate_ids.status_code == 422
+
+
+def test_conflict_registry_requires_two_records_and_human_decision(tmp_path):
+    client = TestClient(create_app(str(tmp_path / "conflicts.sqlite3")))
+    records = []
+    for title in ("Claim A", "Claim B"):
+        response = client.post(
+            "/v1/knowledge",
+            json={"kind": "claim", "title": title, "content": f"Content for {title}"},
+        )
+        assert response.status_code == 201
+        records.append(response.json()["id"])
+
+    self_conflict = client.post("/v1/conflicts", json={
+        "record_a_id": records[0],
+        "record_b_id": records[0],
+        "reason": "A record cannot conflict with itself.",
+    })
+    assert self_conflict.status_code == 422
+
+    missing = client.post("/v1/conflicts", json={
+        "record_a_id": records[0],
+        "record_b_id": "missing-record",
+        "reason": "The second record is absent.",
+    })
+    assert missing.status_code == 404
+
+    created = client.post("/v1/conflicts", json={
+        "record_a_id": records[0],
+        "record_b_id": records[1],
+        "reason": "The claims appear inconsistent.",
+    })
+    assert created.status_code == 201
+    conflict = created.json()
+    assert conflict["status"] == "pending_review"
+    assert conflict["resolution_note"] is None
+
+    duplicate = client.post("/v1/conflicts", json={
+        "record_a_id": records[1],
+        "record_b_id": records[0],
+        "reason": "Same pair, reversed order.",
+    })
+    assert duplicate.status_code == 409
+
+    pending = client.get("/v1/conflicts?status=pending_review").json()["items"]
+    assert len(pending) == 1
+    decision = client.post(
+        f"/v1/conflicts/{conflict['id']}/decision",
+        json={"status": "resolved", "resolution_note": "Owner reviewed both sources."},
+    )
+    assert decision.status_code == 200
+    assert decision.json()["status"] == "resolved"
+
+    repeated = client.post(
+        f"/v1/conflicts/{conflict['id']}/decision",
+        json={"status": "dismissed", "resolution_note": "Second decision is not allowed."},
+    )
+    assert repeated.status_code == 409
+    assert client.get("/v1/conflicts?status=resolved").json()["items"][0]["id"] == conflict["id"]
+
+
+def test_conflict_decision_requires_a_resolution_note(tmp_path):
+    client = TestClient(create_app(str(tmp_path / "conflicts.sqlite3")))
+    first = client.post("/v1/knowledge", json={
+        "kind": "claim", "title": "One", "content": "One"
+    }).json()["id"]
+    second = client.post("/v1/knowledge", json={
+        "kind": "claim", "title": "Two", "content": "Two"
+    }).json()["id"]
+    conflict = client.post("/v1/conflicts", json={
+        "record_a_id": first, "record_b_id": second, "reason": "Potential contradiction."
+    }).json()
+    response = client.post(
+        f"/v1/conflicts/{conflict['id']}/decision",
+        json={"status": "resolved", "resolution_note": ""},
+    )
+    assert response.status_code == 422
+
+
+def test_conflicts_survive_backup_and_restore_verification(tmp_path):
+    database = tmp_path / "active.sqlite3"
+    backup = tmp_path / "snapshot.sqlite3"
+    client = TestClient(create_app(str(database)))
+    first = client.post("/v1/knowledge", json={
+        "kind": "claim", "title": "First", "content": "First claim"
+    }).json()["id"]
+    second = client.post("/v1/knowledge", json={
+        "kind": "claim", "title": "Second", "content": "Second claim"
+    }).json()["id"]
+    created = client.post("/v1/conflicts", json={
+        "record_a_id": first, "record_b_id": second, "reason": "Need review."
+    })
+    assert created.status_code == 201
+    KnowledgeStore(database).backup(backup)
+    assert KnowledgeStore.verify_backup(backup) == 2
+    assert len(KnowledgeStore(backup).list_conflicts()) == 1
