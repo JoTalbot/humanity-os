@@ -43,3 +43,7 @@ The memory API separates pending proposals from approved memory. Only a distinct
 ## Local browser interface
 
 The root login page and static assets are exempt from API authentication only to make the sign-in screen reachable; they remain behind the ASGI loopback peer boundary. All workspace data APIs remain authenticated. The browser keeps the CSRF token in volatile page memory only and makes same-origin requests. No remote scripts, fonts, analytics or CDNs are used. A future remote-access mode requires a new threat model, secure transport, origin/CSRF review and independent security assessment.
+
+## Source context assembly
+
+The context-preparation endpoint performs local lexical retrieval only and reports that no model call or external processing occurred. It bounds passage count and context characters and carries source document/chunk IDs, hashes and exact excerpt offsets. A future provider-backed answer flow must add explicit disclosure and consent for any external data transfer; this endpoint must not be treated as that consent.
