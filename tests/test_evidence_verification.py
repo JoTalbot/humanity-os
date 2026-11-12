@@ -39,9 +39,18 @@ def _knowledge_payload():
     }
 
 
-def test_source_canonical_uri_normalizes_scheme_host_port_and_fragment():
+def test_source_canonical_uri_normalizes_scheme_host_port_and_fragment(tmp_path):
     source = KnowledgeSource(uri="HTTPS://Example.ORG:443/report#section")
     assert source.canonical_uri == "https://example.org/report"
+    client = TestClient(create_app(str(tmp_path / "canonical-uri.sqlite3")))
+    response = client.post("/v1/knowledge", json=_knowledge_payload())
+    assert response.status_code == 201
+    assert response.json()["sources"][0]["canonical_uri"] == "https://example.org/report"
+
+
+def test_source_canonical_uri_preserves_ipv6_authority():
+    source = KnowledgeSource(uri="https://[2001:db8::1]:443/path/")
+    assert source.canonical_uri == "https://[2001:db8::1]/path"
 
 
 def test_duplicate_canonical_source_uri_is_rejected(tmp_path):
