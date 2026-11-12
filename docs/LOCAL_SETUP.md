@@ -61,6 +61,8 @@ Owner credentials, live sessions and CSRF tokens are not portable. Configure a n
 
 ## Model providers
 
+The constrained local Agent Runtime exposes only manually invoked local search/context tools and pending memory proposals; it does not autonomously plan or execute multi-step work.
+
 No model provider is configured by default. Document search and context preparation are local-only. The document answer endpoint returns unavailable unless a provider is explicitly injected into the application, and each answer request still requires explicit provider-processing consent. No provider adapter or remote integration is included in this milestone.
 
 ## Operational warning
