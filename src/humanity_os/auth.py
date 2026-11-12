@@ -56,10 +56,60 @@ class AuthStore:
                     blocked_until TEXT
                 )"""
             )
+            connection.execute(
+                """CREATE TABLE IF NOT EXISTS auth_audit_events (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    occurred_at TEXT NOT NULL,
+                    event_type TEXT NOT NULL,
+                    subject TEXT
+                )"""
+            )
+            connection.execute(
+                "CREATE INDEX IF NOT EXISTS idx_auth_audit_events_time ON auth_audit_events(occurred_at DESC)"
+            )
+            connection.execute(
+                """CREATE TRIGGER IF NOT EXISTS auth_audit_events_no_update
+                   BEFORE UPDATE ON auth_audit_events
+                   BEGIN SELECT RAISE(ABORT, 'audit events are append-only'); END"""
+            )
+            connection.execute(
+                """CREATE TRIGGER IF NOT EXISTS auth_audit_events_no_delete
+                   BEFORE DELETE ON auth_audit_events
+                   BEGIN SELECT RAISE(ABORT, 'audit events are append-only'); END"""
+            )
 
     @staticmethod
     def _digest(value: str) -> str:
         return hashlib.sha256(value.encode("utf-8")).hexdigest()
+
+    def record_audit_event(self, event_type: str, subject: str | None = None) -> None:
+        if not event_type or len(event_type) > 64:
+            raise ValueError("Audit event type must contain 1 to 64 characters")
+        if subject is not None and len(subject) > 128:
+            raise ValueError("Audit subject must not exceed 128 characters")
+        with self._connect() as connection:
+            connection.execute(
+                "INSERT INTO auth_audit_events(occurred_at, event_type, subject) VALUES (?, ?, ?)",
+                (datetime.now(UTC).isoformat(), event_type, subject),
+            )
+
+    def list_audit_events(self, limit: int = 50, before_id: int | None = None) -> list[dict]:
+        if not 1 <= limit <= 100:
+            raise ValueError("Audit event limit must be between 1 and 100")
+        with self._connect() as connection:
+            if before_id is None:
+                rows = connection.execute(
+                    """SELECT id, occurred_at, event_type, subject
+                       FROM auth_audit_events ORDER BY id DESC LIMIT ?""",
+                    (limit,),
+                ).fetchall()
+            else:
+                rows = connection.execute(
+                    """SELECT id, occurred_at, event_type, subject
+                       FROM auth_audit_events WHERE id < ? ORDER BY id DESC LIMIT ?""",
+                    (before_id, limit),
+                ).fetchall()
+        return [dict(row) for row in rows]
 
     def has_owner(self) -> bool:
         with self._connect() as connection:
@@ -80,6 +130,7 @@ class AuthStore:
                 (password_hash, datetime.now(UTC).isoformat()),
             )
             connection.execute("DELETE FROM auth_sessions")
+        self.record_audit_event("owner_password_changed")
 
     def verify_owner_password(self, password: str) -> bool:
         with self._connect() as connection:
@@ -168,6 +219,7 @@ class AuthStore:
             connection.execute(
                 "DELETE FROM auth_sessions WHERE expires_at <= ?", (now.isoformat(),)
             )
+        self.record_audit_event("session_created", "owner")
         return token, csrf
 
     def validate_session(self, token: str) -> bool:
@@ -194,6 +246,8 @@ class AuthStore:
 
     def revoke_session(self, token: str) -> None:
         with self._connect() as connection:
-            connection.execute(
+            cursor = connection.execute(
                 "DELETE FROM auth_sessions WHERE token_hash = ?", (self._digest(token),)
             )
+        if cursor.rowcount:
+            self.record_audit_event("session_revoked", "owner")
