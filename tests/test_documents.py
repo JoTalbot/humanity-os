@@ -99,7 +99,7 @@ def test_workspace_export_and_import_round_trip_document_content(tmp_path):
     ).json()
 
     exported = KnowledgeStore(source).export_workspace()
-    assert exported["schema_version"] == "1.1.0"
+    assert exported["schema_version"] == "1.2.0"
     assert len(exported["tables"]["documents"]) == 1
     assert len(exported["tables"]["document_chunks"]) == 1
     export_path = tmp_path / "workspace.json"
