@@ -101,9 +101,7 @@ class ReasoningEngine:
     def _matches(claim: ClaimNode, request: ReasoningQuery) -> bool:
         if request.scope is not None and claim.scope != request.scope:
             return False
-        if request.temporal_scope is not None and claim.temporal_scope != request.temporal_scope:
-            return False
-        return True
+        return request.temporal_scope is None or claim.temporal_scope == request.temporal_scope
 
     def run(self, request: ReasoningQuery, actor: str) -> ReasoningRun:
         root = self.graph.get_claim(request.root_claim_id)
