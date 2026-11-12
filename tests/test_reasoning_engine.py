@@ -56,6 +56,7 @@ class TestClient(_TestClient):
         kwargs.setdefault("client", ("127.0.0.1", 50000))
         super().__init__(app, **kwargs)
 
+
 def test_reasoning_run_traverses_typed_edges_and_returns_evidence_paths(tmp_path):
     client = TestClient(create_app(str(tmp_path / "reasoning.sqlite3")))
     first_record = _record(client, "First")
