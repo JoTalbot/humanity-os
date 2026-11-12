@@ -18,7 +18,7 @@ from humanity_os.store import KnowledgeStore
 class SearchToolInput(BaseModel):
     model_config = ConfigDict(extra="forbid")
     query: str = Field(min_length=1, max_length=200)
-    limit: int = Field(default=10, ge=1, le=30)
+    limit: int = Field(default=10, ge=1, le=10)
 
 
 class ContextToolInput(BaseModel):
@@ -265,13 +265,25 @@ class AgentRuntime:
         input_bytes = json.dumps(
             arguments, ensure_ascii=False, sort_keys=True, separators=(",", ":")
         ).encode("utf-8")
+        if len(input_bytes) > 20_000:
+            raise ValueError("Agent tool arguments exceed the 20,000-byte limit")
         input_digest = hashlib.sha256(input_bytes).hexdigest()
         run_id = self.store.start_run(agent_id, tool_name, input_digest)
         try:
             if tool_name == "knowledge.search":
                 payload = SearchToolInput.model_validate(arguments)
                 records = self.knowledge.list(limit=payload.limit, query=payload.query)
-                result = [record.model_dump(mode="json") for record in records]
+                result = [
+                    {
+                        "id": record.id,
+                        "kind": record.kind,
+                        "title": record.title,
+                        "visibility": record.visibility,
+                        "updated_at": record.updated_at.isoformat(),
+                        "excerpt": record.content[:500],
+                    }
+                    for record in records
+                ]
             elif tool_name == "documents.search":
                 payload = SearchToolInput.model_validate(arguments)
                 result = self.documents.search(payload.query, limit=payload.limit)
@@ -296,6 +308,8 @@ class AgentRuntime:
             result_bytes = json.dumps(
                 result, ensure_ascii=False, sort_keys=True, separators=(",", ":"), default=str
             ).encode("utf-8")
+            if len(result_bytes) > 20_000:
+                raise ValueError("Agent tool result exceeds the 20,000-byte limit")
             result_digest = hashlib.sha256(result_bytes).hexdigest()
             self.store.finish_run(run_id, result_digest=result_digest)
             return {"run_id": run_id, "agent_id": agent_id, "tool_name": tool_name, "result": result}
