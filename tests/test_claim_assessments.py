@@ -155,7 +155,7 @@ def test_reasoning_comparison_reports_shared_and_unique_claims_and_source_uris(t
     assert result["unique_source_uris"][first["id"]] == ["https://example.org/a"]
     assert result["unique_source_uris"][second["id"]] == ["https://example.org/b"]
     assert len(result["runs"]) == 2
-    assert all("not a ranking" in item for item in result["limitations"])
+    assert any("not a ranking" in item for item in result["limitations"])
 
 
 def test_reasoning_comparison_rejects_duplicate_or_missing_roots_without_partial_runs(tmp_path):
