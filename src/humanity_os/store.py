@@ -10,7 +10,7 @@ from contextlib import closing
 from datetime import UTC, datetime
 from pathlib import Path
 
-from humanity_os.models import KnowledgeConflict, KnowledgeRecord
+from humanity_os.models import KnowledgeConflict, KnowledgeRecord, KnowledgeRevision
 
 
 class KnowledgeStore:
@@ -37,6 +37,21 @@ class KnowledgeStore:
             connection.execute(
                 "CREATE INDEX IF NOT EXISTS idx_knowledge_created_id "
                 "ON knowledge(created_at DESC, id DESC)"
+            )
+            connection.execute(
+                """CREATE TABLE IF NOT EXISTS knowledge_revisions (
+                    record_id TEXT NOT NULL,
+                    revision INTEGER NOT NULL CHECK(revision >= 1),
+                    actor TEXT NOT NULL CHECK(actor IN ('owner', 'system')),
+                    change_reason TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    payload TEXT NOT NULL,
+                    PRIMARY KEY(record_id, revision)
+                )"""
+            )
+            connection.execute(
+                "CREATE INDEX IF NOT EXISTS idx_knowledge_revisions_created "
+                "ON knowledge_revisions(record_id, revision DESC)"
             )
             connection.execute(
                 """CREATE TABLE IF NOT EXISTS knowledge_conflicts (
@@ -107,10 +122,20 @@ class KnowledgeStore:
                 if conflict_table
                 else []
             )
+            revision_table = connection.execute(
+                "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'knowledge_revisions'"
+            ).fetchone()
+            revision_rows = (
+                connection.execute("SELECT payload FROM knowledge_revisions").fetchall()
+                if revision_table
+                else []
+            )
         for row in rows:
             KnowledgeRecord.model_validate_json(row[0])
         for row in conflict_rows:
             KnowledgeConflict.model_validate_json(row[0])
+        for row in revision_rows:
+            KnowledgeRevision.model_validate_json(row[0])
         return len(rows)
 
 
@@ -182,6 +207,17 @@ class KnowledgeStore:
                 "INSERT INTO knowledge(id, visibility, created_at, payload) VALUES (?, ?, ?, ?)",
                 (record.id, record.visibility, record.created_at.isoformat(), record.model_dump_json()),
             )
+            revision = KnowledgeRevision(
+                record_id=record.id, revision=1, actor="system",
+                change_reason="record created", created_at=record.created_at, snapshot=record,
+            )
+            connection.execute(
+                """INSERT INTO knowledge_revisions(
+                    record_id, revision, actor, change_reason, created_at, payload
+                ) VALUES (?, ?, ?, ?, ?, ?)""",
+                (record.id, 1, "system", "record created",
+                 record.created_at.isoformat(), revision.model_dump_json()),
+            )
         return record
 
     def get(self, record_id: str) -> KnowledgeRecord | None:
@@ -213,13 +249,55 @@ class KnowledgeStore:
             rows = connection.execute(sql, params).fetchall()
         return [KnowledgeRecord.model_validate_json(row["payload"]) for row in rows]
 
-    def update(self, record: KnowledgeRecord) -> KnowledgeRecord | None:
+    def update(
+        self, record: KnowledgeRecord, change_reason: str = "updated via API",
+        actor: str = "system",
+    ) -> KnowledgeRecord | None:
+        if actor not in {"owner", "system"}:
+            raise ValueError("Revision actor must be owner or system")
+        reason = change_reason.strip()
+        if not reason or len(reason) > 2_000:
+            raise ValueError("Revision change reason must contain 1 to 2000 characters")
         with self._connect() as connection:
-            result = connection.execute(
+            connection.execute("BEGIN IMMEDIATE")
+            row = connection.execute(
+                "SELECT payload FROM knowledge WHERE id = ?", (record.id,)
+            ).fetchone()
+            if row is None:
+                return None
+            current = KnowledgeRecord.model_validate_json(row["payload"])
+            updated = record.model_copy(update={
+                "revision": current.revision + 1,
+                "created_at": current.created_at,
+                "updated_at": datetime.now(UTC),
+            })
+            now = updated.updated_at.isoformat()
+            connection.execute(
                 "UPDATE knowledge SET visibility = ?, payload = ? WHERE id = ?",
-                (record.visibility, record.model_dump_json(), record.id),
+                (updated.visibility, updated.model_dump_json(), updated.id),
             )
-        return record if result.rowcount else None
+            revision = KnowledgeRevision(
+                record_id=updated.id, revision=updated.revision, actor=actor,
+                change_reason=reason, created_at=updated.updated_at, snapshot=updated,
+            )
+            connection.execute(
+                """INSERT INTO knowledge_revisions(
+                    record_id, revision, actor, change_reason, created_at, payload
+                ) VALUES (?, ?, ?, ?, ?, ?)""",
+                (updated.id, updated.revision, actor, reason, now, revision.model_dump_json()),
+            )
+        return updated
+
+    def list_revisions(self, record_id: str, limit: int = 100) -> list[KnowledgeRevision]:
+        if not 1 <= limit <= 100:
+            raise ValueError("Revision limit must be between 1 and 100")
+        with self._connect() as connection:
+            rows = connection.execute(
+                """SELECT payload FROM knowledge_revisions
+                   WHERE record_id = ? ORDER BY revision DESC LIMIT ?""",
+                (record_id, limit),
+            ).fetchall()
+        return [KnowledgeRevision.model_validate_json(row["payload"]) for row in rows]
 
     def delete(self, record_id: str) -> bool:
         with self._connect() as connection:
