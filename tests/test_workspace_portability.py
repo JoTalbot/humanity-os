@@ -77,3 +77,69 @@ def test_cli_workspace_deletion_requires_backup_and_removes_active_database(
     output = capsys.readouterr().out
     assert "Verified safety backup retained" in output
     assert "not erased" in output
+
+def test_portable_workspace_import_round_trips_domain_history_and_resets_identity(tmp_path):
+    source_db = tmp_path / "source.sqlite3"
+    source_app = create_app(str(source_db), allow_unauthenticated_local=True)
+    source_client = TestClient(source_app, client=("127.0.0.1", 50000))
+    created = source_client.post(
+        "/v1/knowledge",
+        json={"kind": "concept", "title": "Portable", "content": "Original"},
+    ).json()
+    source_client.put(
+        f"/v1/knowledge/{created['id']}",
+        json={"kind": "concept", "title": "Portable v2", "content": "Updated"},
+    )
+    export_path = tmp_path / "workspace.json"
+    export_path.write_text(
+        json.dumps(KnowledgeStore(source_db).export_workspace(), ensure_ascii=False),
+        encoding="utf-8",
+    )
+
+    target_db = tmp_path / "target.sqlite3"
+    target_app = create_app(str(target_db), allow_unauthenticated_local=True)
+    target_client = TestClient(target_app, client=("127.0.0.1", 50000))
+    target_client.post(
+        "/v1/knowledge",
+        json={"kind": "observation", "title": "Old target", "content": "Must be backed up"},
+    )
+    safety_backup = tmp_path / "pre-import.sqlite3"
+
+    count = KnowledgeStore(target_db).import_workspace(export_path, safety_backup)
+
+    imported = KnowledgeStore(target_db)
+    assert count == 1
+    assert imported.get(created["id"]).content == "Updated"
+    assert [item.revision for item in imported.list_revisions(created["id"])] == [2, 1]
+    assert imported.list()[0].title == "Portable v2"
+    assert KnowledgeStore.verify_backup(safety_backup) == 1
+    from humanity_os.auth import AuthStore
+
+    assert not AuthStore(target_db).has_owner()
+
+
+def test_portable_workspace_import_rejects_tampering_before_replacement(tmp_path):
+    source_db = tmp_path / "source.sqlite3"
+    source_app = create_app(str(source_db), allow_unauthenticated_local=True)
+    source_client = TestClient(source_app, client=("127.0.0.1", 50000))
+    source_client.post(
+        "/v1/knowledge",
+        json={"kind": "concept", "title": "Original", "content": "Untampered"},
+    )
+    document = KnowledgeStore(source_db).export_workspace()
+    document["tables"]["knowledge"][0]["payload"] = "{}"
+    export_path = tmp_path / "tampered.json"
+    export_path.write_text(json.dumps(document), encoding="utf-8")
+
+    target_db = tmp_path / "target.sqlite3"
+    target_app = create_app(str(target_db), allow_unauthenticated_local=True)
+    target_client = TestClient(target_app, client=("127.0.0.1", 50000))
+    target_client.post(
+        "/v1/knowledge",
+        json={"kind": "observation", "title": "Keep me", "content": "Target intact"},
+    )
+
+    with pytest.raises(ValueError, match="integrity"):
+        KnowledgeStore(target_db).import_workspace(export_path, tmp_path / "safety.sqlite3")
+    assert KnowledgeStore(target_db).list()[0].title == "Keep me"
+    assert not (tmp_path / "safety.sqlite3").exists()
