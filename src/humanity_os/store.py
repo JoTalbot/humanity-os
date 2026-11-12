@@ -605,10 +605,14 @@ class KnowledgeStore:
                     raise ValueError(
                         f"Unsupported {table} schema; update the workspace export version"
                     )
-                primary_key = tuple(
-                    column for column in columns
-                    if column in {"id", "record_id"}
-                )
+                primary_key_info = connection.execute(
+                    f'PRAGMA table_info("{table}")'
+                ).fetchall()
+                primary_key = [
+                    row["name"]
+                    for row in sorted(primary_key_info, key=lambda item: item["pk"])
+                    if row["pk"]
+                ]
                 order = ", ".join(f'"{name}"' for name in primary_key) or "rowid"
                 column_sql = ", ".join(f'"{name}"' for name in columns)
                 rows = connection.execute(
