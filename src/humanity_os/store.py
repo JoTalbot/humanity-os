@@ -359,6 +359,67 @@ class KnowledgeStore:
 
         # Preserve the current state before preparing any replacement.
         self.backup(safety)
+        events_by_proposal: dict[str, list[dict]] = {}
+        events_by_memory: dict[str, list[dict]] = {}
+        for event in tables["memory_events"]:
+            proposal_id = event["proposal_id"]
+            memory_id = event["memory_id"]
+            if proposal_id is not None:
+                events_by_proposal.setdefault(proposal_id, []).append(event)
+            if memory_id is not None:
+                events_by_memory.setdefault(memory_id, []).append(event)
+            event_type = event["event_type"]
+            if event_type in {"proposal_created", "proposal_rejected"} and memory_id is not None:
+                raise ValueError("Proposal lifecycle event cannot reference a memory item")
+            if event_type in {"memory_archived", "memory_restored"} and (
+                proposal_id is not None or memory_id is None
+            ):
+                raise ValueError("Memory status event must reference only a memory item")
+        for proposal_id, proposal in proposals.items():
+            proposal_events = events_by_proposal.get(proposal_id, [])
+            created_events = [item for item in proposal_events if item["event_type"] == "proposal_created"]
+            if len(created_events) != 1:
+                raise ValueError("Every memory proposal must have exactly one creation event")
+            if proposal["status"] == "pending_review":
+                expected_terminal_event = None
+            elif proposal["status"] == "approved":
+                expected_terminal_event = "proposal_approved"
+            else:
+                expected_terminal_event = "proposal_rejected"
+            terminal_events = [
+                item for item in proposal_events
+                if item["event_type"] in {"proposal_approved", "proposal_rejected"}
+            ]
+            if (expected_terminal_event is None and terminal_events) or (
+                expected_terminal_event is not None
+                and (
+                    len(terminal_events) != 1
+                    or terminal_events[0]["event_type"] != expected_terminal_event
+                )
+            ):
+                raise ValueError("Memory proposal status does not match its lifecycle events")
+            if expected_terminal_event == "proposal_approved":
+                approved_event = terminal_events[0]
+                if approved_event.get("memory_id") != proposal.get("approved_memory_id"):
+                    raise ValueError("Memory approval event does not match the approved item")
+        for memory_id, memory in memory_items.items():
+            lifecycle = sorted(
+                events_by_memory.get(memory_id, []),
+                key=lambda item: (item["occurred_at"], item["id"]),
+            )
+            if not lifecycle or lifecycle[0]["event_type"] != "proposal_approved":
+                raise ValueError("Durable memory must begin with an approval event")
+            status = "active"
+            for event in lifecycle[1:]:
+                if event["event_type"] == "memory_archived" and status == "active":
+                    status = "archived"
+                elif event["event_type"] == "memory_restored" and status == "archived":
+                    status = "active"
+                else:
+                    raise ValueError("Memory lifecycle event sequence is invalid")
+            if status != memory.get("status"):
+                raise ValueError("Memory status does not match its lifecycle event history")
+
         descriptor, temporary_name = tempfile.mkstemp(
             prefix=f".{database.name}.restore-",
             suffix=".sqlite3",
