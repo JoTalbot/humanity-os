@@ -762,7 +762,7 @@ class KnowledgeStore:
         chunks_by_document: dict[str, list[dict]] = {}
         for chunk in tables["document_chunks"]:
             if not isinstance(chunk, dict):
-                raise ValueError("Invalid document chunk row in workspace export")
+                raise TypeError("Invalid document chunk row in workspace export")
             document_id = chunk.get("document_id")
             document = document_rows.get(document_id)
             content = chunk.get("content")
