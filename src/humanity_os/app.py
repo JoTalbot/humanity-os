@@ -369,6 +369,20 @@ def create_app(database_path: str | None = None, api_token: str | None = None) -
         return result
 
     @app.post(
+        "/v1/evidence-independence/analyze",
+        response_model=EvidenceIndependenceReport,
+    )
+    def analyze_evidence_independence(
+        payload: IndependenceQuery,
+    ) -> EvidenceIndependenceReport:
+        try:
+            return independence.analyze(payload)
+        except LookupError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    @app.post(
         "/v1/evidence-assessments",
         response_model=EvidenceAssessment,
         status_code=201,
