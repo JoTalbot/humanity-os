@@ -11,6 +11,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from humanity_os.models import (
+    ClaimNode,
+    ClaimRelation,
     DecisionRecord,
     EvidenceAssessment,
     KnowledgeConflict,
@@ -234,6 +236,22 @@ class KnowledgeStore:
                 if assessment_table
                 else []
             )
+            claim_table = connection.execute(
+                "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'claims'"
+            ).fetchone()
+            claim_rows = (
+                connection.execute("SELECT payload FROM claims").fetchall()
+                if claim_table
+                else []
+            )
+            claim_relation_table = connection.execute(
+                "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'claim_relations'"
+            ).fetchone()
+            claim_relation_rows = (
+                connection.execute("SELECT payload FROM claim_relations").fetchall()
+                if claim_relation_table
+                else []
+            )
         for row in rows:
             KnowledgeRecord.model_validate_json(row[0])
         for row in conflict_rows:
@@ -244,6 +262,10 @@ class KnowledgeStore:
             DecisionRecord.model_validate_json(row[0])
         for row in assessment_rows:
             EvidenceAssessment.model_validate_json(row[0])
+        for row in claim_rows:
+            ClaimNode.model_validate_json(row[0])
+        for row in claim_relation_rows:
+            ClaimRelation.model_validate_json(row[0])
         return len(rows)
 
 
@@ -286,6 +308,9 @@ class KnowledgeStore:
                 raise sqlite3.DatabaseError("Staged restore record count changed")
             os.replace(temporary, database)
             self._initialise()
+            from humanity_os.claim_graph import ClaimGraphStore
+
+            ClaimGraphStore(self.database_path)
             return record_count
         finally:
             temporary.unlink(missing_ok=True)
