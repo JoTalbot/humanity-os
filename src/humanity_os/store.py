@@ -163,6 +163,18 @@ class KnowledgeStore:
                    BEGIN SELECT RAISE(ABORT, 'evidence assessments are append-only'); END"""
             )
 
+
+    @staticmethod
+    def checkpoint_database(database_path: str | Path) -> None:
+        """Checkpoint committed WAL pages before offline replacement or deletion."""
+        path = Path(database_path).expanduser()
+        with closing(sqlite3.connect(str(path), timeout=10)) as connection:
+            result = connection.execute("PRAGMA wal_checkpoint(TRUNCATE)").fetchone()
+            if result is not None and result[0] != 0:
+                raise sqlite3.DatabaseError(
+                    "SQLite WAL checkpoint is busy; stop all workspace processes and retry"
+                )
+
     def backup(self, destination: str | Path) -> Path:
         """Create a consistent SQLite snapshot without overwriting an existing file."""
         target_path = Path(destination).expanduser()
@@ -735,6 +747,7 @@ class KnowledgeStore:
 
             record_count = self.verify_backup(temporary)
             self.backup(safety)
+            self.checkpoint_database(database)
             for suffix in ("-wal", "-shm"):
                 Path(str(database) + suffix).unlink(missing_ok=True)
             os.replace(temporary, database)
