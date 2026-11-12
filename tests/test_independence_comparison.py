@@ -3,7 +3,6 @@ from fastapi.testclient import TestClient as _TestClient
 from humanity_os.app import create_app as _create_app
 
 
-
 # Existing API behavior tests explicitly opt into the isolated, loopback-only
 # anonymous mode. Production create_app() remains authenticated by default.
 def create_app(*args, **kwargs):
