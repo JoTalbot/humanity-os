@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import sqlite3
 from pathlib import Path
-from uuid import uuid4
 
 from humanity_os.models import ClaimAssessment
 
