@@ -117,7 +117,7 @@ def test_humanity_one_complete_local_owner_journey_and_portability(tmp_path):
     assert exported_response.status_code == 200
     exported = exported_response.json()
     serialized = json.dumps(exported, ensure_ascii=False)
-    assert exported["schema_version"] == "1.2.0"
+    assert exported["schema_version"] == "1.3.0"
     assert len(exported["tables"]["knowledge"]) == 1
     assert len(exported["tables"]["documents"]) == 1
     assert len(exported["tables"]["memory_items"]) == 1
