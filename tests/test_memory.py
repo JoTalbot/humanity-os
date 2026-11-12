@@ -250,7 +250,7 @@ def test_memory_events_are_append_only(tmp_path):
         )
 
 
-@pytest.mark.parametrize("legacy_version", ["1.0.0", "1.1.0"])
+@pytest.mark.parametrize("legacy_version", ["1.0.0", "1.1.0", "1.2.0"])
 def test_legacy_workspace_exports_remain_importable_after_memory_schema_upgrade(
     tmp_path, legacy_version
 ):
