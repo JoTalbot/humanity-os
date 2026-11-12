@@ -65,9 +65,9 @@ class DocumentStore:
             raise ValueError("Only .txt, .md, and .markdown documents are supported")
         if not isinstance(content, str) or not content.strip():
             raise ValueError("Document content must be non-empty UTF-8 text")
-        if "\\x00" in content:
+        if "\x00" in content:
             raise ValueError("Document content cannot contain NUL characters")
-        normalized = content.replace("\\r\\n", "\\n").replace("\\r", "\\n")
+        normalized = content.replace("\r\n", "\n").replace("\r", "\n")
         if len(normalized) > MAX_DOCUMENT_CHARS:
             raise ValueError("Document exceeds the 1,000,000 character limit")
         media_type = "text/markdown" if suffix in {".md", ".markdown"} else "text/plain"
@@ -81,7 +81,7 @@ class DocumentStore:
         while start < length:
             end = min(start + CHUNK_SIZE, length)
             if end < length:
-                boundary = content.rfind("\\n", start + CHUNK_SIZE // 2, end)
+                boundary = content.rfind("\n", start + CHUNK_SIZE // 2, end)
                 if boundary > start:
                     end = boundary + 1
             ranges.append((start, end))
@@ -178,7 +178,7 @@ class DocumentStore:
     def search(self, query: str, limit: int = 20) -> list[dict]:
         if not 1 <= limit <= 50:
             raise ValueError("Search limit must be between 1 and 50")
-        terms = [term for term in re.findall(r"[\\w-]{2,}", query.casefold())][:12]
+        terms = [term for term in re.findall(r"[\w-]{2,}", query.casefold())][:12]
         if not terms:
             raise ValueError("Search query must contain at least one word")
         conditions = " AND ".join("lower(c.content) LIKE ?" for _ in terms)
