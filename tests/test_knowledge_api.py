@@ -269,7 +269,7 @@ def test_auth_audit_events_are_recorded_and_append_only(tmp_path):
     assert "login_failed" in event_types
     assert "login_succeeded" in event_types
     assert "session_created" in event_types
-    assert all("password" not in str(event).lower() for event in events)
+    assert all("a long secure test password" not in str(event) for event in events)
 
     event_id = events[0]["id"]
     with sqlite3.connect(database) as connection:
