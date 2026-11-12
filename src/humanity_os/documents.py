@@ -8,7 +8,6 @@ from datetime import UTC, datetime
 from pathlib import Path
 from uuid import uuid4
 
-
 MAX_DOCUMENT_CHARS = 1_000_000
 CHUNK_SIZE = 1_200
 CHUNK_OVERLAP = 150
