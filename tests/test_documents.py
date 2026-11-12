@@ -57,6 +57,14 @@ def test_source_aware_search_returns_document_and_chunk_references(tmp_path):
     assert results[0]["start_offset"] == 0
 
 
+def test_source_aware_search_casefolds_ukrainian_text(tmp_path):
+    store = DocumentStore(tmp_path / "workspace.sqlite3")
+    document = store.create("ukraine.txt", "КИЇВ зберігає джерела знань.")
+    results = store.search("київ джерела")
+    assert len(results) == 1
+    assert results[0]["document_id"] == document["id"]
+
+
 def test_document_api_is_authenticated_by_default_and_supports_search(tmp_path):
     strict = TestClient(create_app(str(tmp_path / "strict.sqlite3")), client=("127.0.0.1", 50000))
     assert strict.post(
