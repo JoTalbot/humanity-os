@@ -79,8 +79,8 @@ class ReasoningComparison(BaseModel):
     runs: list[ReasoningRun]
     shared_claim_ids: list[str]
     unique_claim_ids: dict[str, list[str]]
-    shared_source_ids: list[str]
-    unique_source_ids: dict[str, list[str]]
+    shared_source_uris: list[str]
+    unique_source_uris: dict[str, list[str]]
     limitations: list[str]
     actor: Literal["owner", "system"]
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
@@ -284,7 +284,7 @@ class ReasoningEngine:
         ]
         claim_sets = {run.root_claim_id: {claim.id for claim in run.claims} for run in runs}
         source_sets = {
-            run.root_claim_id: {item.source_id for item in run.evidence}
+            run.root_claim_id: {item.source_uri for item in run.evidence}
             for run in runs
         }
         shared_claims = set.intersection(*claim_sets.values())
@@ -297,8 +297,8 @@ class ReasoningEngine:
                 root_id: sorted(values - shared_claims)
                 for root_id, values in claim_sets.items()
             },
-            shared_source_ids=sorted(shared_sources),
-            unique_source_ids={
+            shared_source_uris=sorted(shared_sources),
+            unique_source_uris={
                 root_id: sorted(values - shared_sources)
                 for root_id, values in source_sets.items()
             },
