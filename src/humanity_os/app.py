@@ -87,7 +87,7 @@ def create_app(database_path: str | None = None, api_token: str | None = None) -
         remote_host = request.client.host if request.client else "unknown"
         ip_bucket = "ip:" + hashlib.sha256(remote_host.encode("utf-8")).hexdigest()
         buckets = ("owner", ip_bucket)
-        retry_after = max(auth.login_retry_after(bucket) for bucket in buckets)
+        retry_after = auth.consume_login_attempts(buckets)
         if retry_after:
             raise HTTPException(
                 status_code=429,
@@ -96,8 +96,6 @@ def create_app(database_path: str | None = None, api_token: str | None = None) -
             )
 
         if not auth.verify_owner_password(payload.password):
-            for bucket in buckets:
-                auth.record_login_failure(bucket)
             raise HTTPException(status_code=401, detail="Invalid credentials")
 
         for bucket in buckets:
