@@ -16,7 +16,7 @@ from humanity_os.auth import AuthStore
 from humanity_os.claim_assessments import ClaimAssessmentStore
 from humanity_os.claim_graph import ClaimGraphStore
 from humanity_os.evidence import EvidenceAssessmentStore
-from humanity_os.models import (
+from humanity_os.independence import (\n    EvidenceIndependenceEngine,\n    EvidenceIndependenceReport,\n    IndependenceQuery,\n)\nfrom humanity_os.models import (
     ClaimAssessment,
     ClaimAssessmentCreate,
     ClaimCreate,
@@ -65,7 +65,7 @@ def create_app(database_path: str | None = None, api_token: str | None = None) -
     evidence_assessments = EvidenceAssessmentStore(store.database_path)
     claim_graph = ClaimGraphStore(store.database_path)
     claim_assessments = ClaimAssessmentStore(store.database_path)
-    reasoning = ReasoningEngine(store.database_path, store, claim_graph)
+    reasoning = ReasoningEngine(store.database_path, store, claim_graph)\n    independence = EvidenceIndependenceEngine(store)
     app = FastAPI(
         title="HUMANITY OS Personal Core",
         version=__version__,
@@ -76,7 +76,7 @@ def create_app(database_path: str | None = None, api_token: str | None = None) -
     app.state.evidence_assessment_store = evidence_assessments
     app.state.claim_graph_store = claim_graph
     app.state.claim_assessment_store = claim_assessments
-    app.state.reasoning_engine = reasoning
+    app.state.reasoning_engine = reasoning\n    app.state.evidence_independence_engine = independence
     app.state.authentication_enabled = bool(token) or auth.has_owner()
 
     @app.middleware("http")
