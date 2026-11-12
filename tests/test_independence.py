@@ -27,6 +27,7 @@ class TestClient(_TestClient):
         kwargs.setdefault("client", ("127.0.0.1", 50000))
         super().__init__(app, **kwargs)
 
+
 def test_independence_report_groups_declared_sources_and_preserves_unknown(tmp_path):
     client = TestClient(create_app(str(tmp_path / "independence.sqlite3")))
     record = _record(client, "Grouped sources", [
