@@ -39,3 +39,7 @@ The current ingestion endpoint accepts only bounded UTF-8 `.txt`, `.md`, and `.m
 ## Explicit memory risks
 
 The memory API separates pending proposals from approved memory. Only a distinct authenticated owner approval endpoint creates durable memory; model generation and document retrieval do not call that endpoint. Proposal approval, rejection, archive and restore events are append-only. Portable exports include pending proposals and approved memory content, so exports and backups remain sensitive. This milestone does not provide multi-user approval, cryptographic signatures, per-item deletion, or independent security certification.
+
+## Local browser interface
+
+The root login page and static assets are exempt from API authentication only to make the sign-in screen reachable; they remain behind the ASGI loopback peer boundary. All workspace data APIs remain authenticated. The browser keeps the CSRF token in volatile page memory only and makes same-origin requests. No remote scripts, fonts, analytics or CDNs are used. A future remote-access mode requires a new threat model, secure transport, origin/CSRF review and independent security assessment.
