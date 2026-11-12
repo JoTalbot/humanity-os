@@ -248,3 +248,55 @@ def test_owner_login_is_rate_limited_after_five_failures(tmp_path):
     blocked = client.post("/auth/login", json={"password": "a long secure test password"})
     assert blocked.status_code == 429
     assert int(blocked.headers["Retry-After"]) > 0
+
+
+
+def test_auth_audit_events_are_recorded_and_append_only(tmp_path):
+    database = tmp_path / "owner.sqlite3"
+    app = create_app(str(database))
+    app.state.auth_store.set_owner_password("a long secure test password")
+    client = TestClient(app)
+
+    failed = client.post("/auth/login", json={"password": "incorrect password"})
+    assert failed.status_code == 401
+    login = client.post("/auth/login", json={"password": "a long secure test password"})
+    assert login.status_code == 200
+    csrf = login.json()["csrf_token"]
+
+    events = client.get("/auth/events").json()["items"]
+    event_types = [event["event_type"] for event in events]
+    assert "owner_password_changed" in event_types
+    assert "login_failed" in event_types
+    assert "login_succeeded" in event_types
+    assert "session_created" in event_types
+    assert all("password" not in str(event).lower() for event in events)
+
+    event_id = events[0]["id"]
+    with sqlite3.connect(database) as connection:
+        with pytest.raises(sqlite3.IntegrityError, match="append-only"):
+            connection.execute(
+                "UPDATE auth_audit_events SET event_type = 'tampered' WHERE id = ?",
+                (event_id,),
+            )
+        with pytest.raises(sqlite3.IntegrityError, match="append-only"):
+            connection.execute("DELETE FROM auth_audit_events WHERE id = ?", (event_id,))
+
+    assert client.post("/auth/logout", headers={"X-CSRF-Token": csrf}).status_code == 204
+    assert any(
+        event["event_type"] == "session_revoked"
+        for event in app.state.auth_store.list_audit_events()
+    )
+
+
+def test_auth_audit_event_pagination_is_bounded(tmp_path):
+    app = create_app(str(tmp_path / "owner.sqlite3"))
+    auth = app.state.auth_store
+    for index in range(5):
+        auth.record_audit_event("test_event", f"item-{index}")
+    first = auth.list_audit_events(limit=2)
+    assert len(first) == 2
+    second = auth.list_audit_events(limit=2, before_id=first[-1]["id"])
+    assert len(second) == 2
+    assert first[0]["id"] > second[0]["id"]
+    with pytest.raises(ValueError, match="between 1 and 100"):
+        auth.list_audit_events(limit=101)
