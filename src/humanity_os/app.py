@@ -13,17 +13,17 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field
 
 from humanity_os import __version__
-from humanity_os.citation_verification import (
-    CitationValidationRequest,
-    CitationValidationResponse,
-    CitationValidator,
-)
 from humanity_os.answer_context import (
     AnswerContextBuilder,
     AnswerContextRequest,
     AnswerContextResponse,
 )
 from humanity_os.auth import AuthStore
+from humanity_os.citation_verification import (
+    CitationValidationRequest,
+    CitationValidationResponse,
+    CitationValidator,
+)
 from humanity_os.claim_assessments import ClaimAssessmentStore
 from humanity_os.claim_graph import ClaimGraphStore
 from humanity_os.documents import MAX_DOCUMENT_CHARS, DocumentStore
