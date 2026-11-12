@@ -241,12 +241,13 @@ def test_memory_events_are_append_only(tmp_path):
         rationale="Audit test.",
     )
     event = store.list_events(proposal_id=proposal["id"])[0]
-    with sqlite3.connect(database) as connection:
-        with pytest.raises(sqlite3.IntegrityError, match="append-only"):
-            connection.execute(
-                "UPDATE memory_events SET event_type = 'rewritten' WHERE id = ?",
-                (event["id"],),
-            )
+    with sqlite3.connect(database) as connection, pytest.raises(
+        sqlite3.IntegrityError, match="append-only"
+    ):
+        connection.execute(
+            "UPDATE memory_events SET event_type = 'rewritten' WHERE id = ?",
+            (event["id"],),
+        )
 
 
 @pytest.mark.parametrize("legacy_version", ["1.0.0", "1.1.0"])
