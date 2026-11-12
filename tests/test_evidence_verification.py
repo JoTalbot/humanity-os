@@ -52,6 +52,7 @@ class TestClient(_TestClient):
         kwargs.setdefault("client", ("127.0.0.1", 50000))
         super().__init__(app, **kwargs)
 
+
 def test_source_canonical_uri_normalizes_scheme_host_port_and_fragment(tmp_path):
     source = KnowledgeSource(uri="HTTPS://Example.ORG:443/report#section")
     assert source.canonical_uri == "https://example.org/report"
