@@ -232,3 +232,55 @@ class EvidenceAssessment(EvidenceAssessmentCreate):
     id: str = Field(default_factory=lambda: str(uuid4()))
     actor: Literal["owner", "system"]
     assessed_at: datetime = Field(default_factory=utc_now)
+
+
+ClaimPolarity = Literal["affirmed", "negated", "unknown"]
+ClaimModality = Literal["asserted", "possible", "necessary", "conditional"]
+ClaimRelationType = Literal["supports", "contradicts", "depends_on", "refines", "duplicates"]
+
+
+class ClaimCreate(BaseModel):
+    """An atomic, reviewable proposition grounded in one knowledge record."""
+    model_config = ConfigDict(extra="forbid")
+    knowledge_id: str = Field(min_length=1, max_length=128)
+    statement: str = Field(min_length=1, max_length=8_000)
+    subject: str | None = Field(default=None, max_length=1_000)
+    predicate: str | None = Field(default=None, max_length=1_000)
+    object: str | None = Field(default=None, max_length=1_000)
+    scope: str | None = Field(default=None, max_length=2_000)
+    polarity: ClaimPolarity = "affirmed"
+    modality: ClaimModality = "asserted"
+    temporal_scope: str | None = Field(default=None, max_length=500)
+    evidence_ids: list[str] = Field(default_factory=list, max_length=100)
+
+    @model_validator(mode="after")
+    def validate_evidence_ids(self) -> "ClaimCreate":
+        if len(self.evidence_ids) != len(set(self.evidence_ids)):
+            raise ValueError("Claim evidence IDs must be unique")
+        return self
+
+
+class ClaimNode(ClaimCreate):
+    id: str = Field(default_factory=lambda: str(uuid4()))
+    actor: Literal["owner", "system"]
+    created_at: datetime = Field(default_factory=utc_now)
+
+
+class ClaimRelationCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    source_claim_id: str = Field(min_length=1, max_length=128)
+    target_claim_id: str = Field(min_length=1, max_length=128)
+    relation: ClaimRelationType
+    rationale: str = Field(min_length=1, max_length=4_000)
+
+    @model_validator(mode="after")
+    def validate_distinct_claims(self) -> "ClaimRelationCreate":
+        if self.source_claim_id == self.target_claim_id:
+            raise ValueError("A claim cannot be related to itself")
+        return self
+
+
+class ClaimRelation(ClaimRelationCreate):
+    id: str = Field(default_factory=lambda: str(uuid4()))
+    actor: Literal["owner", "system"]
+    created_at: datetime = Field(default_factory=utc_now)
