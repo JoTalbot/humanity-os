@@ -1,8 +1,8 @@
 import sqlite3
 import sys
 
-from fastapi.testclient import TestClient as _TestClient
 import pytest
+from fastapi.testclient import TestClient as _TestClient
 
 from humanity_os.app import create_app as _create_app
 from humanity_os.store import KnowledgeStore
