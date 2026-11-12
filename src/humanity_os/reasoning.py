@@ -10,8 +10,9 @@ from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from humanity_os.claim_assessments import ClaimAssessmentStore
 from humanity_os.claim_graph import ClaimGraphStore
-from humanity_os.models import ClaimNode, ClaimRelation
+from humanity_os.models import ClaimAssessment, ClaimNode, ClaimRelation
 from humanity_os.store import KnowledgeStore
 
 
@@ -48,6 +49,7 @@ class ReasoningRun(BaseModel):
     temporal_scope_filter: str | None = None
     claims: list[ClaimNode]
     relations: list[ClaimRelation]
+    claim_assessments: list[ClaimAssessment]
     paths: list[list[str]]
     evidence: list[EvidenceReference]
     contradiction_candidates: list[str]
@@ -68,6 +70,7 @@ class ReasoningEngine:
         self.database_path = str(database_path)
         self.knowledge = knowledge
         self.graph = graph
+        self.assessments = ClaimAssessmentStore(self.database_path)
         with self._connect() as connection:
             connection.execute(
                 """CREATE TABLE IF NOT EXISTS reasoning_runs (
@@ -183,6 +186,7 @@ class ReasoningEngine:
         limitations = [
             "This is a graph explanation, not a proof of truth.",
             "Claim and relation records are human-authored assertions; no truth score is calculated.",
+            "Epistemic classifications are human assessments; absence of a classification is not an unknown verdict.",
             "Only declared evidence links are shown; external sources are not fetched or authenticated.",
             "Scope and temporal filters use exact string matching, not interval or ontology reasoning.",
             "The graph snapshot is bounded to at most 100 claims and 100 relations.",
@@ -201,6 +205,7 @@ class ReasoningEngine:
             temporal_scope_filter=request.temporal_scope,
             claims=list(selected.values()),
             relations=list(selected_relations.values()),
+            claim_assessments=self.assessments.latest_for_claims(list(selected)),
             paths=paths,
             evidence=evidence,
             contradiction_candidates=contradictions,
