@@ -97,6 +97,7 @@ def main() -> None:
         # This command is intentionally offline: stop the server before running it.
         backup = KnowledgeStore(database_path).backup(args.safety_backup)
         KnowledgeStore.verify_backup(backup)
+        KnowledgeStore.checkpoint_database(database)
         for suffix in ("", "-wal", "-shm"):
             Path(str(database) + suffix).unlink(missing_ok=True)
         print(f"Workspace database and SQLite sidecars deleted: {database}")
