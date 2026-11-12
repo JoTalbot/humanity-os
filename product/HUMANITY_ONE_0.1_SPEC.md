@@ -11,7 +11,7 @@ Responsive web UI; private workspace and authentication; provider adapter; docum
 
 ## Current implementation boundary
 
-The current prototype accepts UTF-8 plain text and Markdown up to 1,000,000 characters per document, preserves chunk offsets, and includes document content in portable workspace export schema 1.2.0. Explicit memory proposals require a separate owner approval request; lifecycle events are auditable and model output cannot silently save memory. PDF, DOCX, OCR, semantic retrieval, generated answers with source citations and a responsive memory review UI remain future work.
+The current prototype accepts UTF-8 plain text and Markdown up to 1,000,000 characters per document, preserves chunk offsets, and includes document content in portable workspace export schema 1.2.0. Explicit memory proposals require a separate owner approval request; lifecycle events are auditable and model output cannot silently save memory. The local responsive UI now covers notes, documents and memory review, but a formal accessibility audit, session-management UI and full primary-journey validation remain future work. PDF, DOCX, OCR, semantic retrieval and generated answers with source citations also remain future work.
 
 ## Excluded
 Federation sync, public knowledge marketplace, autonomous external actions, global identity, social network, automated certification, self-modifying agents.
