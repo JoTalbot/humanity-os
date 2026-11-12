@@ -93,48 +93,56 @@ class AuthStore:
         except (VerifyMismatchError, InvalidHashError):
             return False
 
-    def login_retry_after(self, bucket_key: str) -> int:
-        now = datetime.now(UTC)
-        with self._connect() as connection:
-            row = connection.execute(
-                "SELECT blocked_until FROM auth_login_limits WHERE bucket_key = ?",
-                (bucket_key,),
-            ).fetchone()
-        if row is None or row["blocked_until"] is None:
-            return 0
-        blocked_until = datetime.fromisoformat(row["blocked_until"])
-        return max(0, int((blocked_until - now).total_seconds() + 0.999))
+    def consume_login_attempts(self, bucket_keys: tuple[str, ...]) -> int:
+        """Atomically reserve an attempt across all login buckets.
 
-    def record_login_failure(self, bucket_key: str) -> None:
+        The transaction prevents concurrent requests from racing past the threshold.
+        """
         now = datetime.now(UTC)
         now_text = now.isoformat()
         with self._connect() as connection:
             connection.execute("BEGIN IMMEDIATE")
-            row = connection.execute(
-                """SELECT window_started_at, attempts, blocked_until
-                   FROM auth_login_limits WHERE bucket_key = ?""",
-                (bucket_key,),
-            ).fetchone()
-            if row is None or now - datetime.fromisoformat(row["window_started_at"]) >= LOGIN_WINDOW:
-                window_started = now_text
-                attempts = 1
-                blocked_until = None
-            else:
-                window_started = row["window_started_at"]
-                attempts = row["attempts"] + 1
-                blocked_until = row["blocked_until"]
-            if attempts >= LOGIN_MAX_ATTEMPTS and blocked_until is None:
-                blocked_until = (now + LOGIN_BLOCK).isoformat()
-            connection.execute(
-                """INSERT INTO auth_login_limits(
-                       bucket_key, window_started_at, attempts, blocked_until
-                   ) VALUES (?, ?, ?, ?)
-                   ON CONFLICT(bucket_key) DO UPDATE SET
-                       window_started_at = excluded.window_started_at,
-                       attempts = excluded.attempts,
-                       blocked_until = excluded.blocked_until""",
-                (bucket_key, window_started, attempts, blocked_until),
-            )
+            rows = {
+                key: connection.execute(
+                    """SELECT window_started_at, attempts, blocked_until
+                       FROM auth_login_limits WHERE bucket_key = ?""",
+                    (key,),
+                ).fetchone()
+                for key in bucket_keys
+            }
+            retry_after = 0
+            for row in rows.values():
+                if row is not None and row["blocked_until"] is not None:
+                    blocked_until = datetime.fromisoformat(row["blocked_until"])
+                    retry_after = max(
+                        retry_after,
+                        int((blocked_until - now).total_seconds() + 0.999),
+                    )
+            if retry_after > 0:
+                connection.rollback()
+                return retry_after
+
+            for key, row in rows.items():
+                if row is None or now - datetime.fromisoformat(row["window_started_at"]) >= LOGIN_WINDOW:
+                    window_started = now_text
+                    attempts = 1
+                else:
+                    window_started = row["window_started_at"]
+                    attempts = row["attempts"] + 1
+                blocked_until = (now + LOGIN_BLOCK).isoformat() if attempts > LOGIN_MAX_ATTEMPTS else None
+                if blocked_until is not None:
+                    retry_after = max(retry_after, int(LOGIN_BLOCK.total_seconds()))
+                connection.execute(
+                    """INSERT INTO auth_login_limits(
+                           bucket_key, window_started_at, attempts, blocked_until
+                       ) VALUES (?, ?, ?, ?)
+                       ON CONFLICT(bucket_key) DO UPDATE SET
+                           window_started_at = excluded.window_started_at,
+                           attempts = excluded.attempts,
+                           blocked_until = excluded.blocked_until""",
+                    (key, window_started, attempts, blocked_until),
+                )
+            return retry_after
 
     def clear_login_failures(self, bucket_key: str) -> None:
         with self._connect() as connection:
