@@ -101,9 +101,10 @@ def create_app(database_path: str | None = None, api_token: str | None = None) -
         )
         session_token = request.cookies.get(SESSION_COOKIE)
         session_valid = bool(session_token and auth.validate_session(session_token))
-        required = bool(token) or auth.has_owner()
-
-        if required and not (bearer_valid or session_valid):
+        # Private data and mutation routes are never anonymous. If no owner
+        # password or bearer token is configured, fail closed until the operator
+        # completes the explicit CLI setup (or configures a strong API token).
+        if not (bearer_valid or session_valid):
             return JSONResponse(
                 status_code=401,
                 content={"detail": "Authentication required"},
