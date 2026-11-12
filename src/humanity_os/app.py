@@ -18,12 +18,12 @@ from humanity_os.claim_assessments import ClaimAssessmentStore
 from humanity_os.claim_graph import ClaimGraphStore
 from humanity_os.documents import MAX_DOCUMENT_CHARS, DocumentStore
 from humanity_os.evidence import EvidenceAssessmentStore
-from humanity_os.memory import MemoryStore
 from humanity_os.independence import (
     EvidenceIndependenceEngine,
     EvidenceIndependenceReport,
     IndependenceQuery,
 )
+from humanity_os.memory import MemoryStore
 from humanity_os.model_gateway import (
     ModelGateway,
     ModelGenerationRequest,
