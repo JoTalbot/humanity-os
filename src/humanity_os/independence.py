@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from datetime import UTC, datetime
+from datetime import datetime
 from typing import Literal
 from uuid import uuid4
 
@@ -146,7 +146,6 @@ class EvidenceIndependenceEngine:
         clusters: list[DependentSourceCluster] = []
         for record in records:
             by_root: dict[str, set[str]] = defaultdict(set)
-            source_map = sources_by_record[record.id]
             for source_id, root_ids in roots_by_record[record.id].items():
                 for root_id in root_ids:
                     by_root[root_id].add(source_id)
