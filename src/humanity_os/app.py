@@ -140,6 +140,31 @@ def create_app(database_path: str | None = None, api_token: str | None = None) -
         response.status_code = 204
         return response
 
+    @app.post("/v1/decisions", response_model=DecisionRecord, status_code=201)
+    def create_decision(payload: DecisionCreate, request: Request) -> DecisionRecord:
+        for record_id in payload.related_knowledge_ids:
+            if store.get(record_id) is None:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"Related knowledge record not found: {record_id}",
+                )
+        actor = "owner" if request.cookies.get(SESSION_COOKIE) else "system"
+        decision = DecisionRecord(**payload.model_dump(), actor=actor)
+        return store.create_decision(decision)
+
+    @app.get("/v1/decisions", response_model=list[DecisionRecord])
+    def list_decisions(
+        limit: Annotated[int, Query(ge=1, le=100)] = 50,
+    ) -> list[DecisionRecord]:
+        return store.list_decisions(limit=limit)
+
+    @app.get("/v1/decisions/{decision_id}", response_model=DecisionRecord)
+    def get_decision(decision_id: str) -> DecisionRecord:
+        decision = store.get_decision(decision_id)
+        if decision is None:
+            raise HTTPException(status_code=404, detail="Decision not found")
+        return decision
+
     @app.post("/v1/conflicts", response_model=KnowledgeConflict, status_code=201)
     def create_conflict(payload: ConflictCreate) -> KnowledgeConflict:
         if store.get(payload.record_a_id) is None or store.get(payload.record_b_id) is None:
