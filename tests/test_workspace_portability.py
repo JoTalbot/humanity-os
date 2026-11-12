@@ -61,7 +61,7 @@ def test_cli_workspace_deletion_requires_backup_and_removes_active_database(
     client = TestClient(app, client=("127.0.0.1", 50000))
     assert client.post(
         "/v1/knowledge",
-        json={"kind": "note", "title": "Delete target", "content": "Private"},
+        json={"kind": "concept", "title": "Delete target", "content": "Private"},
     ).status_code == 201
 
     monkeypatch.setenv("HUMANITY_OS_DB", str(database))
