@@ -284,3 +284,20 @@ class ClaimRelation(ClaimRelationCreate):
     id: str = Field(default_factory=lambda: str(uuid4()))
     actor: Literal["owner", "system"]
     created_at: datetime = Field(default_factory=utc_now)
+
+
+ClaimEpistemicClass = Literal["fact", "hypothesis", "assumption", "unknown"]
+
+
+class ClaimAssessmentCreate(BaseModel):
+    """A human-authored epistemic classification, never an automatic truth label."""
+    model_config = ConfigDict(extra="forbid")
+    classification: ClaimEpistemicClass
+    rationale: str = Field(min_length=1, max_length=4_000)
+
+
+class ClaimAssessment(ClaimAssessmentCreate):
+    id: str = Field(default_factory=lambda: str(uuid4()))
+    claim_id: str = Field(min_length=1, max_length=128)
+    actor: Literal["owner", "system"]
+    assessed_at: datetime = Field(default_factory=utc_now)
