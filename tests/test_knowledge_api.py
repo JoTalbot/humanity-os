@@ -466,3 +466,20 @@ def test_conflicts_survive_backup_and_restore_verification(tmp_path):
     KnowledgeStore(database).backup(backup)
     assert KnowledgeStore.verify_backup(backup) == 2
     assert len(KnowledgeStore(backup).list_conflicts()) == 1
+
+
+def test_knowledge_record_with_conflict_cannot_be_deleted_silently(tmp_path):
+    client = TestClient(create_app(str(tmp_path / "conflicts.sqlite3")))
+    first = client.post("/v1/knowledge", json={
+        "kind": "claim", "title": "Protected A", "content": "Claim A"
+    }).json()["id"]
+    second = client.post("/v1/knowledge", json={
+        "kind": "claim", "title": "Protected B", "content": "Claim B"
+    }).json()["id"]
+    conflict = client.post("/v1/conflicts", json={
+        "record_a_id": first, "record_b_id": second, "reason": "Review before deletion."
+    })
+    assert conflict.status_code == 201
+    assert client.delete(f"/v1/knowledge/{first}").status_code == 409
+    assert client.get(f"/v1/knowledge/{first}").status_code == 200
+    assert client.get("/v1/conflicts").json()["items"][0]["id"] == conflict.json()["id"]
