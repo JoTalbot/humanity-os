@@ -6,8 +6,8 @@ import binascii
 import os
 import sqlite3
 import tempfile
-from datetime import UTC, datetime
 from contextlib import closing
+from datetime import UTC, datetime
 from pathlib import Path
 
 from humanity_os.models import KnowledgeConflict, KnowledgeRecord
