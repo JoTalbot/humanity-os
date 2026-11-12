@@ -80,20 +80,9 @@ API:
 
 POST /v1/reasoning/compare accepts 2–10 unique root claim IDs and runs the same bounded reasoning query for each root. It returns the individual immutable reasoning runs plus the intersection and per-root differences of selected claim IDs and canonical source URIs.
 
-The comparison is descriptive set overlap only. It does not rank alternatives, calculate likelihood, infer causation, or treat shared source identity as independent corroboration. Each component run is persisted independently in the reasoning ledger. All root IDs and filters are validated before any run is created.
+The comparison is descriptive set overlap only. It does not rank alternatives, calculate likelihood, infer causation, or treat shared source identity as independent corroboration. Each component run is persisted independently in the reasoning ledger. All root IDs and filters are validated before any run is created. The 0.3 comparison summary also reports shared and per-root declared independence-group keys, recorded derived-source edges, and sources with unknown lineage. Group keys are scoped to each parent knowledge record; these metadata do not prove independent corroboration.
 
 Claim assessment records are included in backup verification and their schema is initialized during restore.
-
-
-## Evidence Independence Engine (0.3)
-
-POST `/v1/evidence-independence/analyze` accepts 1–50 existing knowledge record IDs and a maximum source count of 1–500. The request is rejected if the selected records exceed the source cap.
-
-The report scopes source IDs and independence-group IDs to their parent knowledge record. Identical local IDs in different records are never merged. It groups only explicitly declared independence groups, follows the declared `derived_from_source_ids` graph to identify shared upstream roots, and lists sources whose independence remains unknown.
-
-A derived-source cluster indicates recorded lineage dependency, not proof that every downstream publication copied every detail. A declared independence group is reviewer-provided metadata, not verified publisher independence. Different URLs, publishers, or hashes are not treated as proof of independent origin.
-
-The analysis is deterministic for a fixed knowledge snapshot, bounded to the request limits, read-only, and does not create an append-only event because it is a reproducible derived report. It does not fetch external sources, authenticate publishers, infer missing lineage, rank evidence, calculate truth scores, or adjudicate claims. Unknown independence remains unknown.
 
 
 ## Evidence Independence Engine (0.3)
