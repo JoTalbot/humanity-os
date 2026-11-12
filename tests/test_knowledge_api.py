@@ -234,3 +234,17 @@ def test_cli_restore_requires_explicit_confirmation(tmp_path, monkeypatch):
         main()
     assert error.value.code == 2
     assert not safety.exists()
+
+
+def test_owner_login_is_rate_limited_after_five_failures(tmp_path):
+    app = create_app(str(tmp_path / "owner.sqlite3"))
+    app.state.auth_store.set_owner_password("a long secure test password")
+    client = TestClient(app)
+
+    for _ in range(5):
+        response = client.post("/auth/login", json={"password": "incorrect password"})
+        assert response.status_code == 401
+
+    blocked = client.post("/auth/login", json={"password": "a long secure test password"})
+    assert blocked.status_code == 429
+    assert int(blocked.headers["Retry-After"]) > 0
