@@ -94,11 +94,27 @@ class ClaimGraphStore:
 
     def create_relation(self, relation: ClaimRelation) -> ClaimRelation:
         source_id, target_id = relation.source_claim_id, relation.target_claim_id
-        if relation.relation == "contradicts" and target_id < source_id:
+        if relation.relation in {"contradicts", "duplicates"} and target_id < source_id:
             relation = relation.model_copy(
                 update={"source_claim_id": target_id, "target_claim_id": source_id}
             )
         with self._connect() as connection:
+            if relation.relation == "depends_on":
+                cycle = connection.execute(
+                    """WITH RECURSIVE reachable(claim_id) AS (
+                           SELECT target_claim_id FROM claim_relations
+                           WHERE source_claim_id = ? AND relation = 'depends_on'
+                           UNION
+                           SELECT edge.target_claim_id
+                           FROM claim_relations AS edge
+                           JOIN reachable ON edge.source_claim_id = reachable.claim_id
+                           WHERE edge.relation = 'depends_on'
+                       )
+                       SELECT 1 FROM reachable WHERE claim_id = ? LIMIT 1""",
+                    (relation.target_claim_id, relation.source_claim_id),
+                ).fetchone()
+                if cycle is not None:
+                    raise ValueError("Claim dependency relations cannot contain cycles")
             connection.execute(
                 """INSERT INTO claim_relations(
                     id, source_claim_id, target_claim_id, relation, created_at, payload
