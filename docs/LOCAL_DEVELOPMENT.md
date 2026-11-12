@@ -93,6 +93,16 @@ humanity-os --export-workspace "$HOME/humanity-backups/workspace-$(date -u +%Y%m
 
 The command refuses to overwrite an existing path and creates the file with owner-only permissions where supported. The digest detects accidental changes; it is not a digital signature and does not prove who created the export.
 
+Import a portable export into the local workspace (stop the service first):
+
+```bash
+humanity-os --import-workspace-from "$HOME/humanity-backups/workspace-YYYYMMDDTHHMMSSZ.json" \
+  --safety-backup "$HOME/humanity-backups/pre-import-$(date -u +%Y%m%dT%H%M%SZ).sqlite3" \
+  --confirm-restore
+```
+
+Import validates the format, schema version, canonical SHA-256 digest, row shapes, domain payloads and foreign-key integrity in a staging database. It creates and verifies a non-overwriting safety backup before atomically replacing the active database. Password hashes, owner identity, sessions, CSRF state and login throttling are not portable and are not imported; configure a new owner password after import. The security audit event history is included. A successful import does not delete the source export or any other copies.
+
 Full workspace deletion is an offline, destructive CLI operation. Stop the HUMANITY OS service first, then run:
 
 ```bash
