@@ -191,3 +191,26 @@ def test_restore_initializes_claim_graph_schema_from_legacy_backup(tmp_path):
     restored = TestClient(create_app(str(database)))
     assert restored.get("/v1/claims").status_code == 200
     assert restored.get("/v1/claim-relations").json() == []
+
+
+def test_claim_dependency_cycles_are_rejected(tmp_path):
+    client = TestClient(create_app(str(tmp_path / "claim-cycles.sqlite3")))
+    record = _claim_record(client)
+    first = _create_claim(client, record["id"], "First proposition.").json()
+    second = _create_claim(client, record["id"], "Second proposition.").json()
+
+    forward = client.post("/v1/claim-relations", json={
+        "source_claim_id": first["id"],
+        "target_claim_id": second["id"],
+        "relation": "depends_on",
+        "rationale": "First depends on second.",
+    })
+    assert forward.status_code == 201
+
+    cycle = client.post("/v1/claim-relations", json={
+        "source_claim_id": second["id"],
+        "target_claim_id": first["id"],
+        "relation": "depends_on",
+        "rationale": "Would create a dependency cycle.",
+    })
+    assert cycle.status_code == 422
