@@ -9,7 +9,8 @@ from pathlib import Path
 from typing import Annotated
 
 from fastapi import FastAPI, HTTPException, Query, Request, Response
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field
 
 from humanity_os import __version__
@@ -117,6 +118,9 @@ def create_app(
         version=__version__,
         description="Loopback-only personal workspace with mandatory authentication by default.",
     )
+    static_directory = Path(__file__).parent / "static"
+    app.mount("/static", StaticFiles(directory=static_directory), name="static")
+
     app.state.knowledge_store = store
     app.state.document_store = documents
     app.state.memory_store = memory
@@ -141,7 +145,10 @@ def create_app(
         if not peer_is_loopback:
             return JSONResponse(status_code=403, content={"detail": "Loopback clients only"})
 
-        if request.url.path in {"/health", "/auth/login"}:
+        if (
+            request.url.path in {"/", "/health", "/auth/login"}
+            or request.url.path.startswith("/static/")
+        ):
             return await call_next(request)
 
         authorization = request.headers.get("authorization", "")
@@ -184,6 +191,13 @@ def create_app(
             raise HTTPException(status_code=504, detail="Model provider timed out") from exc
         except ModelProviderFailure as exc:
             raise HTTPException(status_code=502, detail="Model provider request failed") from exc
+
+    @app.get("/", include_in_schema=False)
+    def workspace_home() -> FileResponse:
+        return FileResponse(
+            static_directory / "index.html",
+            headers={"Cache-Control": "no-store"},
+        )
 
     @app.get("/health")
     def health() -> dict[str, str]:
