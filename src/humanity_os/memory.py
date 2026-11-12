@@ -115,6 +115,8 @@ class MemoryStore:
         source_document_id: str | None = None,
         source_chunk_id: str | None = None,
     ) -> dict:
+        if not title.strip() or not content.strip() or not rationale.strip():
+            raise ValueError("Memory proposal title, content, and rationale cannot be blank")
         if (source_document_id is None) != (source_chunk_id is None):
             raise ValueError("Document and chunk source references must be supplied together")
         proposal_id = str(uuid4())
