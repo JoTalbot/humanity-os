@@ -1,6 +1,6 @@
 # HUMANITY ONE 0.1 Integration Plan
 
-Status: active integration candidate; code from PR #13, #15, #17, #21, #23 and #25 has been assembled on this branch; PR #19 acceptance coverage remains under reconciliation
+Status: integrated HUMANITY ONE 0.1 draft candidate in PR #26; code from PR #13, #15, #17, #19, #21, #23 and #25 is assembled on this branch
 Base: `humanity-one/source-grounded-context` at `ba742e019dcdde2a51bd0bda41fc5ed85cd567ae`
 Related work: PR #11, #13, #15, #17, #19, #21, #23, #25.
 
@@ -39,10 +39,10 @@ Use `humanity-one/source-grounded-context` (PR #23 head) as the working baseline
 
 ## Remaining integration and release gates
 
-- Ported the complete owner-journey acceptance test from #19 and updated its workspace export expectation to schema 1.3.0; execution remains pending.
+- Ported the complete owner-journey acceptance test from #19 and updated its workspace export expectation to schema 1.3.0.
 - Review all shared docs and API contracts after the combined UI/context/agent changes.
 - Review the current diff for any upstream changes not yet represented; preserve original PRs until review is complete.
-- Run the full test and security gates only with explicit permission. The automatic PR CI first stopped at Ruff import ordering in `app.py`; that formatting issue has been corrected in the latest commit. The subsequent CI result is not yet available.
+- Automatic GitHub Actions CI for PR head `5d077980032ec6b9e82605ab7b8e62a76d28059c` completed successfully in run `43891172000`: lint, test, and dependency vulnerability audit all passed. No test suite or workflow was manually launched.
 - Prepare a release-candidate PR only after review and test evidence.
 
 ## Required integration sequence
@@ -62,7 +62,7 @@ Use `humanity-one/source-grounded-context` (PR #23 head) as the working baseline
    - preserve the tool allowlist and pending-review-only memory proposals;
    - do not add shell, arbitrary Python, unrestricted filesystem/network access, autonomous loops, or implicit approval.
 6. Reconcile E2E acceptance (#19) with the final integrated journey and add coverage for the combined UI, source grounding, citation provenance, and agent permission boundaries.
-7. Run the agreed test and security gates only after the integration code has materially changed and explicit test permission is available.
+7. Keep automatic PR CI green as changes land; reserve independent security review and any manually initiated extended test campaign for a separately authorized release gate.
 8. Prepare a release-candidate PR with a change inventory, migration/compatibility notes, security limitations, and test evidence.
 
 ## Known hardening items to track
@@ -76,7 +76,7 @@ Use `humanity-one/source-grounded-context` (PR #23 head) as the working baseline
 
 - No PR is merged by this plan.
 - No production deployment, external integration, outbound message, or real-world action is authorized.
-- No CI workflow or test suite has been manually triggered during this integration pass.
+- No CI workflow or test suite has been manually triggered by the integration operator; GitHub's automatic PR CI completed successfully in run `43891172000`.
 - Keep original feature PRs open until their changes are represented and reviewed in the integration PR.
 - Release readiness requires explicit review of the final integrated diff and test results.
 
