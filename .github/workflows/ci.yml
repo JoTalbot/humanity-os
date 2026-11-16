@@ -2,9 +2,9 @@ name: CI
 
 on:
   pull_request:
-    branches: [main, "foundation/**", "security/**", "personal-core/**", "humanity-one/**"]
+    branches: [main, "foundation/**", "security/**", "personal-core/**", "humanity-one/**", "integration/**"]
   push:
-    branches: [main, "foundation/**", "security/**", "personal-core/**", "humanity-one/**"]
+    branches: [main, "foundation/**", "security/**", "personal-core/**", "humanity-one/**", "integration/**"]
   workflow_dispatch:
 
 permissions:
@@ -32,3 +32,54 @@ jobs:
         run: |
           python -m pip install --upgrade "setuptools>=84.1.0" pip-audit
           pip-audit
+      - name: Build wheel and source distribution
+        run: |
+          python -m pip install build
+          python -m build --wheel --sdist --outdir "$RUNNER_TEMP/humanity-os-dist"
+      - name: Verify distribution contents
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import tarfile
+          from zipfile import ZipFile
+
+          output = Path("$RUNNER_TEMP/humanity-os-dist")
+          wheels = list(output.glob("*.whl"))
+          sdists = list(output.glob("*.tar.gz"))
+          assert len(wheels) == 1, f"expected one wheel, found {wheels}"
+          assert len(sdists) == 1, f"expected one sdist, found {sdists}"
+
+          required = {
+              "humanity_os/cli.py",
+              "humanity_os/app.py",
+              "humanity_os/static/index.html",
+              "humanity_os/static/app.js",
+              "humanity_os/static/styles.css",
+          }
+          with ZipFile(wheels[0]) as wheel:
+              names = set(wheel.namelist())
+              missing = required - names
+              assert not missing, f"wheel is missing required files: {sorted(missing)}"
+              entry_points = [
+                  name for name in names
+                  if name.endswith(".dist-info/entry_points.txt")
+              ]
+              assert len(entry_points) == 1, "wheel must contain one entry_points.txt"
+              metadata = wheel.read(entry_points[0]).decode("utf-8")
+              assert "humanity-os = humanity_os.cli:main" in metadata, metadata
+
+          with tarfile.open(sdists[0], "r:gz") as sdist:
+              names = set(sdist.getnames())
+              missing = {
+                  f"src/{path}" for path in (
+                      "humanity_os/cli.py",
+                      "humanity_os/app.py",
+                      "humanity_os/static/index.html",
+                      "humanity_os/static/app.js",
+                      "humanity_os/static/styles.css",
+                  )
+              } - names
+              assert not missing, f"sdist is missing required files: {sorted(missing)}"
+
+          print("Wheel and sdist contain the application, CLI entry point, and all UI assets.")
+          PY
