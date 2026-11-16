@@ -198,3 +198,17 @@ def test_agent_run_events_are_included_in_portable_export(tmp_path):
     restored = AgentRuntimeStore(target)
     assert restored.list_runs()[0]["id"] == invocation.json()["run_id"]
     assert len(restored.list_events(invocation.json()["run_id"])) == 2
+
+
+def test_agent_events_are_bounded_and_run_completion_is_single_use(tmp_path):
+    store = AgentRuntimeStore(tmp_path / "agent-audit.sqlite3")
+    run_id = store.start_run("researcher", "knowledge.search", "a" * 64)
+    store.finish_run(run_id, result_digest="b" * 64)
+
+    with pytest.raises(ValueError, match="already finished"):
+        store.finish_run(run_id, result_digest="c" * 64)
+
+    assert len(store.list_events(run_id=run_id, limit=1)) == 1
+    assert len(store.list_events(run_id=run_id, limit=2)) == 2
+    with pytest.raises(ValueError, match="event limit"):
+        store.list_events(run_id=run_id, limit=101)
