@@ -172,7 +172,8 @@ def test_agent_events_are_append_only_and_live_runs_survive_second_worker_startu
     assert run["worker_id"] == "worker-a"
     assert run["lease_expires_at"] == (started_at + timedelta(seconds=30)).isoformat()
     assert observer.recover_expired_runs(now=started_at + timedelta(seconds=29)) == 0
-    assert observer.recover_expired_runs(now=started_at + timedelta(seconds=31)) == 1
+    assert observer.list_runs(now=started_at + timedelta(seconds=31))[0]["status"] == "failed"
+    assert observer.recover_expired_runs(now=started_at + timedelta(seconds=32)) == 0
     with pytest.raises(RuntimeError, match="lease"):
         owner.finish_run(run_id, result_digest="b" * 64, now=started_at + timedelta(seconds=32))
 
