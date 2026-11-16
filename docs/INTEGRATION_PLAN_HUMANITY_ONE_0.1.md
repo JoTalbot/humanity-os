@@ -89,3 +89,18 @@ Use `humanity-one/source-grounded-context` (PR #23 head) as the working baseline
 - Data export/import remains backward-compatible with documented schema versions.
 - The full owner journey is covered by acceptance tests.
 - A reviewer can trace every integrated feature to its originating PR.
+
+
+## Reconciliation review — 2026-11-16
+
+- Reviewed the current `main` head against `integration/humanity-one-0.1`.
+- The only commit ahead on `main` is `ac46e16728382c0af800421978f0bf7df6943de9` (`test(memory): cover explicit approval and portable lifecycle`), which changes only `tests/test_memory.py`.
+- The integration branch already contains a later schema-1.3.0 version of that test module. It covers the same owner-approved memory lifecycle and additionally exercises agent-run/event tables and backward compatibility for workspace schemas 1.0.0–1.2.0. The main-only schema-1.2.0 test file is therefore superseded; do not cherry-pick it over the integrated test suite.
+- PR #26 remains based on `humanity-one/source-grounded-context`, not `main`. Its branch has 383 commits ahead and one commit behind `main`; this comparison is not a merge-readiness signal and does not authorize retargeting or merging.
+- Reconfirmed the Agent Runtime multi-worker blocker in code: `AgentRuntimeStore.__init__` marks every row with status `running` as interrupted during construction. A second worker starting while another worker owns a live run could incorrectly fail that run. Keep deployment single-process until process ownership plus lease/heartbeat recovery is implemented and tested.
+- PR #26 has no submitted reviews or inline review threads. The latest verified automatic CI run is `43931396509` on head `64478ff33d6450f971465aa4e7edccf73d5a5f83`; Ruff, tests and pip-audit passed.
+- No branch retarget, merge, force-push, manual test run, workflow dispatch, release or deployment was performed in this review.
+
+## Decision
+
+Keep PR #26 as the integration review candidate. Preserve all source PRs and branches. Do not merge or deploy. The next engineering gate is to design and implement process-safe Agent Runtime leases/heartbeats with deterministic stale-run recovery, then add concurrency-focused tests before considering multi-worker support.
