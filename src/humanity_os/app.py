@@ -14,7 +14,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field
 
 from humanity_os import __version__
-from humanity_os.agent_runtime import AgentRuntime
+from humanity_os.agent_runtime import AgentRunLeaseLost, AgentRuntime
 from humanity_os.answer_context import (
     AnswerContextBuilder,
     AnswerContextRequest,
@@ -695,6 +695,11 @@ def create_app(
     def invoke_agent_tool(agent_id: str, payload: AgentInvokeRequest) -> dict:
         try:
             return agents.invoke(agent_id, payload.tool_name, payload.arguments)
+        except AgentRunLeaseLost as exc:
+            raise HTTPException(
+                status_code=409,
+                detail="Agent run lease was lost; the result was not accepted",
+            ) from exc
         except LookupError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
         except PermissionError as exc:
