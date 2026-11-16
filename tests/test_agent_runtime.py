@@ -186,6 +186,23 @@ def test_agent_events_are_append_only_and_live_runs_survive_second_worker_startu
     ]
 
 
+def test_worker_identity_is_regenerated_after_process_fork(tmp_path, monkeypatch):
+    store = AgentRuntimeStore(
+        tmp_path / "workspace.sqlite3", worker_id="parent-worker", lease_duration_seconds=30
+    )
+    parent_pid = store._process_id
+
+    monkeypatch.setattr("humanity_os.agent_runtime.os.getpid", lambda: parent_pid + 1)
+    run_id = store.start_run(
+        "researcher", "documents.search", "a" * 64, now=datetime.now(UTC)
+    )
+
+    run = store.list_runs()[0]
+    assert store.worker_id != "parent-worker"
+    assert run["worker_id"] == store.worker_id
+    assert run["id"] == run_id
+
+
 def test_agent_run_lease_can_be_renewed_before_expiry(tmp_path):
     started_at = datetime.now(UTC)
     store = AgentRuntimeStore(
