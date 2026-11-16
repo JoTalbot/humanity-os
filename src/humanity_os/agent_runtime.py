@@ -201,6 +201,7 @@ class AgentRuntimeStore:
         now: datetime | None = None,
     ) -> str:
         started = self._timestamp(now)
+        self.recover_expired_runs(now=started)
         started_at = started.isoformat()
         lease_expires_at = (
             started + timedelta(seconds=self.lease_duration_seconds)
@@ -334,9 +335,12 @@ class AgentRuntimeStore:
                 {"status": status, "error_code": error_code},
             )
 
-    def list_runs(self, limit: int = 50) -> list[dict]:
+    def list_runs(
+        self, limit: int = 50, *, now: datetime | None = None
+    ) -> list[dict]:
         if not 1 <= limit <= 100:
             raise ValueError("Agent run limit must be between 1 and 100")
+        self.recover_expired_runs(now=now)
         with self._connect() as connection:
             rows = connection.execute(
                 "SELECT * FROM agent_runs ORDER BY started_at DESC, id DESC LIMIT ?",
