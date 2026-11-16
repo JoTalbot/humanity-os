@@ -26,7 +26,7 @@ No shell, arbitrary Python, filesystem browsing/writes, network fetch, credentia
 
 Tool arguments are capped at 20,000 UTF-8 bytes. Search limits, context limits, and memory fields have additional per-tool bounds. Results are capped at 20,000 serialized bytes. Knowledge search returns bounded excerpts.
 
-The runtime persists only agent ID, tool name, run status/timestamps, SHA-256 digests of input/result, and an error class code. It does not persist raw arguments or tool results. Append-only events record invocation start and completion/failure with a strict metadata allowlist. A run left in \`running\` after a process interruption is marked failed with \`interrupted\` on the next application startup.
+The runtime persists only agent ID, tool name, run status/timestamps, SHA-256 digests of input/result, and an error class code. It does not persist raw arguments or tool results. Append-only events record invocation start and completion/failure with a strict metadata allowlist. Each process has a random worker ID; each active run stores that worker ID and a UTC lease expiry. The default lease is 60 seconds and the invocation renews it every 20 seconds while the tool is executing. A worker can renew or finish only while it still owns an unexpired lease. Expired runs are recovered transactionally under SQLite `BEGIN IMMEDIATE`, and only one concurrent worker can record the interrupted transition. Legacy running rows without lease metadata are treated as orphaned and recovered during runtime initialization.
 
 Agent runs and events are included in workspace export schema 1.3.0. Import validates run/event linkage and rejects event details outside the metadata allowlist. Legacy workspace schemas 1.0.0–1.2.0 remain importable with empty agent audit tables.
 
@@ -47,4 +47,4 @@ This is not yet an autonomous AI agent platform. It does not generate plans, cal
 
 ## Operational hardening note
 
-Event listing is bounded to 100 records per request, and run completion is accepted only once while the run is in the `running` state. Startup recovery currently assumes a single active application process; multi-worker deployments require process leases or heartbeats before they are safe.
+Event listing is bounded to 100 records per request, and run completion is accepted only once while the run is in the `running` state. Worker IDs and lease expiry are operational metadata and are excluded from portable workspace schema 1.3.0. Multi-worker support is limited to processes sharing one local SQLite database on a filesystem with reliable SQLite locking. Multi-host deployments, network filesystems, and mixed-version rolling upgrades are unsupported. Stop all application processes before upgrading to the lease-aware version; keep deployment single-process until PR #28 passes review and CI.
