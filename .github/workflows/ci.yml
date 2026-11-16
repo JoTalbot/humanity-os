@@ -87,6 +87,7 @@ jobs:
         run: |
           python -m venv "$VENV_DIR"
           "$VENV_DIR/bin/python" -m pip install "$DIST_DIR"/*.whl
+          "$VENV_DIR/bin/python" -m pip install "httpx>=0.27,<1"
           "$VENV_DIR/bin/humanity-os" --help
           "$VENV_DIR/bin/python" - <<'PY'
           import os
