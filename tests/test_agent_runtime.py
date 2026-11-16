@@ -271,9 +271,6 @@ def test_agent_runtime_heartbeat_preserves_a_tool_call_longer_than_its_lease(tmp
     entered = threading.Event()
     release = threading.Event()
     original_search = runtime.documents.search
-    results = []
-    errors = []
-
     def blocked_search(query, limit=10):
         entered.set()
         if not release.wait(timeout=3):
@@ -282,27 +279,21 @@ def test_agent_runtime_heartbeat_preserves_a_tool_call_longer_than_its_lease(tmp
 
     runtime.documents.search = blocked_search
 
-    def invoke():
-        try:
-            results.append(runtime.invoke("researcher", "documents.search", {"query": "local"}))
-        except Exception as exc:
-            errors.append(exc)
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        invocation = executor.submit(
+            runtime.invoke, "researcher", "documents.search", {"query": "local"}
+        )
+        assert entered.wait(timeout=2)
+        time.sleep(0.45)
 
-    worker = threading.Thread(target=invoke)
-    worker.start()
-    assert entered.wait(timeout=2)
-    time.sleep(0.45)
+        observer = AgentRuntimeStore(
+            tmp_path / "workspace.sqlite3", worker_id="observer", lease_duration_seconds=30
+        )
+        assert observer.list_runs()[0]["status"] == "running"
+        release.set()
+        result = invocation.result(timeout=3)
 
-    observer = AgentRuntimeStore(
-        tmp_path / "workspace.sqlite3", worker_id="observer", lease_duration_seconds=30
-    )
-    assert observer.list_runs()[0]["status"] == "running"
-    release.set()
-    worker.join(timeout=3)
-
-    assert not worker.is_alive()
-    assert errors == []
-    assert results[0]["run_id"] == observer.list_runs()[0]["id"]
+    assert result["run_id"] == observer.list_runs()[0]["id"]
     assert observer.list_runs()[0]["status"] == "completed"
 
 
