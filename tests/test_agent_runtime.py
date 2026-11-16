@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import multiprocessing
 import sqlite3
 import threading
 import time
@@ -13,6 +14,21 @@ from fastapi.testclient import TestClient
 from humanity_os.agent_runtime import AgentRunLeaseLost, AgentRuntimeStore
 from humanity_os.app import create_app
 from humanity_os.store import KnowledgeStore
+
+
+def _recover_run_in_process(database_path, worker_id, recovery_at, barrier, results):
+    store = AgentRuntimeStore(
+        database_path, worker_id=worker_id, lease_duration_seconds=30
+    )
+    barrier.wait(timeout=10)
+    results.put(store.recover_expired_runs(now=datetime.fromisoformat(recovery_at)))
+
+
+def _start_run_with_inherited_store(store, results):
+    run_id = store.start_run(
+        "researcher", "documents.search", "c" * 64, now=datetime.now(UTC)
+    )
+    results.put((store.worker_id, run_id))
 
 
 def _client(tmp_path, authenticated=False):
@@ -201,6 +217,66 @@ def test_worker_identity_is_regenerated_after_process_fork(tmp_path, monkeypatch
     assert store.worker_id != "parent-worker"
     assert run["worker_id"] == store.worker_id
     assert run["id"] == run_id
+
+
+def test_expired_run_recovery_is_exactly_once_across_processes(tmp_path):
+    if "fork" not in multiprocessing.get_all_start_methods():
+        pytest.skip("fork-based SQLite concurrency test requires a POSIX process model")
+    context = multiprocessing.get_context("fork")
+    database = tmp_path / "workspace.sqlite3"
+    owner = AgentRuntimeStore(
+        database, worker_id="owner", lease_duration_seconds=30
+    )
+    started_at = datetime.now(UTC) + timedelta(seconds=60)
+    run_id = owner.start_run(
+        "researcher", "documents.search", "a" * 64, now=started_at
+    )
+    recovery_at = started_at + timedelta(seconds=31)
+    barrier = context.Barrier(2)
+    results = context.Queue()
+    workers = [
+        context.Process(
+            target=_recover_run_in_process,
+            args=(str(database), f"worker-{index}", recovery_at.isoformat(), barrier, results),
+        )
+        for index in range(2)
+    ]
+
+    for worker in workers:
+        worker.start()
+    for worker in workers:
+        worker.join(timeout=15)
+        assert worker.exitcode == 0
+
+    recovered_counts = [results.get(timeout=2), results.get(timeout=2)]
+    assert sum(recovered_counts) == 1
+    assert owner.list_runs(now=recovery_at)[0]["status"] == "failed"
+    assert len(owner.list_events(run_id)) == 2
+
+
+def test_forked_process_does_not_reuse_parent_worker_identity(tmp_path):
+    if "fork" not in multiprocessing.get_all_start_methods():
+        pytest.skip("fork identity test requires a POSIX process model")
+    context = multiprocessing.get_context("fork")
+    database = tmp_path / "workspace.sqlite3"
+    parent = AgentRuntimeStore(
+        database, worker_id="parent-worker", lease_duration_seconds=30
+    )
+    results = context.Queue()
+    worker = context.Process(
+        target=_start_run_with_inherited_store, args=(parent, results)
+    )
+
+    worker.start()
+    worker.join(timeout=15)
+    assert worker.exitcode == 0
+    child_worker_id, run_id = results.get(timeout=2)
+
+    assert child_worker_id != "parent-worker"
+    assert parent.list_runs()[0]["id"] == run_id
+    assert parent.list_runs()[0]["worker_id"] == child_worker_id
+    with pytest.raises(RuntimeError, match="lease"):
+        parent.finish_run(run_id, result_digest="d" * 64)
 
 
 def test_agent_run_lease_can_be_renewed_before_expiry(tmp_path):
