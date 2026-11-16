@@ -13,7 +13,7 @@ permissions:
 jobs:
   quality:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -37,28 +37,31 @@ jobs:
           python -m pip install build
           python -m build --wheel --sdist --outdir "$RUNNER_TEMP/humanity-os-dist"
       - name: Verify distribution contents
+        env:
+          DIST_DIR: ${{ runner.temp }}/humanity-os-dist
         run: |
           python - <<'PY'
+          import os
           from pathlib import Path
           import tarfile
           from zipfile import ZipFile
 
-          output = Path("$RUNNER_TEMP/humanity-os-dist")
+          output = Path(os.environ["DIST_DIR"])
           wheels = list(output.glob("*.whl"))
           sdists = list(output.glob("*.tar.gz"))
           assert len(wheels) == 1, f"expected one wheel, found {wheels}"
           assert len(sdists) == 1, f"expected one sdist, found {sdists}"
 
-          required = {
+          package_files = (
               "humanity_os/cli.py",
               "humanity_os/app.py",
               "humanity_os/static/index.html",
               "humanity_os/static/app.js",
               "humanity_os/static/styles.css",
-          }
+          )
           with ZipFile(wheels[0]) as wheel:
               names = set(wheel.namelist())
-              missing = required - names
+              missing = set(package_files) - names
               assert not missing, f"wheel is missing required files: {sorted(missing)}"
               entry_points = [
                   name for name in names
@@ -71,14 +74,9 @@ jobs:
           with tarfile.open(sdists[0], "r:gz") as sdist:
               names = set(sdist.getnames())
               missing = {
-                  f"src/{path}" for path in (
-                      "humanity_os/cli.py",
-                      "humanity_os/app.py",
-                      "humanity_os/static/index.html",
-                      "humanity_os/static/app.js",
-                      "humanity_os/static/styles.css",
-                  )
-              } - names
+                  path for path in (f"src/{item}" for item in package_files)
+                  if not any(name == path or name.endswith(f"/{path}") for name in names)
+              }
               assert not missing, f"sdist is missing required files: {sorted(missing)}"
 
           print("Wheel and sdist contain the application, CLI entry point, and all UI assets.")
