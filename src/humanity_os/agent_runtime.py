@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import sqlite3
 import threading
 from datetime import UTC, datetime, timedelta
@@ -99,6 +100,7 @@ class AgentRuntimeStore:
         if lease_duration_seconds <= 0:
             raise ValueError("Agent run lease duration must be positive")
         self.database_path = str(database_path)
+        self._process_id = os.getpid()
         self.worker_id = worker_id or str(uuid4())
         self.lease_duration_seconds = float(lease_duration_seconds)
         self.heartbeat_interval_seconds = max(0.01, self.lease_duration_seconds / 3)
@@ -160,6 +162,12 @@ class AgentRuntimeStore:
         self.recover_expired_runs()
 
     def _connect(self) -> sqlite3.Connection:
+        current_process_id = os.getpid()
+        if current_process_id != self._process_id:
+            # A preloaded application may be forked after store construction.
+            # Never let parent and child processes share a lease ownership token.
+            self._process_id = current_process_id
+            self.worker_id = str(uuid4())
         connection = sqlite3.connect(self.database_path, timeout=10)
         connection.row_factory = sqlite3.Row
         connection.execute("PRAGMA foreign_keys = ON")
