@@ -19,13 +19,14 @@
 
 ## Required before a public 0.1 release
 
-The integrated HUMANITY ONE 0.1 candidate is tracked in draft PR #26. The latest verified automatic GitHub Actions CI run is `43931396509` on PR head `64478ff33d6450f971465aa4e7edccf73d5a5f83`; Ruff lint, the test suite, and the dependency vulnerability audit (pip-audit) all passed. The PR has not been merged into `main`, and no release is declared. The integration-branch reconciliation review is recorded in `docs/INTEGRATION_PLAN_HUMANITY_ONE_0.1.md`.
+The integrated HUMANITY ONE 0.1 candidate is tracked in draft PR #26. Latest verified automatic GitHub Actions CI run [43948575859](https://github.com/JoTalbot/humanity-os/actions/runs/43948575859) passed on head `3af475b6a1a610936b809b0bb4f0976b76166ad6`: Ruff, pytest, pip-audit, wheel and sdist builds, and archive inspection for the CLI entry point and all three static UI assets. CI now also runs for `integration/**`. The PR has not been merged into `main`, and no release is declared. The integration-branch reconciliation review is recorded in `docs/INTEGRATION_PLAN_HUMANITY_ONE_0.1.md`.
 
 ### Integration and verification
 - [ ] Complete independent review of integration PR #26 and confirm every originating feature change is represented; preserve the source PRs until review is complete.
 - [ ] Re-run full CI and end-to-end acceptance against the resulting \`main\` branch.
 - [ ] Verify fresh install, password setup, local startup, backup, restore and portable import on a clean machine.
-- [ ] Build and inspect a wheel/sdist; verify static UI assets are included.
+- [x] CI builds and inspects wheel/sdist contents, including the CLI entry point and static UI assets (run [43948575859](https://github.com/JoTalbot/humanity-os/actions/runs/43948575859)).
+- [ ] Install the built wheel in a clean environment and validate password setup, local startup, backup, restore and portable import on a clean machine.
 - [ ] Select a versioning and release artifact/signing policy.
 
 ### Security and privacy
