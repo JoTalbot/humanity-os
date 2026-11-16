@@ -67,7 +67,7 @@ Use `humanity-one/source-grounded-context` (PR #23 head) as the working baseline
 
 ## Known hardening items to track
 
-- Agent Runtime: event listing is bounded and run completion is single-use; replace unconditional startup recovery with process ownership/lease or heartbeat semantics before multi-worker deployment.
+- Agent Runtime: event listing is bounded, run completion is single-use, and PR #28 adds worker identity, expiring leases, heartbeat renewal and atomic stale-run recovery. Production remains single-process until independent security review; the lease design is limited to same-host processes sharing a local SQLite database with reliable locking.
 - Citation verification: strictly validate citation identifier syntax and source offsets; document whether citation counts mean unique IDs or occurrences.
 - Workspace UI: revalidate authentication, CSRF, loopback restrictions, static asset routing, and behavior with the latest memory schema.
 - Deployment: do not describe the current runtime as OS-sandboxed or fully autonomous.
@@ -76,7 +76,7 @@ Use `humanity-one/source-grounded-context` (PR #23 head) as the working baseline
 
 - No PR is merged by this plan.
 - No production deployment, external integration, outbound message, or real-world action is authorized.
-- No CI workflow or test suite has been manually triggered by the integration operator; GitHub's automatic PR CI completed successfully in run `43891172000`.
+- CI workflows are exercised automatically by branch pushes and pull requests. The integration operator has not manually dispatched a workflow or run tests outside CI.
 - Keep original feature PRs open until their changes are represented and reviewed in the integration PR.
 - Release readiness requires explicit review of the final integrated diff and test results.
 
@@ -91,16 +91,19 @@ Use `humanity-one/source-grounded-context` (PR #23 head) as the working baseline
 - A reviewer can trace every integrated feature to its originating PR.
 
 
-## Reconciliation review — 2026-11-16
+## Reconciliation review — 2026-11-17
 
-- Reviewed the current `main` head against `integration/humanity-one-0.1`.
-- The only commit ahead on `main` is `ac46e16728382c0af800421978f0bf7df6943de9` (`test(memory): cover explicit approval and portable lifecycle`), which changes only `tests/test_memory.py`.
-- The integration branch already contains a later schema-1.3.0 version of that test module. It covers the same owner-approved memory lifecycle and additionally exercises agent-run/event tables and backward compatibility for workspace schemas 1.0.0–1.2.0. The main-only schema-1.2.0 test file is therefore superseded; do not cherry-pick it over the integrated test suite.
-- PR #26 remains based on `humanity-one/source-grounded-context`, not `main`. Its branch has 383 commits ahead and one commit behind `main`; this comparison is not a merge-readiness signal and does not authorize retargeting or merging.
-- Reconfirmed the Agent Runtime multi-worker blocker in code: `AgentRuntimeStore.__init__` marks every row with status `running` as interrupted during construction. A second worker starting while another worker owns a live run could incorrectly fail that run. Keep deployment single-process until process ownership plus lease/heartbeat recovery is implemented and tested.
-- PR #26 has no submitted reviews or inline review threads. The latest verified automatic CI run is `43931396509` on head `64478ff33d6450f971465aa4e7edccf73d5a5f83`; Ruff, tests and pip-audit passed.
-- No branch retarget, merge, force-push, manual test run, workflow dispatch, release or deployment was performed in this review.
+The earlier reconciliation notes below describe the initial integration state and are superseded where this section records later changes.
+
+- PR #26 remains an open Draft integration candidate based on `humanity-one/source-grounded-context`; it has not been merged or retargeted.
+- Current comparison against `main`: integration branch is 396 commits ahead and one behind, with a divergent stacked history. This is not a merge-readiness signal. Preserve the source branches and review the full commit chain before any merge decision.
+- The main-only memory test change remains superseded by the integration branch's schema-1.3.0 test coverage, which includes Agent Runtime audit tables and legacy schema 1.0.0–1.2.0 import compatibility.
+- PR #28 now implements process ownership, expiring leases, daemon heartbeat renewal, owner fencing, fork-safe worker identity, and atomic stale-run recovery. Its code CI passed in run `43947884587`; the PR remains open and Draft. Its supported deployment boundary is same-host processes sharing a local SQLite database with reliable locking. No multi-host or network-filesystem guarantee is made.
+- CI now includes `integration/**`, builds wheel and sdist archives, checks the CLI entry point and static assets, and installs the wheel into an isolated target for an HTTP smoke test. Run `43969330683` passed on commit `be0ae8118c236e83eb9e62626c1e4570bd4671be`; the test confirmed the installed app serves the workspace root and static assets through a loopback peer. The initial smoke harness failed because its default TestClient peer was non-loopback; the harness was corrected without weakening the product's loopback guard.
+- Acceptance criteria and documentation now describe portable workspace schema 1.3.0 and imports from 1.0.0–1.2.0. Clean-machine owner setup, backup, restore and cross-platform recovery remain open.
+- PR #26 and #28 have no submitted reviews or inline review threads as of this review.
+- No PR was merged, no force-push was performed, no workflow was manually dispatched, and no release or deployment was made.
 
 ## Decision
 
-Keep PR #26 as the integration review candidate. Preserve all source PRs and branches. Do not merge or deploy. The next engineering gate is to design and implement process-safe Agent Runtime leases/heartbeats with deterministic stale-run recovery, then add concurrency-focused tests before considering multi-worker support.
+Keep PR #26 and PR #28 as Draft review candidates. The next gates are independent security review of the lease and integrated API/data boundaries, clean-machine owner setup and backup/restore/import validation, accessibility and governance review, and full stacked-history review. Production remains single-process until the lease design and integrated release are independently reviewed. No merge or deployment is authorized by this plan.
