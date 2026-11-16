@@ -19,19 +19,20 @@
 
 ## Required before a public 0.1 release
 
-The integrated HUMANITY ONE 0.1 candidate is tracked in draft PR #26. Latest verified automatic GitHub Actions CI run [43948964236](https://github.com/JoTalbot/humanity-os/actions/runs/43948964236) passed on current integration head `e9375047b4385885df317fea361dbb7ee1b837eb`: Ruff, pytest, pip-audit, wheel and sdist builds, and archive inspection for the CLI entry point and all three static UI assets. CI now also runs for `integration/**`. The PR has not been merged into `main`, and no release is declared. The integration-branch reconciliation review is recorded in `docs/INTEGRATION_PLAN_HUMANITY_ONE_0.1.md`.
+The integrated HUMANITY ONE 0.1 candidate is tracked in draft PR #26. Latest verified automatic GitHub Actions CI run [43969330683](https://github.com/JoTalbot/humanity-os/actions/runs/43969330683) passed on commit `be0ae8118c236e83eb9e62626c1e4570bd4671be`: Ruff, pytest, pip-audit, wheel and sdist builds, archive inspection, and isolated-target wheel installation with an HTTP smoke test for the workspace root and packaged JS/CSS assets. CI now also runs for `integration/**`. Later documentation commits are pending their own automatic CI. The PR has not been merged into `main`, and no release is declared. The integration-branch reconciliation review is recorded in `docs/INTEGRATION_PLAN_HUMANITY_ONE_0.1.md`.
 
 ### Integration and verification
 - [ ] Complete independent review of integration PR #26 and confirm every originating feature change is represented; preserve the source PRs until review is complete.
 - [ ] Re-run full CI and end-to-end acceptance against the resulting \`main\` branch.
 - [ ] Verify fresh install, password setup, local startup, backup, restore and portable import on a clean machine.
 - [x] CI builds and inspects wheel/sdist contents, including the CLI entry point and static UI assets (run [43948575859](https://github.com/JoTalbot/humanity-os/actions/runs/43948575859)).
-- [ ] Install the built wheel in a clean environment and validate password setup, local startup, backup, restore and portable import on a clean machine.
+- [x] CI installs the built wheel into an isolated target and verifies the installed app serves the workspace and static assets over loopback (run [43969330683](https://github.com/JoTalbot/humanity-os/actions/runs/43969330683)).
+- [ ] Validate owner-password setup, service startup, backup, restore and portable import on a clean machine and supported operating systems.
 - [ ] Select a versioning and release artifact/signing policy.
 
 ### Security and privacy
 - [ ] Independent security review and penetration test of authentication, CSRF, session lifecycle, loopback enforcement, export/import and browser UI.
-- [x] Implement Agent Runtime lease ownership, heartbeat renewal, concurrent expiry recovery, stale-worker fencing, and document the single-host/local-SQLite limitation (stacked PR #28; code CI [43947185357](https://github.com/JoTalbot/humanity-os/actions/runs/43947185357), 142 tests passed, Ruff and pip-audit passed).
+- [x] Implement Agent Runtime lease ownership, heartbeat renewal, concurrent expiry recovery, stale-worker fencing, and document the single-host/local-SQLite limitation (stacked PR #28; code CI [43947884587](https://github.com/JoTalbot/humanity-os/actions/runs/43947884587), 142 tests passed, Ruff and pip-audit passed).
 - [ ] Complete independent security review of PR #28, including SQLite locking behavior, heartbeat failure handling, clock-step behavior, import/export recovery, and stale-worker fencing. Keep production single-process until this review and final integration review are complete.
 - [ ] Define document and memory deletion, retention expiry and backup disposal workflows.
 - [ ] Review privacy disclosures and legal basis for personal data processing.
