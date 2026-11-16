@@ -9,7 +9,8 @@ from pathlib import Path
 from typing import Annotated
 
 from fastapi import FastAPI, HTTPException, Query, Request, Response
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field
 
 from humanity_os import __version__
@@ -19,6 +20,11 @@ from humanity_os.answer_context import (
     AnswerContextResponse,
 )
 from humanity_os.auth import AuthStore
+from humanity_os.citation_verification import (
+    CitationValidationRequest,
+    CitationValidationResponse,
+    CitationValidator,
+)
 from humanity_os.claim_assessments import ClaimAssessmentStore
 from humanity_os.claim_graph import ClaimGraphStore
 from humanity_os.documents import MAX_DOCUMENT_CHARS, DocumentStore
@@ -118,11 +124,14 @@ def create_app(
     independence = EvidenceIndependenceEngine(store)
     model_gateway = ModelGateway(model_provider)
     answer_context = AnswerContextBuilder(documents)
+    citation_validator = CitationValidator(documents)
+    static_directory = Path(__file__).parent / "static"
     app = FastAPI(
         title="HUMANITY OS Personal Core",
         version=__version__,
         description="Loopback-only personal workspace with mandatory authentication by default.",
     )
+    app.mount("/static", StaticFiles(directory=static_directory), name="static")
     app.state.knowledge_store = store
     app.state.document_store = documents
     app.state.memory_store = memory
@@ -134,6 +143,7 @@ def create_app(
     app.state.evidence_independence_engine = independence
     app.state.model_gateway = model_gateway
     app.state.answer_context_builder = answer_context
+    app.state.citation_validator = citation_validator
     app.state.authentication_enabled = not allow_unauthenticated_local or bool(token) or auth.has_owner()
 
     @app.middleware("http")
@@ -148,7 +158,10 @@ def create_app(
         if not peer_is_loopback:
             return JSONResponse(status_code=403, content={"detail": "Loopback clients only"})
 
-        if request.url.path in {"/health", "/auth/login"}:
+        if (
+            request.url.path in {"/", "/health", "/auth/login"}
+            or request.url.path.startswith("/static/")
+        ):
             return await call_next(request)
 
         authorization = request.headers.get("authorization", "")
@@ -179,6 +192,10 @@ def create_app(
         request.state.auth_session_token = session_token if session_valid else None
         return await call_next(request)
 
+    @app.post("/v1/answers/validate", response_model=CitationValidationResponse)
+    def validate_answer_citations(payload: CitationValidationRequest) -> CitationValidationResponse:
+        return citation_validator.validate(payload)
+
     @app.post("/v1/answers/context", response_model=AnswerContextResponse)
     def prepare_answer_context(payload: AnswerContextRequest) -> AnswerContextResponse:
         try:
@@ -198,6 +215,13 @@ def create_app(
             raise HTTPException(status_code=504, detail="Model provider timed out") from exc
         except ModelProviderFailure as exc:
             raise HTTPException(status_code=502, detail="Model provider request failed") from exc
+
+    @app.get("/", include_in_schema=False)
+    def workspace_home() -> FileResponse:
+        return FileResponse(
+            static_directory / "index.html",
+            headers={"Cache-Control": "no-store"},
+        )
 
     @app.get("/health")
     def health() -> dict[str, str]:
