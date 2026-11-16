@@ -43,3 +43,5 @@ The memory API separates pending proposals from approved memory. Only a distinct
 ## Retrieved-content and prompt-injection risks
 
 The `/v1/answers/context` endpoint returns source excerpts as untrusted data with document/chunk identifiers, hashes and offsets. A source may contain adversarial instructions or misleading content. A future model caller must preserve a strict separation between trusted system policy and retrieved excerpts, must not treat excerpts as instructions, and must not grant them tool permissions. The context endpoint itself does not call a model or execute source content. Its manifest SHA-256 detects accidental modification but is not a signature or authenticity proof.
+
+Citation validation checks that cited source excerpts match the current local manifest and chunk records. It does not establish truth, source reliability, independence or logical entailment. A valid provenance result must never be presented as proof that an answer is factually correct. The validator does not persist answer text.
