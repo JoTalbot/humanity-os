@@ -30,6 +30,7 @@ The integrated HUMANITY ONE 0.1 candidate is tracked in draft PR #26. The latest
 
 ### Security and privacy
 - [ ] Independent security review and penetration test of authentication, CSRF, session lifecycle, loopback enforcement, export/import and browser UI.
+- [ ] Review Agent Runtime lease ownership, heartbeat renewal, concurrent expiry recovery, stale-worker fencing, and the single-host/local-SQLite limitation before enabling multiple application processes.
 - [ ] Define document and memory deletion, retention expiry and backup disposal workflows.
 - [ ] Review privacy disclosures and legal basis for personal data processing.
 - [ ] Decide encryption-at-rest, encrypted export and key recovery policy.
@@ -49,6 +50,7 @@ The integrated HUMANITY ONE 0.1 candidate is tracked in draft PR #26. The latest
 - [ ] Provider-specific adapters with provider locality/data residency disclosure and separate approval.
 - [ ] Agent Runtime expansion, OS-level sandboxing and human approval for consequential actions; current runtime is constrained and one-tool-per-owner-request, not OS-sandboxed.
 - [ ] Multi-user access, federation and collaboration.
+- [ ] Multi-host/distributed Agent Runtime coordination; current lease design only supports same-host processes sharing local SQLite.
 - [ ] Full responsive workspace, account/session management and memory correction UX.
 
 ## Release rule
