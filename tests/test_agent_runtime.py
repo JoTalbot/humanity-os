@@ -10,7 +10,7 @@ from datetime import UTC, datetime, timedelta
 import pytest
 from fastapi.testclient import TestClient
 
-from humanity_os.agent_runtime import AgentRuntimeStore
+from humanity_os.agent_runtime import AgentRunLeaseLost, AgentRuntimeStore
 from humanity_os.app import create_app
 from humanity_os.store import KnowledgeStore
 
@@ -314,6 +314,8 @@ def test_agent_run_events_are_included_in_portable_export(tmp_path):
     assert exported["schema_version"] == "1.3.0"
     assert len(exported["tables"]["agent_runs"]) == 1
     assert len(exported["tables"]["agent_events"]) == 2
+    assert "worker_id" not in exported["tables"]["agent_runs"][0]
+    assert "lease_expires_at" not in exported["tables"]["agent_runs"][0]
 
     export_path = tmp_path / "agents.json"
     export_path.write_text(json.dumps(exported), encoding="utf-8")
@@ -340,3 +342,21 @@ def test_agent_events_are_bounded_and_run_completion_is_single_use(tmp_path):
     assert len(store.list_events(run_id=run_id, limit=2)) == 2
     with pytest.raises(ValueError, match="event limit"):
         store.list_events(run_id=run_id, limit=101)
+
+
+
+def test_agent_api_returns_conflict_when_run_lease_is_lost(tmp_path):
+    app, client = _client(tmp_path)
+    runtime = app.state.agent_runtime
+
+    def lose_lease(*args, **kwargs):
+        raise AgentRunLeaseLost("lease expired")
+
+    runtime.store.finish_run = lose_lease
+    response = client.post(
+        "/v1/agents/researcher/invoke",
+        json={"tool_name": "documents.search", "arguments": {"query": "local"}},
+    )
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == "Agent run lease was lost; the result was not accepted"
