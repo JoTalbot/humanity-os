@@ -348,6 +348,36 @@ def test_agent_run_events_are_included_in_portable_export(tmp_path):
     assert len(restored.list_events(invocation.json()["run_id"])) == 2
 
 
+def test_imported_running_agent_run_is_recovered_without_a_live_owner_lease(tmp_path):
+    source = tmp_path / "source.sqlite3"
+    source_store = AgentRuntimeStore(
+        source, worker_id="source-worker", lease_duration_seconds=30
+    )
+    run_id = source_store.start_run(
+        "researcher",
+        "documents.search",
+        "a" * 64,
+        now=datetime.now(UTC),
+    )
+    export_path = tmp_path / "running-agent.json"
+    export_path.write_text(
+        json.dumps(KnowledgeStore(source).export_workspace()), encoding="utf-8"
+    )
+
+    target = tmp_path / "target.sqlite3"
+    app, client = _client(tmp_path / "target")
+    KnowledgeStore(target).import_workspace(export_path, tmp_path / "safety.sqlite3")
+
+    response = client.get("/v1/agents/runs")
+    imported = next(item for item in response.json()["items"] if item["id"] == run_id)
+    assert imported["status"] == "failed"
+    assert imported["error_code"] == "interrupted"
+    assert [
+        event["event_type"]
+        for event in app.state.agent_runtime.store.list_events(run_id)
+    ] == ["tool_invocation_started", "tool_invocation_failed"]
+
+
 def test_agent_events_are_bounded_and_run_completion_is_single_use(tmp_path):
     store = AgentRuntimeStore(tmp_path / "agent-audit.sqlite3")
     run_id = store.start_run("researcher", "knowledge.search", "a" * 64)
