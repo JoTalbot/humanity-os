@@ -31,9 +31,9 @@ Allow multiple application processes on one host to share the same SQLite worksp
 
 ## Contract
 
-- Each `AgentRuntimeStore` instance receives a random UUID worker ID unless one is injected for tests.
+- Each `AgentRuntimeStore` instance receives a random UUID worker ID unless one is injected for tests. If a preloaded application is forked after store construction, the child detects its changed PID on its next database connection and rotates to a fresh worker ID.
 - Default lease duration is 60 seconds; the runtime renews at one-third of that duration (20 seconds).
-- All persisted timestamps are timezone-aware UTC ISO-8601 values.
+- All persisted timestamps are timezone-aware UTC ISO-8601 values. Expiry uses the host's UTC wall clock with no skew compensation because supported workers share one host clock. A forward clock step can expire a lease early; a backward step can delay recovery. Keep host time synchronized and, after a detected clock step, stop all workers and inspect active runs before restarting.
 - A run is owned only while status is `running`, `worker_id` matches, and `lease_expires_at` is strictly later than the operation time.
 - Lease renewal and terminal transitions are conditional writes. A lost/expired lease raises a dedicated `AgentRunLeaseLost` error.
 - Recovery runs inside `BEGIN IMMEDIATE`; it updates only rows whose lease is null (legacy) or expired at the supplied UTC time. Conditional updates ensure exactly one recovery event.
