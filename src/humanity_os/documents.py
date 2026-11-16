@@ -184,7 +184,7 @@ class DocumentStore:
             if len(passages) >= passage_limit:
                 break
             label = f"[S{len(passages) + 1}] "
-            separator = "\\n\\n" if context_parts else ""
+            separator = "\n\n" if context_parts else ""
             available = max_context_chars - context_length - len(separator) - len(label)
             if available <= 0:
                 break
@@ -211,7 +211,7 @@ class DocumentStore:
 
         return {
             "query": query,
-            "context": "\\n\\n".join(context_parts),
+            "context": "\n\n".join(context_parts),
             "passages": passages,
             "processing": {
                 "model_called": False,
