@@ -4,7 +4,8 @@ from __future__ import annotations
 import hashlib
 import json
 import sqlite3
-from datetime import UTC, datetime
+import threading
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from uuid import uuid4
 
@@ -81,11 +82,26 @@ TOOL_CATALOG = {
 }
 
 
+class AgentRunLeaseLost(RuntimeError):
+    """Raised when a worker no longer owns a live agent run lease."""
+
+
 class AgentRuntimeStore:
     """Persist minimal run metadata and append-only invocation events."""
 
-    def __init__(self, database_path: str | Path) -> None:
+    def __init__(
+        self,
+        database_path: str | Path,
+        *,
+        worker_id: str | None = None,
+        lease_duration_seconds: float = 60,
+    ) -> None:
+        if lease_duration_seconds <= 0:
+            raise ValueError("Agent run lease duration must be positive")
         self.database_path = str(database_path)
+        self.worker_id = worker_id or str(uuid4())
+        self.lease_duration_seconds = float(lease_duration_seconds)
+        self.heartbeat_interval_seconds = max(0.01, self.lease_duration_seconds / 3)
         with self._connect() as connection:
             connection.execute(
                 """CREATE TABLE IF NOT EXISTS agent_runs (
@@ -97,9 +113,18 @@ class AgentRuntimeStore:
                     finished_at TEXT,
                     input_digest TEXT NOT NULL,
                     result_digest TEXT,
-                    error_code TEXT
+                    error_code TEXT,
+                    worker_id TEXT,
+                    lease_expires_at TEXT
                 )"""
             )
+            columns = {
+                row["name"] for row in connection.execute("PRAGMA table_info(agent_runs)")
+            }
+            if "worker_id" not in columns:
+                connection.execute("ALTER TABLE agent_runs ADD COLUMN worker_id TEXT")
+            if "lease_expires_at" not in columns:
+                connection.execute("ALTER TABLE agent_runs ADD COLUMN lease_expires_at TEXT")
             connection.execute(
                 """CREATE TABLE IF NOT EXISTS agent_events (
                     id TEXT PRIMARY KEY,
@@ -124,32 +149,28 @@ class AgentRuntimeStore:
                 "ON agent_runs(started_at DESC, id DESC)"
             )
             connection.execute(
+                "CREATE INDEX IF NOT EXISTS idx_agent_runs_lease "
+                "ON agent_runs(status, lease_expires_at)"
+            )
+            connection.execute(
                 "CREATE INDEX IF NOT EXISTS idx_agent_events_run "
                 "ON agent_events(run_id, occurred_at, id)"
             )
-            interrupted = connection.execute(
-                "SELECT id FROM agent_runs WHERE status = 'running'"
-            ).fetchall()
-            for row in interrupted:
-                finished_at = datetime.now(UTC).isoformat()
-                connection.execute(
-                    """UPDATE agent_runs SET status = 'failed', finished_at = ?,
-                       error_code = 'interrupted' WHERE id = ?""",
-                    (finished_at, row["id"]),
-                )
-                self._append_event(
-                    connection,
-                    row["id"],
-                    "tool_invocation_failed",
-                    finished_at,
-                    {"status": "failed", "error_code": "interrupted"},
-                )
+        # Old rows have no owner or expiry and are therefore orphaned.
+        self.recover_expired_runs()
 
     def _connect(self) -> sqlite3.Connection:
         connection = sqlite3.connect(self.database_path, timeout=10)
         connection.row_factory = sqlite3.Row
         connection.execute("PRAGMA foreign_keys = ON")
         return connection
+
+    @staticmethod
+    def _timestamp(value: datetime | None = None) -> datetime:
+        result = value or datetime.now(UTC)
+        if result.tzinfo is None or result.utcoffset() is None:
+            raise ValueError("Agent run timestamps must include a timezone")
+        return result.astimezone(UTC)
 
     @staticmethod
     def _append_event(
@@ -171,15 +192,35 @@ class AgentRuntimeStore:
             ),
         )
 
-    def start_run(self, agent_id: str, tool_name: str, input_digest: str) -> str:
+    def start_run(
+        self,
+        agent_id: str,
+        tool_name: str,
+        input_digest: str,
+        *,
+        now: datetime | None = None,
+    ) -> str:
+        started = self._timestamp(now)
+        started_at = started.isoformat()
+        lease_expires_at = (
+            started + timedelta(seconds=self.lease_duration_seconds)
+        ).isoformat()
         run_id = str(uuid4())
-        started_at = datetime.now(UTC).isoformat()
         with self._connect() as connection:
             connection.execute(
                 """INSERT INTO agent_runs(
-                    id, agent_id, tool_name, status, started_at, input_digest
-                ) VALUES (?, ?, ?, 'running', ?, ?)""",
-                (run_id, agent_id, tool_name, started_at, input_digest),
+                    id, agent_id, tool_name, status, started_at, input_digest,
+                    worker_id, lease_expires_at
+                ) VALUES (?, ?, ?, 'running', ?, ?, ?, ?)""",
+                (
+                    run_id,
+                    agent_id,
+                    tool_name,
+                    started_at,
+                    input_digest,
+                    self.worker_id,
+                    lease_expires_at,
+                ),
             )
             self._append_event(
                 connection,
@@ -190,23 +231,94 @@ class AgentRuntimeStore:
             )
         return run_id
 
+    def renew_run_lease(
+        self, run_id: str, *, now: datetime | None = None
+    ) -> None:
+        renewed_at = self._timestamp(now)
+        timestamp = renewed_at.isoformat()
+        lease_expires_at = (
+            renewed_at + timedelta(seconds=self.lease_duration_seconds)
+        ).isoformat()
+        with self._connect() as connection:
+            cursor = connection.execute(
+                """UPDATE agent_runs SET lease_expires_at = ?
+                   WHERE id = ? AND status = 'running' AND worker_id = ?
+                   AND lease_expires_at > ?""",
+                (lease_expires_at, run_id, self.worker_id, timestamp),
+            )
+            if cursor.rowcount != 1:
+                raise AgentRunLeaseLost(
+                    "Agent run lease is expired or owned by another worker"
+                )
+
+    def recover_expired_runs(self, *, now: datetime | None = None) -> int:
+        recovered_at = self._timestamp(now).isoformat()
+        recovered = 0
+        with self._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            candidates = connection.execute(
+                """SELECT id FROM agent_runs
+                   WHERE status = 'running'
+                   AND (lease_expires_at IS NULL OR lease_expires_at <= ?)
+                   ORDER BY started_at, id""",
+                (recovered_at,),
+            ).fetchall()
+            for row in candidates:
+                cursor = connection.execute(
+                    """UPDATE agent_runs SET status = 'failed', finished_at = ?,
+                       error_code = 'interrupted'
+                       WHERE id = ? AND status = 'running'
+                       AND (lease_expires_at IS NULL OR lease_expires_at <= ?)""",
+                    (recovered_at, row["id"], recovered_at),
+                )
+                if cursor.rowcount != 1:
+                    continue
+                self._append_event(
+                    connection,
+                    row["id"],
+                    "tool_invocation_failed",
+                    recovered_at,
+                    {"status": "failed", "error_code": "interrupted"},
+                )
+                recovered += 1
+        return recovered
+
     def finish_run(
         self,
         run_id: str,
         *,
         result_digest: str | None = None,
         error_code: str | None = None,
+        now: datetime | None = None,
     ) -> None:
-        finished_at = datetime.now(UTC).isoformat()
+        finished_at = self._timestamp(now).isoformat()
         status = "failed" if error_code else "completed"
         with self._connect() as connection:
             cursor = connection.execute(
                 """UPDATE agent_runs SET status = ?, finished_at = ?,
-                   result_digest = ?, error_code = ? WHERE id = ? AND status = 'running'""",
-                (status, finished_at, result_digest, error_code, run_id),
+                   result_digest = ?, error_code = ?
+                   WHERE id = ? AND status = 'running' AND worker_id = ?
+                   AND lease_expires_at > ?""",
+                (
+                    status,
+                    finished_at,
+                    result_digest,
+                    error_code,
+                    run_id,
+                    self.worker_id,
+                    finished_at,
+                ),
             )
             if cursor.rowcount != 1:
-                raise ValueError("Agent run is missing or already finished")
+                row = connection.execute(
+                    "SELECT status, worker_id, lease_expires_at FROM agent_runs WHERE id = ?",
+                    (run_id,),
+                ).fetchone()
+                if row is None or row["status"] != "running":
+                    raise ValueError("Agent run is missing or already finished")
+                raise AgentRunLeaseLost(
+                    "Agent run lease is expired or owned by another worker"
+                )
             self._append_event(
                 connection,
                 run_id,
@@ -291,6 +403,29 @@ class AgentRuntime:
             raise ValueError("Agent tool arguments exceed the 20,000-byte limit")
         input_digest = hashlib.sha256(input_bytes).hexdigest()
         run_id = self.store.start_run(agent_id, tool_name, input_digest)
+
+        heartbeat_stop = threading.Event()
+        heartbeat_lost = threading.Event()
+
+        def renew_lease() -> None:
+            while not heartbeat_stop.wait(self.store.heartbeat_interval_seconds):
+                try:
+                    self.store.renew_run_lease(run_id)
+                except (AgentRunLeaseLost, sqlite3.Error):
+                    heartbeat_lost.set()
+                    return
+
+        heartbeat = threading.Thread(
+            target=renew_lease,
+            name=f"humanity-agent-lease-{run_id[:8]}",
+            daemon=True,
+        )
+        heartbeat.start()
+
+        def stop_heartbeat() -> None:
+            heartbeat_stop.set()
+            heartbeat.join()
+
         try:
             if tool_name == "knowledge.search":
                 payload = SearchToolInput.model_validate(arguments)
@@ -333,11 +468,31 @@ class AgentRuntime:
             if len(result_bytes) > 20_000:
                 raise ValueError("Agent tool result exceeds the 20,000-byte limit")
             result_digest = hashlib.sha256(result_bytes).hexdigest()
+            stop_heartbeat()
+            if heartbeat_lost.is_set():
+                raise AgentRunLeaseLost(
+                    "Agent run lease was lost before the tool result could be committed"
+                )
             self.store.finish_run(run_id, result_digest=result_digest)
-            return {"run_id": run_id, "agent_id": agent_id, "tool_name": tool_name, "result": result}
-        except Exception as exc:
-            self.store.finish_run(run_id, error_code=type(exc).__name__)
+            return {
+                "run_id": run_id,
+                "agent_id": agent_id,
+                "tool_name": tool_name,
+                "result": result,
+            }
+        except AgentRunLeaseLost:
+            stop_heartbeat()
             raise
+        except Exception as exc:
+            stop_heartbeat()
+            try:
+                self.store.finish_run(run_id, error_code=type(exc).__name__)
+            except AgentRunLeaseLost as lease_error:
+                raise lease_error from exc
+            raise
+        finally:
+            stop_heartbeat()
+
 
 
 __all__ = [
