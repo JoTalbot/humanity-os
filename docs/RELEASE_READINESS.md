@@ -19,10 +19,10 @@
 
 ## Required before a public 0.1 release
 
-The current integration candidate is still a draft PR. It has not been merged into `main`, and no release is declared.
+The integrated HUMANITY ONE 0.1 candidate is tracked in draft PR #26. Its current head passed automatic GitHub Actions CI (run `43891172000`: lint, tests, and dependency vulnerability audit all successful). It has not been merged into `main`, and no release is declared.
 
 ### Integration and verification
-- [ ] Review and integrate the stacked PR chain bottom-up: #1 → #3 → #5 → #7 → #9 → #11 → #13 → #15 → #17.
+- [ ] Complete independent review of integration PR #26 and confirm every originating feature change is represented; preserve the source PRs until review is complete.
 - [ ] Re-run full CI and end-to-end acceptance against the resulting \`main\` branch.
 - [ ] Verify fresh install, password setup, local startup, backup, restore and portable import on a clean machine.
 - [ ] Build and inspect a wheel/sdist; verify static UI assets are included.
@@ -47,7 +47,7 @@ The current integration candidate is still a draft PR. It has not been merged in
 - [ ] PDF/DOCX parsers, OCR, parser isolation and malformed-file testing.
 - [ ] Semantic retrieval and answer-quality/semantic-entailment evaluation.
 - [ ] Provider-specific adapters with provider locality/data residency disclosure and separate approval.
-- [ ] Agent Runtime, tool permissions, sandboxing and human approval for consequential actions.
+- [ ] Agent Runtime expansion, OS-level sandboxing and human approval for consequential actions; current runtime is constrained and one-tool-per-owner-request, not OS-sandboxed.
 - [ ] Multi-user access, federation and collaboration.
 - [ ] Full responsive workspace, account/session management and memory correction UX.
 
