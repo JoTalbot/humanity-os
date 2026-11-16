@@ -67,7 +67,7 @@ Use `humanity-one/source-grounded-context` (PR #23 head) as the working baseline
 
 ## Known hardening items to track
 
-- Agent Runtime: event listing is bounded and run completion is single-use; replace unconditional startup recovery with process ownership/lease or heartbeat semantics before multi-worker deployment.
+- Agent Runtime: event listing is bounded and run completion is single-use. Process-safe leases and heartbeats are implemented in PR #28 under review; keep deployment single-process until CI, concurrency review and security review pass.
 - Citation verification: strictly validate citation identifier syntax and source offsets; document whether citation counts mean unique IDs or occurrences.
 - Workspace UI: revalidate authentication, CSRF, loopback restrictions, static asset routing, and behavior with the latest memory schema.
 - Deployment: do not describe the current runtime as OS-sandboxed or fully autonomous.
