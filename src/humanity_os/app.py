@@ -14,12 +14,12 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field
 
 from humanity_os import __version__
+from humanity_os.agent_runtime import AgentRuntime
 from humanity_os.answer_context import (
     AnswerContextBuilder,
     AnswerContextRequest,
     AnswerContextResponse,
 )
-from humanity_os.agent_runtime import AgentRuntime
 from humanity_os.answering import DocumentAnswerService, InvalidSourceCitation, NoSourceContext
 from humanity_os.auth import AuthStore
 from humanity_os.citation_verification import (
