@@ -162,6 +162,64 @@ class DocumentStore:
         result["chunks"] = [dict(item) for item in chunks]
         return result
 
+    def prepare_context(
+        self,
+        query: str,
+        *,
+        passage_limit: int = 5,
+        max_context_chars: int = 8_000,
+    ) -> dict:
+        """Build a bounded local context packet with exact source offsets."""
+        if not 1 <= passage_limit <= 10:
+            raise ValueError("Passage limit must be between 1 and 10")
+        if not 512 <= max_context_chars <= 16_000:
+            raise ValueError("Context character limit must be between 512 and 16,000")
+
+        candidates = self.search(query, limit=50)
+        passages: list[dict] = []
+        context_parts: list[str] = []
+        context_length = 0
+
+        for item in candidates:
+            if len(passages) >= passage_limit:
+                break
+            label = f"[S{len(passages) + 1}] "
+            separator = "\\n\\n" if context_parts else ""
+            available = max_context_chars - context_length - len(separator) - len(label)
+            if available <= 0:
+                break
+
+            excerpt = item["excerpt"]
+            truncated = len(excerpt) > available
+            if truncated:
+                excerpt = excerpt[:available]
+            if not excerpt:
+                break
+
+            passage = {
+                **item,
+                "citation_id": f"S{len(passages) + 1}",
+                "excerpt": excerpt,
+                "end_offset": item["start_offset"] + len(excerpt),
+                "truncated": truncated,
+            }
+            passages.append(passage)
+            context_parts.append(label + excerpt)
+            context_length += len(separator) + len(label) + len(excerpt)
+            if truncated:
+                break
+
+        return {
+            "query": query,
+            "context": "\\n\\n".join(context_parts),
+            "passages": passages,
+            "processing": {
+                "model_called": False,
+                "external_processing": False,
+                "retrieval": "local_lexical",
+            },
+        }
+
     def verify_source(self, source: dict) -> bool:
         """Verify a context source against the current stored document and chunk."""
         with self._connect() as connection:
