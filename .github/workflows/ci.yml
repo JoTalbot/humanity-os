@@ -81,3 +81,32 @@ jobs:
 
           print("Wheel and sdist contain the application, CLI entry point, and all UI assets.")
           PY
+      - name: Install wheel in isolated target and smoke-test packaged app
+        env:
+          DIST_DIR: ${{ runner.temp }}/humanity-os-dist
+          INSTALL_DIR: ${{ runner.temp }}/humanity-os-wheel-install
+        run: |
+          python -m pip install --no-deps --target "$INSTALL_DIR" "$DIST_DIR"/*.whl
+          PYTHONPATH="$INSTALL_DIR" python - <<'PY'
+          import os
+          from pathlib import Path
+          from tempfile import TemporaryDirectory
+          from fastapi.testclient import TestClient
+          from humanity_os.app import create_app
+
+          package = Path(os.environ["INSTALL_DIR"]) / "humanity_os"
+          for asset in ("index.html", "app.js", "styles.css"):
+              assert (package / "static" / asset).is_file(), asset
+
+          with TemporaryDirectory() as directory:
+              app = create_app(str(Path(directory) / "smoke.sqlite3"))
+              with TestClient(app) as client:
+                  page = client.get("/")
+                  assert page.status_code == 200, page.text
+                  assert "HUMANITY" in page.text
+                  for asset in ("app.js", "styles.css"):
+                      response = client.get(f"/static/{asset}")
+                      assert response.status_code == 200, asset
+
+          print("Installed wheel imports, serves the workspace, and returns packaged UI assets.")
+          PY
