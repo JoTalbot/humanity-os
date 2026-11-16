@@ -19,7 +19,7 @@
 
 ## Required before a public 0.1 release
 
-The integrated HUMANITY ONE 0.1 candidate is tracked in draft PR #26. Latest verified automatic GitHub Actions CI run [43948575859](https://github.com/JoTalbot/humanity-os/actions/runs/43948575859) passed on head `3af475b6a1a610936b809b0bb4f0976b76166ad6`: Ruff, pytest, pip-audit, wheel and sdist builds, and archive inspection for the CLI entry point and all three static UI assets. CI now also runs for `integration/**`. The PR has not been merged into `main`, and no release is declared. The integration-branch reconciliation review is recorded in `docs/INTEGRATION_PLAN_HUMANITY_ONE_0.1.md`.
+The integrated HUMANITY ONE 0.1 candidate is tracked in draft PR #26. Latest verified automatic GitHub Actions CI run [43948964236](https://github.com/JoTalbot/humanity-os/actions/runs/43948964236) passed on current integration head `e9375047b4385885df317fea361dbb7ee1b837eb`: Ruff, pytest, pip-audit, wheel and sdist builds, and archive inspection for the CLI entry point and all three static UI assets. CI now also runs for `integration/**`. The PR has not been merged into `main`, and no release is declared. The integration-branch reconciliation review is recorded in `docs/INTEGRATION_PLAN_HUMANITY_ONE_0.1.md`.
 
 ### Integration and verification
 - [ ] Complete independent review of integration PR #26 and confirm every originating feature change is represented; preserve the source PRs until review is complete.
