@@ -41,6 +41,7 @@ jobs:
           DIST_DIR: ${{ runner.temp }}/humanity-os-dist
         run: |
           python - <<'PY'
+          import os
           from pathlib import Path
           import tarfile
           from zipfile import ZipFile
