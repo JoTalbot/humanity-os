@@ -365,7 +365,8 @@ def test_imported_running_agent_run_is_recovered_without_a_live_owner_lease(tmp_
     )
 
     target = tmp_path / "target.sqlite3"
-    app, client = _client(tmp_path / "target")
+    app = create_app(str(target), allow_unauthenticated_local=True)
+    client = TestClient(app, client=("127.0.0.1", 50000))
     KnowledgeStore(target).import_workspace(export_path, tmp_path / "safety.sqlite3")
 
     response = client.get("/v1/agents/runs")
