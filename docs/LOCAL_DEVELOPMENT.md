@@ -83,7 +83,7 @@ pip-audit
 
 ## Portable workspace export and deletion
 
-The full export endpoint is `GET /v1/workspace/export`. It is protected by the normal owner-session or bearer-token boundary and returns format `humanity-os-workspace`, schema version `1.0.0`, a UTC export timestamp and a SHA-256 digest over the canonical document before the integrity block is added. The export includes domain tables and security audit metadata. It intentionally excludes owner password hashes, active session/CSRF token hashes, login-throttling buckets, environment bearer tokens, SQLite internals and derived indexes. Do not treat the legacy knowledge-only export as a complete workspace export.
+The full export endpoint is `GET /v1/workspace/export`. It is protected by the normal owner-session or bearer-token boundary and returns format `humanity-os-workspace`, schema version `1.3.0`, a UTC export timestamp and a SHA-256 digest over the canonical document before the integrity block is added. The export includes domain tables and security audit metadata. It intentionally excludes owner password hashes, active session/CSRF token hashes, login-throttling buckets, environment bearer tokens, SQLite internals and derived indexes. Do not treat the legacy knowledge-only export as a complete workspace export.
 
 Create a portable export from the machine running the service:
 
