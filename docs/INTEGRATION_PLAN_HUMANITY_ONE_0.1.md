@@ -39,10 +39,10 @@ Use `humanity-one/source-grounded-context` (PR #23 head) as the working baseline
 
 ## Remaining integration and release gates
 
-- Reconcile and explicitly verify the complete E2E acceptance journey from #19 against this combined code line.
+- Ported the complete owner-journey acceptance test from #19 and updated its workspace export expectation to schema 1.3.0; execution remains pending.
 - Review all shared docs and API contracts after the combined UI/context/agent changes.
 - Review the current diff for any upstream changes not yet represented; preserve original PRs until review is complete.
-- Run test and security gates only with explicit permission.
+- Run the full test and security gates only with explicit permission. The automatic PR CI first stopped at Ruff import ordering in `app.py`; that formatting issue has been corrected in the latest commit. The subsequent CI result is not yet available.
 - Prepare a release-candidate PR only after review and test evidence.
 
 ## Required integration sequence
