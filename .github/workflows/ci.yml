@@ -100,7 +100,7 @@ jobs:
 
           with TemporaryDirectory() as directory:
               app = create_app(str(Path(directory) / "smoke.sqlite3"))
-              with TestClient(app) as client:
+              with TestClient(app, client=("127.0.0.1", 50000)) as client:
                   page = client.get("/")
                   assert page.status_code == 200, page.text
                   assert "HUMANITY" in page.text
