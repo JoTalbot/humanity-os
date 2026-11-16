@@ -81,20 +81,22 @@ jobs:
 
           print("Wheel and sdist contain the application, CLI entry point, and all UI assets.")
           PY
-      - name: Install wheel in isolated target and smoke-test packaged app
+      - name: Install wheel in a clean virtual environment and smoke-test packaged app
         env:
           DIST_DIR: ${{ runner.temp }}/humanity-os-dist
-          INSTALL_DIR: ${{ runner.temp }}/humanity-os-wheel-install
+          VENV_DIR: ${{ runner.temp }}/humanity-os-wheel-venv
         run: |
-          python -m pip install --no-deps --target "$INSTALL_DIR" "$DIST_DIR"/*.whl
-          PYTHONPATH="$INSTALL_DIR" python - <<'PY'
+          python -m venv "$VENV_DIR"
+          "$VENV_DIR/bin/python" -m pip install "$DIST_DIR"/*.whl
+          "$VENV_DIR/bin/humanity-os" --help
+          "$VENV_DIR/bin/python" - <<'PY'
           import os
           from pathlib import Path
           from tempfile import TemporaryDirectory
           from fastapi.testclient import TestClient
           from humanity_os.app import create_app
 
-          package = Path(os.environ["INSTALL_DIR"]) / "humanity_os"
+          package = Path(__import__("humanity_os").__file__).parent
           for asset in ("index.html", "app.js", "styles.css"):
               assert (package / "static" / asset).is_file(), asset
 
@@ -108,5 +110,5 @@ jobs:
                       response = client.get(f"/static/{asset}")
                       assert response.status_code == 200, asset
 
-          print("Installed wheel imports, serves the workspace, and returns packaged UI assets.")
+          print("Clean-venv wheel install, CLI entry point, workspace and UI asset smoke tests passed.")
           PY
