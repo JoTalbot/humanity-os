@@ -30,7 +30,8 @@ The integrated HUMANITY ONE 0.1 candidate is tracked in draft PR #26. The latest
 
 ### Security and privacy
 - [ ] Independent security review and penetration test of authentication, CSRF, session lifecycle, loopback enforcement, export/import and browser UI.
-- [ ] Review Agent Runtime lease ownership, heartbeat renewal, concurrent expiry recovery, stale-worker fencing, and the single-host/local-SQLite limitation before enabling multiple application processes.
+- [x] Implement Agent Runtime lease ownership, heartbeat renewal, concurrent expiry recovery, stale-worker fencing, and document the single-host/local-SQLite limitation (PR #28; CI run [43947185357](https://github.com/JoTalbot/humanity-os/actions/runs/43947185357), 142 tests passed, Ruff and pip-audit passed).
+- [ ] Complete independent security review of PR #28, including SQLite locking behavior, heartbeat failure handling, clock-step behavior, import/export recovery, and stale-worker fencing. Keep production single-process until this review and final integration review are complete.
 - [ ] Define document and memory deletion, retention expiry and backup disposal workflows.
 - [ ] Review privacy disclosures and legal basis for personal data processing.
 - [ ] Decide encryption-at-rest, encrypted export and key recovery policy.
