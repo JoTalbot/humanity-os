@@ -311,10 +311,17 @@ class AgentRuntimeStore:
             )
             if cursor.rowcount != 1:
                 row = connection.execute(
-                    "SELECT status, worker_id, lease_expires_at FROM agent_runs WHERE id = ?",
+                    "SELECT status, worker_id, lease_expires_at, error_code "
+                    "FROM agent_runs WHERE id = ?",
                     (run_id,),
                 ).fetchone()
-                if row is None or row["status"] != "running":
+                if row is None:
+                    raise ValueError("Agent run is missing or already finished")
+                if row["status"] != "running":
+                    if row["status"] == "failed" and row["error_code"] == "interrupted":
+                        raise AgentRunLeaseLost(
+                            "Agent run lease expired and the run was recovered"
+                        )
                     raise ValueError("Agent run is missing or already finished")
                 raise AgentRunLeaseLost(
                     "Agent run lease is expired or owned by another worker"
@@ -497,6 +504,7 @@ class AgentRuntime:
 
 __all__ = [
     "AGENT_PROFILES",
+    "AgentRunLeaseLost",
     "TOOL_CATALOG",
     "AgentRuntime",
     "AgentRuntimeStore",
