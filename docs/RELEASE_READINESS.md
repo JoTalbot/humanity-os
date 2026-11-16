@@ -19,7 +19,7 @@
 
 ## Required before a public 0.1 release
 
-The integrated HUMANITY ONE 0.1 candidate is tracked in draft PR #26. Its current head passed automatic GitHub Actions CI (run `43891172000`: lint, tests, and dependency vulnerability audit all successful). It has not been merged into `main`, and no release is declared.
+The integrated HUMANITY ONE 0.1 candidate is tracked in draft PR #26. The latest verified automatic GitHub Actions CI run is `43931396509` on PR head `64478ff33d6450f971465aa4e7edccf73d5a5f83`; Ruff lint, the test suite, and the dependency vulnerability audit (pip-audit) all passed. The PR has not been merged into `main`, and no release is declared. The integration-branch reconciliation review is recorded in `docs/INTEGRATION_PLAN_HUMANITY_ONE_0.1.md`.
 
 ### Integration and verification
 - [ ] Complete independent review of integration PR #26 and confirm every originating feature change is represented; preserve the source PRs until review is complete.
