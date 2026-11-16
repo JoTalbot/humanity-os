@@ -162,6 +162,52 @@ class DocumentStore:
         result["chunks"] = [dict(item) for item in chunks]
         return result
 
+    def verify_source(self, source: dict) -> bool:
+        """Verify a context source against the current stored document and chunk."""
+        with self._connect() as connection:
+            row = connection.execute(
+                """SELECT d.id AS document_id, d.filename, d.media_type,
+                          d.content_hash AS document_hash, d.content AS document_content,
+                          c.id AS chunk_id, c.ordinal, c.start_offset, c.end_offset,
+                          c.content_hash AS chunk_hash, c.content AS excerpt
+                   FROM documents d
+                   JOIN document_chunks c ON c.document_id = d.id
+                   WHERE d.id = ? AND c.id = ?""",
+                (source.get("document_id"), source.get("chunk_id")),
+            ).fetchone()
+        if row is None:
+            return False
+        item = dict(row)
+        start = item["start_offset"]
+        end = item["end_offset"]
+        if (
+            source.get("filename") != item["filename"]
+            or source.get("media_type") != item["media_type"]
+            or source.get("document_hash") != item["document_hash"]
+            or source.get("chunk_hash") != item["chunk_hash"]
+            or source.get("start_offset") != start
+            or source.get("end_offset") != end
+            or source.get("ordinal") != item["ordinal"]
+            or source.get("excerpt") != item["excerpt"]
+            or hashlib.sha256(item["document_content"].encode("utf-8")).hexdigest() != item["document_hash"]
+            or hashlib.sha256(item["excerpt"].encode("utf-8")).hexdigest() != item["chunk_hash"]
+            or item["document_content"][start:end] != item["excerpt"]
+        ):
+            return False
+        expected_chunk_id = hashlib.sha256(
+            f"{item['document_id']}:{item['ordinal']}:{start}:{end}:{item['chunk_hash']}".encode()
+        ).hexdigest()
+        expected_citation_id = "src-" + hashlib.sha256(
+            ":".join(str(source[key]) for key in (
+                "document_id", "chunk_id", "document_hash", "chunk_hash",
+                "start_offset", "end_offset",
+            )).encode("utf-8")
+        ).hexdigest()[:24]
+        return (
+            source.get("chunk_id") == item["chunk_id"]
+            and source.get("citation_id") == expected_citation_id
+            and expected_chunk_id == item["chunk_id"]
+        )
     def list(self, limit: int = 50) -> list[dict]:
         if not 1 <= limit <= 100:
             raise ValueError("Document limit must be between 1 and 100")
