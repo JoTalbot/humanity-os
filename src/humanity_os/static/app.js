@@ -24,6 +24,50 @@ function actionButton(label,action,danger=false){const button=element("button","
 function renderList(target,items,emptyText,renderer){target.replaceChildren();if(!items.length){target.classList.add("empty-state");target.textContent=emptyText;return;}target.classList.remove("empty-state");for(const item of items)target.append(renderer(item));}
 async function loadNotes(){const query=$("#note-search").value.trim();const path=query?"/v1/knowledge?limit=30&q="+encodeURIComponent(query):"/v1/knowledge?limit=30";const result=await api(path);const items=result.items||[];$("#note-count").textContent=String(items.length);renderList($("#notes-list"),items,"No matching notes.",note=>itemCard(note.title,note.content,note.kind+" · "+note.visibility+" · "+note.id));renderList($("#overview-notes"),items.slice(0,4),"No notes yet.",note=>itemCard(note.title,note.content.slice(0,160),note.kind+" · "+note.id));}
 async function loadDocuments(){const result=await api("/v1/documents?limit=50");const items=result.items||[];$("#document-count").textContent=String(items.length);renderList($("#documents-list"),items,"No documents yet.",doc=>itemCard(doc.filename,doc.character_count+" characters · "+doc.chunk_count+" chunks",doc.media_type+" · SHA-256 "+doc.content_hash));}
+async function loadModelCapabilities(){
+ const capabilities=await api("/v1/models/capabilities");
+ const configured=capabilities.provider_configured;
+ $("#answer-submit").disabled=!configured;
+ $("#provider-status").textContent=configured
+  ?"Configured provider: "+capabilities.provider_id+" / "+capabilities.model_id+". Source passages are sent only after your per-request approval."
+  :"No model provider is configured. Local source context remains available; answer generation is disabled.";
+}
+function defaultToolArguments(toolName){
+ if(toolName==="memory.propose")return JSON.stringify({title:"Memory title",content:"Content to propose",rationale:"Why this should be remembered"},null,2);
+ if(toolName==="documents.context")return JSON.stringify({query:"source search",passage_limit:5,max_context_chars:4000},null,2);
+ return JSON.stringify({query:"source search",limit:10},null,2);
+}
+async function loadAgentTools(){
+ const agentId=$("#agent-profile").value;
+ const result=await api("/v1/agents/tools?agent_id="+encodeURIComponent(agentId));
+ const select=$("#agent-tool");
+ select.replaceChildren();
+ for(const tool of result.items||[]){
+  const option=element("option","",tool.name+" · "+tool.risk);
+  option.value=tool.name;
+  select.append(option);
+ }
+ const selected=(result.items||[])[0];
+ $("#agent-tool-description").textContent=selected?selected.description+" · side effects: "+selected.side_effects+" · separate approval: "+selected.requires_separate_approval:"No tools are available for this profile.";
+ if(selected)$("#agent-arguments").value=defaultToolArguments(selected.name);
+}
+async function loadAgents(){
+ const result=await api("/v1/agents");
+ const select=$("#agent-profile");
+ select.replaceChildren();
+ for(const profile of result.items||[]){
+  const option=element("option","",profile.name+" · "+profile.id);
+  option.value=profile.id;
+  select.append(option);
+ }
+ await loadAgentTools();
+ await loadAgentRuns();
+}
+async function loadAgentRuns(){
+ const result=await api("/v1/agents/runs?limit=30");
+ renderList($("#agent-runs"),result.items||[],"No agent runs yet.",run=>
+  itemCard(run.agent_id+" · "+run.tool_name,run.status,run.started_at+" · run "+run.id+" · "+(run.error_code||"no error")));
+}
 async function loadMemory(){
  const values=await Promise.all([api("/v1/memory/proposals?status=pending_review&limit=50"),api("/v1/memories?limit=100"),api("/v1/memory/events")]);
  const proposals=values[0].items||[];const memories=values[1].items||[];const events=values[2].items||[];$("#proposal-count").textContent=String(proposals.length);
@@ -43,7 +87,7 @@ async function loadMemory(){
  });
  renderList($("#memory-events"),events,"No memory events yet.",event=>itemCard(event.event_type.replaceAll("_"," "),event.details,event.actor+" · "+event.occurred_at));
 }
-async function refreshAll(){try{await Promise.all([loadNotes(),loadDocuments(),loadMemory()]);}catch(error){if(/Authentication required/i.test(error.message)){csrfToken=null;setSignedIn(false);}notify(error.message,true);}}
+async function refreshAll(){try{await Promise.all([loadNotes(),loadDocuments(),loadMemory(),loadModelCapabilities(),loadAgents()]);}catch(error){if(/Authentication required/i.test(error.message)){csrfToken=null;setSignedIn(false);}notify(error.message,true);}}
 $("#login-form").addEventListener("submit",async event=>{event.preventDefault();try{const result=await api("/auth/login",{method:"POST",body:JSON.stringify({password:$("#password").value})});csrfToken=result.csrf_token;$("#password").value="";setSignedIn(true);await refreshAll();notify("Workspace unlocked.");}catch(error){notify(error.message,true);}});
 logoutButton.addEventListener("click",async()=>{try{await api("/auth/logout",{method:"POST"});csrfToken=null;setSignedIn(false);notify("Signed out.");}catch(error){notify(error.message,true);}});
 $("#note-form").addEventListener("submit",async event=>{event.preventDefault();try{await api("/v1/knowledge",{method:"POST",body:JSON.stringify({kind:"observation",title:$("#note-title").value,content:$("#note-content").value,visibility:"private"})});$("#note-form").reset();notify("Note saved.");await loadNotes();}catch(error){notify(error.message,true);}});
@@ -52,8 +96,44 @@ $("#refresh-notes").addEventListener("click",()=>loadNotes().catch(error=>notify
 $("#document-form").addEventListener("submit",async event=>{event.preventDefault();try{await api("/v1/documents",{method:"POST",body:JSON.stringify({filename:$("#document-filename").value,content:$("#document-content").value})});$("#document-form").reset();notify("Document added locally.");await loadDocuments();}catch(error){notify(error.message,true);}});
 $("#document-search-form").addEventListener("submit",async event=>{event.preventDefault();try{const result=await api("/v1/documents/search",{method:"POST",body:JSON.stringify({query:$("#document-query").value,limit:20})});renderList($("#document-results"),result.items||[],"No matching source chunks.",match=>itemCard(match.filename,match.excerpt,"Document "+match.document_id+" · chunk "+match.chunk_id+" · chars "+match.start_offset+"-"+match.end_offset));}catch(error){notify(error.message,true);}});
 $("#memory-proposal-form").addEventListener("submit",async event=>{event.preventDefault();try{await api("/v1/memory/proposals",{method:"POST",body:JSON.stringify({title:$("#memory-title").value,content:$("#memory-content").value,rationale:$("#memory-rationale").value})});$("#memory-proposal-form").reset();notify("Proposal submitted. Approval is still required.");await loadMemory();}catch(error){notify(error.message,true);}});
+$("#prepare-context").addEventListener("click",async()=>{const query=$("#document-query").value.trim();if(!query){notify("Enter a search query first.",true);return;}try{const result=await api("/v1/documents/context",{method:"POST",body:JSON.stringify({query:query,passage_limit:5,max_context_chars:8000})});const card=itemCard("Prepared source context",result.context,"Local lexical retrieval · model called: "+result.processing.model_called+" · external processing: "+result.processing.external_processing);for(const source of result.passages){card.append(element("div","item-meta","["+source.citation_id+"] "+source.filename+" · document "+source.document_id+" · chunk "+source.chunk_id+" · chars "+source.start_offset+"-"+source.end_offset+(source.truncated?" · excerpt truncated":"")));}renderList($("#context-results"),[card],"No matching source context.",item=>item);notify("Source context prepared locally.");}catch(error){notify(error.message,true);}});
+$("#answer-form").addEventListener("submit",async event=>{
+ event.preventDefault();
+ if(!$("#provider-consent").checked){notify("Explicit provider consent is required.",true);return;}
+ const query=$("#document-query").value.trim();
+ if(!query){notify("Enter a source search query first.",true);return;}
+ try{
+  const result=await api("/v1/documents/answer",{method:"POST",body:JSON.stringify({query:query,allow_provider_processing:true,passage_limit:5,max_context_chars:8000,max_output_tokens:768})});
+  const card=itemCard("Grounded answer",result.answer,"Provider "+result.provider+" · model "+result.model+" · semantic entailment independently verified: "+result.processing.semantic_entailment_verified);
+  for(const source of result.citations)card.append(element("div","item-meta","["+source.citation_id+"] "+source.filename+" · document "+source.document_id+" · chunk "+source.chunk_id+" · chars "+source.start_offset+"-"+source.end_offset));
+  renderList($("#answer-results"),[card],"No grounded answer returned.",item=>item);
+  $("#provider-consent").checked=false;
+  notify("Answer generated. Review its source citations.");
+ }catch(error){notify(error.message,true);}
+});
 $("#refresh-documents").addEventListener("click",()=>loadDocuments().catch(error=>notify(error.message,true)));
+$("#agent-profile").addEventListener("change",()=>loadAgentTools().catch(error=>notify(error.message,true)));
+$("#agent-tool").addEventListener("change",async()=>{
+ $("#agent-arguments").value=defaultToolArguments($("#agent-tool").value);
+ try{
+  const result=await api("/v1/agents/tools?agent_id="+encodeURIComponent($("#agent-profile").value));
+  const selected=(result.items||[]).find(tool=>tool.name===$("#agent-tool").value);
+  if(selected)$("#agent-tool-description").textContent=selected.description+" · side effects: "+selected.side_effects+" · separate approval: "+selected.requires_separate_approval;
+ }catch(error){notify(error.message,true);}
+});
+$("#agent-form").addEventListener("submit",async event=>{
+ event.preventDefault();
+ try{
+  const argumentsValue=JSON.parse($("#agent-arguments").value);
+  if(!argumentsValue||Array.isArray(argumentsValue)||typeof argumentsValue!=="object")throw new Error("Tool arguments must be a JSON object.");
+  const result=await api("/v1/agents/"+encodeURIComponent($("#agent-profile").value)+"/invoke",{method:"POST",body:JSON.stringify({tool_name:$("#agent-tool").value,arguments:argumentsValue})});
+  $("#agent-result").textContent=JSON.stringify(result,null,2);
+  notify("Local tool run completed.");
+  await loadAgentRuns();
+ }catch(error){notify(error.message,true);}
+});
+$("#refresh-agents").addEventListener("click",()=>loadAgentRuns().catch(error=>notify(error.message,true)));
 $("#refresh-memory").addEventListener("click",()=>loadMemory().catch(error=>notify(error.message,true)));
-document.querySelectorAll("[data-tab],[data-open-tab]").forEach(button=>button.addEventListener("click",()=>{const tab=button.dataset.tab||button.dataset.openTab;document.querySelectorAll(".tab").forEach(item=>{const active=item.dataset.tab===tab;item.classList.toggle("active",active);if(active)item.setAttribute("aria-current","page");else item.removeAttribute("aria-current");});document.querySelectorAll(".tab-panel").forEach(panel=>panel.classList.toggle("hidden",panel.id!=="tab-"+tab));if(tab==="memory")loadMemory().catch(error=>notify(error.message,true));if(tab==="documents")loadDocuments().catch(error=>notify(error.message,true));if(tab==="notes")loadNotes().catch(error=>notify(error.message,true));}));
+document.querySelectorAll("[data-tab],[data-open-tab]").forEach(button=>button.addEventListener("click",()=>{const tab=button.dataset.tab||button.dataset.openTab;document.querySelectorAll(".tab").forEach(item=>{const active=item.dataset.tab===tab;item.classList.toggle("active",active);if(active)item.setAttribute("aria-current","page");else item.removeAttribute("aria-current");});document.querySelectorAll(".tab-panel").forEach(panel=>panel.classList.toggle("hidden",panel.id!=="tab-"+tab));if(tab==="memory")loadMemory().catch(error=>notify(error.message,true));if(tab==="agents"){loadAgents().catch(error=>notify(error.message,true));}if(tab==="documents")loadDocuments().catch(error=>notify(error.message,true));if(tab==="notes")loadNotes().catch(error=>notify(error.message,true));}));
 setSignedIn(false);
 })();
