@@ -103,6 +103,9 @@ The earlier reconciliation notes below describe the initial integration state an
 - Acceptance criteria and documentation now describe portable workspace schema 1.3.0 and imports from 1.0.0–1.2.0. Clean-machine owner setup, backup, restore and cross-platform recovery remain open.
 - PR #26 and #28 have no submitted reviews or inline review threads as of this review.
 - No PR was merged, no force-push was performed, no workflow was manually dispatched, and no release or deployment was made.
+- Latest verification: CI run `43970194121` passed on documentation commit `7957f5ac08952d45fb62caf28a33327e4c93c4e8`, including lint, tests, dependency audit, wheel/sdist inspection and fresh-virtualenv packaged-app smoke checks. A subsequent documentation-only commit `b6a6eef0a9e5c170cebf9799eceba6bbffb6cb62` is awaiting automatic CI run `43970440846`.
+- Latest comparison against `main`: integration branch is 406 commits ahead and one behind (`main` head `ac46e16728382c0af800421978f0bf7df6943de9`). The large divergent history remains a manual reconciliation gate, not a merge-readiness signal.
+- PR #28's head remains `229cc91266b43452ec79f7e7f72e981344f025e5`; its recorded base SHA `9804c7c3df31608cf47c36d673053055fd081e59` is older than the current integration head. Comparing the PR branches reports 25 commits ahead and 20 behind. The available GitHub operations do not expose a safe branch-update/cherry-pick workflow, so no history rewrite or ref movement was attempted. Reconcile the stack before merge; both PRs remain Draft.
 
 ## Decision
 
