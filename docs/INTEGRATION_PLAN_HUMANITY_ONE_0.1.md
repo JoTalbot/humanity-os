@@ -96,17 +96,26 @@ Use `humanity-one/source-grounded-context` (PR #23 head) as the working baseline
 The earlier reconciliation notes below describe the initial integration state and are superseded where this section records later changes.
 
 - PR #26 remains an open Draft integration candidate based on `humanity-one/source-grounded-context`; it has not been merged or retargeted.
-- Current comparison against `main`: integration branch is 396 commits ahead and one behind, with a divergent stacked history. This is not a merge-readiness signal. Preserve the source branches and review the full commit chain before any merge decision.
+- Current comparison against `main` at the latest review: integration branch is 407 commits ahead and one behind, with a divergent stacked history. This is not a merge-readiness signal. Preserve the source branches and review the full commit chain before any merge decision.
 - The main-only memory test change remains superseded by the integration branch's schema-1.3.0 test coverage, which includes Agent Runtime audit tables and legacy schema 1.0.0–1.2.0 import compatibility.
 - PR #28 now implements process ownership, expiring leases, daemon heartbeat renewal, owner fencing, fork-safe worker identity, and atomic stale-run recovery. Its code CI passed in run `43947884587`; the PR remains open and Draft. Its supported deployment boundary is same-host processes sharing a local SQLite database with reliable locking. No multi-host or network-filesystem guarantee is made.
 - CI now includes `integration/**`, builds wheel and sdist archives, checks the CLI entry point and static assets, and installs the wheel into an isolated target for an HTTP smoke test. Run `43969330683` passed on commit `be0ae8118c236e83eb9e62626c1e4570bd4671be`; the test confirmed the installed app serves the workspace root and static assets through a loopback peer. The initial smoke harness failed because its default TestClient peer was non-loopback; the harness was corrected without weakening the product's loopback guard.
 - Acceptance criteria and documentation now describe portable workspace schema 1.3.0 and imports from 1.0.0–1.2.0. Clean-machine owner setup, backup, restore and cross-platform recovery remain open.
 - PR #26 and #28 have no submitted reviews or inline review threads as of this review.
 - No PR was merged, no force-push was performed, no workflow was manually dispatched, and no release or deployment was made.
-- Latest verification: CI run `43970194121` passed on documentation commit `7957f5ac08952d45fb62caf28a33327e4c93c4e8`, including lint, tests, dependency audit, wheel/sdist inspection and fresh-virtualenv packaged-app smoke checks. A subsequent documentation-only commit `b6a6eef0a9e5c170cebf9799eceba6bbffb6cb62` is awaiting automatic CI run `43970440846`.
-- Latest comparison against `main`: integration branch is 406 commits ahead and one behind (`main` head `ac46e16728382c0af800421978f0bf7df6943de9`). The large divergent history remains a manual reconciliation gate, not a merge-readiness signal.
-- PR #28's head remains `229cc91266b43452ec79f7e7f72e981344f025e5`; its recorded base SHA `9804c7c3df31608cf47c36d673053055fd081e59` is older than the current integration head. Comparing the PR branches reports 25 commits ahead and 20 behind. The available GitHub operations do not expose a safe branch-update/cherry-pick workflow, so no history rewrite or ref movement was attempted. Reconcile the stack before merge; both PRs remain Draft.
+- Latest verification: CI run `43970440846` passed all 10 quality steps, including lint, tests, dependency audit, wheel/sdist inspection and fresh-virtualenv packaged-app smoke checks. Automatic CI run `43970528285` also completed successfully on integration head `a55861673e5fea8e3ff8a7a20bcfdfa26700e447`. No manual workflow dispatch or out-of-CI test run was performed.
+- Latest comparison against `main`: integration branch is 407 commits ahead and one behind (`main` head `ac46e16728382c0af800421978f0bf7df6943de9`). The large divergent history remains a manual reconciliation gate, not a merge-readiness signal.
+- PR #28's head remains `229cc91266b43452ec79f7e7f72e981344f025e5`; its recorded base SHA `9804c7c3df31608cf47c36d673053055fd081e59` is older than the current integration head. Comparing the PR branches now reports 25 commits ahead and 22 behind. The available GitHub operations do not expose a safe branch-update/cherry-pick workflow, so no history rewrite or ref movement was attempted. Reconcile the stack before merge; both PRs remain Draft.
 
 ## Decision
 
 Keep PR #26 and PR #28 as Draft review candidates. The next gates are independent security review of the lease and integrated API/data boundaries, clean-machine owner setup and backup/restore/import validation, accessibility and governance review, and full stacked-history review. Production remains single-process until the lease design and integrated release are independently reviewed. No merge or deployment is authorized by this plan.
+
+
+## CI and branch reconciliation update — 2026-11-17 12:40 UTC+2
+
+- CI `43970440846` completed successfully: all 10 quality steps passed, including Ruff, pytest, pip-audit, wheel/sdist builds, archive verification, and fresh-virtualenv installed-app smoke checks.
+- Automatic CI `43970528285` completed successfully on integration head `a55861673e5fea8e3ff8a7a20bcfdfa26700e447`.
+- PR #26 and PR #28 remain open Drafts. Both have zero submitted reviews and zero inline review threads at this check.
+- Current topology: integration branch is 407 commits ahead and one behind `main`; PR #28 is 25 commits ahead and 22 behind the current integration branch. Both comparisons are divergent and block merge consideration pending explicit stack reconciliation.
+- No merge, force-push, ref rewrite, release, deployment, manual workflow dispatch, or production operation was performed.
