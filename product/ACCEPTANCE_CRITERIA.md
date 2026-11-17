@@ -25,7 +25,8 @@
 - [x] Backup verification checks SQLite integrity and validates every stored record.
 - [x] Restore validates the source, creates a pre-restore safety snapshot, stages a replacement, and swaps atomically.
 - [ ] Automated restore testing on supported operating systems and crash-recovery testing.
-- [ ] Full export/import portability; JSON export exists, import is not implemented.
+- [x] Versioned portable workspace JSON export/import is implemented with integrity validation, staged replacement, pre-import safety backup, and owner credential exclusion (schema 1.3.0; legacy 1.0.0–1.2.0 imports supported).
+- [ ] Clean-machine restore, import and crash-recovery validation across supported operating systems.
 
 ## AI provider and agents
 - [ ] Replaceable provider adapter and sensitive-data controls.
@@ -33,7 +34,7 @@
 - [ ] External side effects require approval and are auditable.
 
 ## Quality and release
-- [x] CI runs lint, tests, and Python dependency vulnerability audit.
+- [x] CI runs lint, tests, Python dependency vulnerability audit, wheel/sdist builds, archive-content checks, and an installed-wheel HTTP smoke test.
 - [ ] Secret scanning is enabled and passes.
 - [ ] Production backup scheduling, encryption-at-rest policy, retention, and off-device recovery.
 - [ ] Accessibility review and independent security review.
@@ -46,5 +47,5 @@ A checkbox without evidence is not acceptance. CI evidence is recorded in GitHub
 - [x] Memory proposals are separate from durable memory and remain pending until an explicit owner approval request.
 - [x] Rejection, approval, archive and restore actions are recorded in append-only lifecycle events.
 - [x] Approved memory preserves optional document/chunk provenance.
-- [x] Workspace export/import schema 1.2.0 includes memory proposals, items and events with domain integrity checks.
+- [x] Workspace export/import schema 1.3.0 includes memory proposals, approved items, lifecycle events, and Agent Runtime run/event audit records with integrity and linkage checks; legacy schemas 1.0.0–1.2.0 remain importable.
 - [ ] Responsive memory review and correction UI; multi-user approval roles; deletion and retention controls.

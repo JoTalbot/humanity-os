@@ -9,16 +9,24 @@ from pathlib import Path
 from typing import Annotated
 
 from fastapi import FastAPI, HTTPException, Query, Request, Response
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field
 
 from humanity_os import __version__
+from humanity_os.agent_runtime import AgentRuntime
 from humanity_os.answer_context import (
     AnswerContextBuilder,
     AnswerContextRequest,
     AnswerContextResponse,
 )
+from humanity_os.answering import DocumentAnswerService, InvalidSourceCitation, NoSourceContext
 from humanity_os.auth import AuthStore
+from humanity_os.citation_verification import (
+    CitationValidationRequest,
+    CitationValidationResponse,
+    CitationValidator,
+)
 from humanity_os.claim_assessments import ClaimAssessmentStore
 from humanity_os.claim_graph import ClaimGraphStore
 from humanity_os.documents import MAX_DOCUMENT_CHARS, DocumentStore
@@ -93,6 +101,28 @@ class DocumentSearch(BaseModel):
     limit: int = Field(default=20, ge=1, le=50)
 
 
+class DocumentContextRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    query: str = Field(min_length=2, max_length=200)
+    passage_limit: int = Field(default=5, ge=1, le=10)
+    max_context_chars: int = Field(default=8_000, ge=512, le=16_000)
+
+
+class DocumentAnswerRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    query: str = Field(min_length=2, max_length=200)
+    allow_provider_processing: bool = False
+    passage_limit: int = Field(default=5, ge=1, le=10)
+    max_context_chars: int = Field(default=8_000, ge=512, le=16_000)
+    max_output_tokens: int = Field(default=768, ge=1, le=1_024)
+
+
+class AgentInvokeRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    tool_name: str = Field(min_length=1, max_length=100)
+    arguments: dict[str, object] = Field(default_factory=dict)
+
+
 def create_app(
     database_path: str | None = None,
     api_token: str | None = None,
@@ -110,6 +140,7 @@ def create_app(
     store = KnowledgeStore(path)
     documents = DocumentStore(path)
     memory = MemoryStore(path)
+    agents = AgentRuntime(path, store, documents, memory)
     auth = AuthStore(path)
     evidence_assessments = EvidenceAssessmentStore(store.database_path)
     claim_graph = ClaimGraphStore(store.database_path)
@@ -117,15 +148,21 @@ def create_app(
     reasoning = ReasoningEngine(store.database_path, store, claim_graph)
     independence = EvidenceIndependenceEngine(store)
     model_gateway = ModelGateway(model_provider)
+    answer_service = DocumentAnswerService(documents, model_gateway)
     answer_context = AnswerContextBuilder(documents)
+    citation_validator = CitationValidator(documents)
+    static_directory = Path(__file__).parent / "static"
     app = FastAPI(
         title="HUMANITY OS Personal Core",
         version=__version__,
         description="Loopback-only personal workspace with mandatory authentication by default.",
     )
+    app.mount("/static", StaticFiles(directory=static_directory), name="static")
     app.state.knowledge_store = store
     app.state.document_store = documents
     app.state.memory_store = memory
+    app.state.agent_runtime = agents
+    app.state.document_answer_service = answer_service
     app.state.auth_store = auth
     app.state.evidence_assessment_store = evidence_assessments
     app.state.claim_graph_store = claim_graph
@@ -134,6 +171,7 @@ def create_app(
     app.state.evidence_independence_engine = independence
     app.state.model_gateway = model_gateway
     app.state.answer_context_builder = answer_context
+    app.state.citation_validator = citation_validator
     app.state.authentication_enabled = not allow_unauthenticated_local or bool(token) or auth.has_owner()
 
     @app.middleware("http")
@@ -148,7 +186,10 @@ def create_app(
         if not peer_is_loopback:
             return JSONResponse(status_code=403, content={"detail": "Loopback clients only"})
 
-        if request.url.path in {"/health", "/auth/login"}:
+        if (
+            request.url.path in {"/", "/health", "/auth/login"}
+            or request.url.path.startswith("/static/")
+        ):
             return await call_next(request)
 
         authorization = request.headers.get("authorization", "")
@@ -179,6 +220,10 @@ def create_app(
         request.state.auth_session_token = session_token if session_valid else None
         return await call_next(request)
 
+    @app.post("/v1/answers/validate", response_model=CitationValidationResponse)
+    def validate_answer_citations(payload: CitationValidationRequest) -> CitationValidationResponse:
+        return citation_validator.validate(payload)
+
     @app.post("/v1/answers/context", response_model=AnswerContextResponse)
     def prepare_answer_context(payload: AnswerContextRequest) -> AnswerContextResponse:
         try:
@@ -198,6 +243,13 @@ def create_app(
             raise HTTPException(status_code=504, detail="Model provider timed out") from exc
         except ModelProviderFailure as exc:
             raise HTTPException(status_code=502, detail="Model provider request failed") from exc
+
+    @app.get("/", include_in_schema=False)
+    def workspace_home() -> FileResponse:
+        return FileResponse(
+            static_directory / "index.html",
+            headers={"Cache-Control": "no-store"},
+        )
 
     @app.get("/health")
     def health() -> dict[str, str]:
@@ -614,6 +666,81 @@ def create_app(
             return {"items": documents.search(payload.query, limit=payload.limit)}
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    @app.post("/v1/documents/context")
+    def prepare_document_context(payload: DocumentContextRequest) -> dict:
+        try:
+            return documents.prepare_context(
+                payload.query,
+                passage_limit=payload.passage_limit,
+                max_context_chars=payload.max_context_chars,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    @app.get("/v1/agents")
+    def list_agents() -> dict[str, list[dict]]:
+        return {"items": agents.list_agents()}
+
+    @app.get("/v1/agents/tools")
+    def list_agent_tools(
+        agent_id: Annotated[str | None, Query(max_length=64)] = None,
+    ) -> dict[str, list[dict]]:
+        try:
+            return {"items": agents.list_tools(agent_id=agent_id)}
+        except LookupError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    @app.post("/v1/agents/{agent_id}/invoke", status_code=201)
+    def invoke_agent_tool(agent_id: str, payload: AgentInvokeRequest) -> dict:
+        try:
+            return agents.invoke(agent_id, payload.tool_name, payload.arguments)
+        except LookupError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except PermissionError as exc:
+            raise HTTPException(status_code=403, detail=str(exc)) from exc
+        except (TypeError, ValueError) as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    @app.get("/v1/agents/runs")
+    def list_agent_runs(
+        limit: Annotated[int, Query(ge=1, le=100)] = 50,
+    ) -> dict[str, list[dict]]:
+        return {"items": agents.store.list_runs(limit=limit)}
+
+    @app.get("/v1/agents/events")
+    def list_agent_events(
+        run_id: Annotated[str | None, Query(max_length=128)] = None,
+        limit: Annotated[int, Query(ge=1, le=100)] = 100,
+    ) -> dict[str, list[dict]]:
+        return {"items": agents.store.list_events(run_id=run_id, limit=limit)}
+
+    @app.get("/v1/models/capabilities")
+    def model_capabilities() -> dict:
+        return answer_service.capabilities()
+
+    @app.post("/v1/documents/answer")
+    async def answer_from_documents(payload: DocumentAnswerRequest) -> dict:
+        try:
+            return await answer_service.answer(
+                payload.query,
+                allow_provider_processing=payload.allow_provider_processing,
+                passage_limit=payload.passage_limit,
+                max_context_chars=payload.max_context_chars,
+                max_output_tokens=payload.max_output_tokens,
+            )
+        except PermissionError as exc:
+            raise HTTPException(status_code=403, detail=str(exc)) from exc
+        except NoSourceContext as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        except InvalidSourceCitation as exc:
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
+        except ModelProviderUnavailable as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
+        except ModelProviderTimeout as exc:
+            raise HTTPException(status_code=504, detail=str(exc)) from exc
+        except ModelProviderFailure as exc:
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
 
     @app.post("/v1/knowledge", response_model=KnowledgeRecord, status_code=201)
     def create_knowledge(payload: KnowledgeCreate) -> KnowledgeRecord:
