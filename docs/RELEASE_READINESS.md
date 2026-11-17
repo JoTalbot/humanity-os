@@ -31,6 +31,8 @@ The integrated HUMANITY ONE 0.1 candidate is tracked in draft PR #26. CI run [43
 - [ ] Select a versioning and release artifact/signing policy.
 
 ### Security and privacy
+
+Use [`docs/SECURITY_REVIEW_CHECKLIST.md`](SECURITY_REVIEW_CHECKLIST.md) as the evidence-based review record. It is a review plan only; no independent security review has yet been completed.
 - [ ] Independent security review and penetration test of authentication, CSRF, session lifecycle, loopback enforcement, export/import and browser UI.
 - [x] Implement Agent Runtime lease ownership, heartbeat renewal, concurrent expiry recovery, stale-worker fencing, and document the single-host/local-SQLite limitation (stacked PR #28; code CI [43947884587](https://github.com/JoTalbot/humanity-os/actions/runs/43947884587), 142 tests passed, Ruff and pip-audit passed).
 - [ ] Complete independent security review of PR #28, including SQLite locking behavior, heartbeat failure handling, clock-step behavior, import/export recovery, and stale-worker fencing. Keep production single-process until this review and final integration review are complete.
