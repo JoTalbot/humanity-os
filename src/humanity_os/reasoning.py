@@ -12,7 +12,8 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from humanity_os.claim_assessments import ClaimAssessmentStore
 from humanity_os.claim_graph import ClaimGraphStore
-from humanity_os.models import ClaimAssessment, ClaimNode, ClaimRelation
+from humanity_os.evidence import EvidenceAssessmentStore
+from humanity_os.models import ClaimAssessment, ClaimNode, ClaimRelation, EvidenceAssessment
 from humanity_os.store import KnowledgeStore
 
 
@@ -38,6 +39,7 @@ class EvidenceReference(BaseModel):
     source_type: str = "unknown"
     independence_group_id: str | None = None
     derived_from_source_ids: list[str] = Field(default_factory=list)
+    assessments: list[EvidenceAssessment] = Field(default_factory=list)
     excerpt: str | None = None
     locator: str | None = None
 
@@ -101,11 +103,13 @@ class ReasoningEngine:
         database_path: str | Path,
         knowledge: KnowledgeStore,
         graph: ClaimGraphStore,
+        evidence_assessments: EvidenceAssessmentStore | None = None,
     ) -> None:
         self.database_path = str(database_path)
         self.knowledge = knowledge
         self.graph = graph
         self.assessments = ClaimAssessmentStore(self.database_path)
+        self.evidence_assessments = evidence_assessments or EvidenceAssessmentStore(self.database_path)
         with self._connect() as connection:
             connection.execute(
                 """CREATE TABLE IF NOT EXISTS reasoning_runs (
@@ -188,12 +192,19 @@ class ReasoningEngine:
                     break
 
         evidence: list[EvidenceReference] = []
+        assessment_cache: dict[str, list[EvidenceAssessment]] = {}
         for claim in selected.values():
             record = self.knowledge.get(claim.knowledge_id)
             if record is None:
                 continue
             source_by_id = {source.id: source for source in record.sources}
             evidence_by_id = {item.id: item for item in record.evidence}
+            if record.id not in assessment_cache:
+                assessment_cache[record.id] = self.evidence_assessments.latest_for_knowledge(record.id)
+            assessments_by_key = {
+                (item.source_id, item.evidence_id): item
+                for item in assessment_cache[record.id]
+            }
             for evidence_id in claim.evidence_ids:
                 item = evidence_by_id.get(evidence_id)
                 source = source_by_id.get(item.source_id) if item else None
@@ -211,6 +222,7 @@ class ReasoningEngine:
                     source_type=source.source_type,
                     independence_group_id=source.independence_group_id,
                     derived_from_source_ids=list(source.derived_from_source_ids),
+                    assessments=[assessment for key in ((source.id, item.id), (source.id, None)) if (assessment := assessments_by_key.get(key)) is not None],
                     excerpt=item.excerpt,
                     locator=item.locator,
                 ))
