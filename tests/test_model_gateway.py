@@ -51,6 +51,22 @@ class InvalidMetadataProvider:
         return ProviderGeneration(output="private output")
 
 
+class BlankMetadataProvider:
+    provider_id = "   "
+    model_id = "blank-metadata-v1"
+
+    async def generate(self, request):
+        return ProviderGeneration(output="private output")
+
+
+class PaddedMetadataProvider:
+    provider_id = " test-provider "
+    model_id = " deterministic-v1 "
+
+    async def generate(self, request):
+        return ProviderGeneration(output="valid output")
+
+
 class SlowProvider:
     provider_id = "test-provider"
     model_id = "slow-v1"
@@ -164,8 +180,28 @@ def test_malformed_provider_response_is_sanitized():
 def test_invalid_provider_metadata_is_sanitized():
     gateway = ModelGateway(InvalidMetadataProvider())
 
-    with pytest.raises(Exception) as error:
+    with pytest.raises(ModelProviderFailure) as error:
         asyncio.run(gateway.generate(ModelGenerationRequest(prompt="private prompt")))
 
     assert str(error.value) == "Model provider request failed"
     assert "private prompt" not in str(error.value)
+
+
+
+def test_blank_provider_metadata_is_sanitized():
+    gateway = ModelGateway(BlankMetadataProvider())
+
+    with pytest.raises(ModelProviderFailure) as error:
+        asyncio.run(gateway.generate(ModelGenerationRequest(prompt="private prompt")))
+
+    assert str(error.value) == "Model provider request failed"
+    assert "private prompt" not in str(error.value)
+
+
+def test_provider_and_model_identifiers_are_normalized():
+    gateway = ModelGateway(PaddedMetadataProvider())
+
+    response = asyncio.run(gateway.generate(ModelGenerationRequest(prompt="hello")))
+
+    assert response.provider == "test-provider"
+    assert response.model == "deterministic-v1"
