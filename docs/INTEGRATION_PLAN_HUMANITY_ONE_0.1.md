@@ -67,7 +67,7 @@ Use `humanity-one/source-grounded-context` (PR #23 head) as the working baseline
 
 ## Known hardening items to track
 
-- Agent Runtime: event listing is bounded, run completion is single-use, and PR #28 adds worker identity, expiring leases, heartbeat renewal and atomic stale-run recovery. Production remains single-process until independent security review; the lease design is limited to same-host processes sharing a local SQLite database with reliable locking.
+- Agent Runtime: worker identity, expiring leases, heartbeat renewal and atomic stale-run recovery are ported from PR #28. The follow-up branch adds a SQLite write-locked lease transaction around memory proposal creation and records the initiating agent as the audit actor. Production remains single-process until independent security review; coordination is limited to same-host processes sharing local SQLite with reliable locking.
 - Citation verification: strictly validate citation identifier syntax and source offsets; document whether citation counts mean unique IDs or occurrences.
 - Workspace UI: revalidate authentication, CSRF, loopback restrictions, static asset routing, and behavior with the latest memory schema.
 - Deployment: do not describe the current runtime as OS-sandboxed or fully autonomous.
