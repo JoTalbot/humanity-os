@@ -1,3 +1,16 @@
+# Current candidate status — 2026-11-18 (latest batch)
+
+- Active candidate: PR #29, open Draft, branch `fix/agent-lease-side-effects-audit`, base `integration/humanity-one-0.1`.
+- Latest HEAD: `66eaf0631d9fdb36d9242799afdccb501298fa2f`.
+- Candidate vs integration base: **186 ahead / 0 behind**.
+- Candidate vs `main`: **597 ahead / 1 behind**, status `diverged`; merge base `de57a48d8d57c023d02ee1c337e29bb557451a9a`.
+- No workflow runs are attached to this exact HEAD. The gateway metadata regression tests were added but have not been executed.
+- This batch rejects blank provider/model identifiers, normalizes surrounding whitespace, tightens the regression assertion to the sanitized `ModelProviderFailure` type, and updates the Model Gateway contract documentation.
+- Manual operator acceptance remains deferred and unvalidated. Independent security review is not required.
+- No merge, rebase, cherry-pick, force-push, ref rewrite, release, publication, or deployment was performed. `main` and the integration base remain untouched.
+
+---
+
 # Current candidate status — 2026-11-18
 
 - Active candidate: PR #29, open Draft, branch `fix/agent-lease-side-effects-audit`, base `integration/humanity-one-0.1`.
