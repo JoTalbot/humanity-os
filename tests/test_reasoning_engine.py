@@ -312,6 +312,16 @@ def test_reasoning_comparison_profiles_evidence_without_truth_ranking(tmp_path):
         "evidence_ids": ["evidence-1", "evidence-2"],
     })
     assert first.status_code == second.status_code == 201
+    for claim, classification in [
+        (first.json(), "assumption"),
+        (second.json(), "hypothesis"),
+    ]:
+        assessment = client.post("/v1/claim-assessments", json={
+            "claim_id": claim["id"],
+            "classification": classification,
+            "rationale": "Owner classification for the comparison fixture.",
+        })
+        assert assessment.status_code == 201
     for evidence_id, source_id, stance, status in [
         ("evidence-1", "source-1", "supports", "assessed"),
         ("evidence-2", "source-2", "refutes", "review_required"),
@@ -341,6 +351,8 @@ def test_reasoning_comparison_profiles_evidence_without_truth_ranking(tmp_path):
     assert body["unique_evidence_ids"][second.json()["id"]] == [unique]
     profile_a = body["evidence_profiles"][first.json()["id"]]
     profile_b = body["evidence_profiles"][second.json()["id"]]
+    assert profile_a["claim_classifications"] == {"assumption": 1}
+    assert profile_b["claim_classifications"] == {"hypothesis": 1}
     assert profile_a["assessed_evidence_link_count"] == 1
     assert profile_a["review_required_evidence_link_count"] == 0
     assert profile_b["assessed_evidence_link_count"] == 1
