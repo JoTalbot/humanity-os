@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import os
 import sqlite3
 import threading
@@ -98,12 +99,20 @@ class AgentRuntimeStore:
         worker_id: str | None = None,
         lease_duration_seconds: float = 60,
     ) -> None:
-        if lease_duration_seconds <= 0:
-            raise ValueError("Agent run lease duration must be positive")
+        if isinstance(lease_duration_seconds, bool):
+            raise ValueError("Agent run lease duration must be a finite positive number")
+        try:
+            lease_duration = float(lease_duration_seconds)
+        except (TypeError, ValueError, OverflowError) as exc:
+            raise ValueError(
+                "Agent run lease duration must be a finite positive number"
+            ) from exc
+        if not math.isfinite(lease_duration) or lease_duration <= 0:
+            raise ValueError("Agent run lease duration must be a finite positive number")
         self.database_path = str(database_path)
         self._process_id = os.getpid()
         self.worker_id = worker_id or str(uuid4())
-        self.lease_duration_seconds = float(lease_duration_seconds)
+        self.lease_duration_seconds = lease_duration
         self.heartbeat_interval_seconds = max(0.01, self.lease_duration_seconds / 3)
         with self._connect() as connection:
             # Serialize first-start and legacy-schema migration across workers.
