@@ -95,27 +95,21 @@ class DocumentAnswerService:
         # Re-fetch exact chunks after the provider call: documents may be
         # edited or deleted while generation is in flight. Use full stored
         # chunk metadata so bounded/truncated context excerpts still verify.
-        current_by_chunk = {
-            item["chunk_id"]: item for item in self.documents.search(query, limit=50)
-        }
         for passage in packet["passages"]:
-            current = current_by_chunk.get(passage["chunk_id"])
+            current = self.documents.get_source_chunk(
+                passage["document_id"], passage["chunk_id"]
+            )
             if current is None:
                 raise SourceChangedDuringGeneration(
                     "A source document changed while the answer was being generated"
                 )
             # A context excerpt may be truncated to fit the prompt budget.
-            # The immutable chunk ID and hashes identify the full stored chunk;
-            # the excerpt end_offset must not be compared to the full chunk.
-            canonical_fields = (
+            # Compare immutable chunk identity and verify the full current chunk.
+            identity_fields = (
                 "document_id", "chunk_id", "document_hash", "chunk_hash",
                 "start_offset",
             )
-            canonical_id = ":".join(str(current[key]) for key in canonical_fields)
-            current["citation_id"] = "src-" + hashlib.sha256(
-                canonical_id.encode("utf-8")
-            ).hexdigest()[:24]
-            if any(current[key] != passage[key] for key in canonical_fields):
+            if any(current[key] != passage[key] for key in identity_fields):
                 raise SourceChangedDuringGeneration(
                     "A source document changed while the answer was being generated"
                 )
