@@ -138,9 +138,9 @@ PR #29 is the active integrated Draft candidate, based on `integration/humanity-
 
 This section supersedes the earlier 2026-11-18 topology counts and CI-head references above.
 
-- Active candidate: PR #29, branch `fix/agent-lease-side-effects-audit`, head `ce14e80108c2d7cf774c2e46e11298cae47ce6e5`; base `integration/humanity-one-0.1` at `bfaf67c9cfaad81ec66a430c05cc25294f429979`. PR #29 is open and Draft. GitHub currently reports it mergeable, but this status does not resolve the wider stacked-history divergence.
-- PR #29 is 34 commits ahead and zero behind its integration base.
-- Compared with `main`, PR #29 is 445 commits ahead and one behind; histories are divergent. The merge base is `de57a48d8d57c023d02ee1c337e29bb557451a9a`. No merge, rebase, cherry-pick, force-push, or ref rewrite is authorized or performed.
+- Active candidate: PR #29, branch `fix/agent-lease-side-effects-audit`, head `5ec2f46da157655dcf2b3ad6f6b147f5e46a5201`; base `integration/humanity-one-0.1` at `bfaf67c9cfaad81ec66a430c05cc25294f429979`. PR #29 is open and Draft. GitHub currently reports it mergeable, but this status does not resolve the wider stacked-history divergence.
+- PR #29 is 36 commits ahead and zero behind its integration base.
+- Compared with `main`, PR #29 is 447 commits ahead and one behind; histories are divergent. The merge base is `de57a48d8d57c023d02ee1c337e29bb557451a9a`. No merge, rebase, cherry-pick, force-push, or ref rewrite is authorized or performed.
 - The sole main-only commit is `ac46e16728382c0af800421978f0bf7df6943de9` (`test(memory): cover explicit approval and portable lifecycle`). It adds `tests/test_memory.py`. The integration candidate has the same path with a different expanded implementation: 10 tests versus 7 on `main`, including explicit approval/rejection, exact source linkage, archive/restore, authenticated API lifecycle, export/import, tamper rejection, append-only events, and legacy schema compatibility. This is a content-level supersession assessment, not proof of a clean merge or permission to rewrite history.
 - PR #28 remains the original lease implementation/reference; PR #26 remains the integration-foundation reference. Neither should be merged independently.
 - Latest inspected CI run [44280523557](https://github.com/JoTalbot/humanity-os/actions/runs/44280523557) completed successfully with all 10 quality steps passing: lint, tests, dependency audit, wheel/sdist build and inspection, and clean-virtualenv installed-app/HTTP smoke checks.
@@ -155,3 +155,6 @@ This section supersedes the earlier 2026-11-18 topology counts and CI-head refer
 3. Validate clean-machine owner setup, backup, restore and portable import; existing CI smoke checks do not establish this operational acceptance.
 4. Resolve data deletion/retention/backup disposal, encryption/key recovery, privacy disclosures, release provenance, license/governance and accessibility decisions.
 5. Prepare the HUMANITY ONE 0.1 release-candidate evidence package. Do not merge, tag, publish, deploy, expose a network listener or activate a provider without separate explicit authorization.
+
+
+Topology refresh after the documentation batch: PR #29 head is now `5ec2f46da157655dcf2b3ad6f6b147f5e46a5201`; comparison is 36 commits ahead / 0 behind `integration/humanity-one-0.1`, and 447 ahead / 1 behind `main` (diverged). CI for the updated documentation commits was automatically triggered and is pending at the time of this note.
