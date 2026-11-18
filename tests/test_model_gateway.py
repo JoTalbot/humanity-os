@@ -7,6 +7,7 @@ from humanity_os.app import create_app
 from humanity_os.model_gateway import (
     ModelGateway,
     ModelGenerationRequest,
+    ModelProviderFailure,
     ModelProviderTimeout,
     ModelUsage,
     ProviderGeneration,
@@ -153,7 +154,7 @@ def test_model_endpoint_remains_authenticated_by_default(tmp_path):
 def test_malformed_provider_response_is_sanitized():
     gateway = ModelGateway(MalformedProvider())
 
-    with pytest.raises(Exception) as error:
+    with pytest.raises(ModelProviderFailure) as error:
         asyncio.run(gateway.generate(ModelGenerationRequest(prompt="private prompt")))
 
     assert str(error.value) == "Model provider request failed"
