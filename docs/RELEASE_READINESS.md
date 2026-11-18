@@ -31,3 +31,13 @@ The successful CI run recorded above belongs to the earlier candidate HEAD state
 - If a cited source was edited, deleted or otherwise no longer matches the retrieved evidence during generation, the answer is discarded and `POST /v1/answers` returns HTTP 409 for a fresh-context retry.
 - Added a focused regression test that mutates a source during the provider call and expects fail-closed behavior.
 - Tests and workflows have not been run for this increment. The targeted Agent Runtime and Answer Engine checks remain queued for the next validation milestone; no CI-green claim is made for the current HEAD.
+
+
+## Evidence-aware Reasoning Engine increment — 2026-11-18
+
+- Added latest-per-source/evidence assessment retrieval to the append-only evidence assessment store.
+- Reasoning runs now include the latest recorded human evidence assessment for each exact evidence link and the latest source-level assessment, without changing or deleting assessment history.
+- The API injects the existing evidence assessment store into the Reasoning Engine; no duplicate assessment ledger is created.
+- Added a regression test proving that a later human review is the one surfaced in a new reasoning run.
+- Added `docs/REASONING_ENGINE.md` defining the contract and epistemic limits.
+- Tests/workflows have not been run for this increment. The Reasoning Engine regression suite remains pending targeted validation.
