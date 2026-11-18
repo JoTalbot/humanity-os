@@ -174,3 +174,20 @@ PR #29 is the active integrated Draft candidate, based on `integration/humanity-
 - The release-readiness document was synchronized to this latest CI evidence. A documentation-only commit follows the verified code head; any automatic CI triggered by that push is separate evidence and must be checked before claiming the updated PR head is green.
 - Operator acceptance remains unexecuted on a genuinely clean machine. Git-history reconciliation, privacy/key-recovery decisions, governance/license, accessibility and supported-platform acceptance remain open.
 - PR #29 remains Draft. PR #26 and #28 remain provenance references; PR #28 must not be merged independently. No merge, release, deployment, tag, or history rewrite was performed.
+
+
+## Final candidate status — 2026-11-18 (supersedes earlier snapshots)
+
+- Active candidate is PR #29, branch `fix/agent-lease-side-effects-audit`, base `integration/humanity-one-0.1`, open Draft.
+- Current candidate head before this documentation batch was `17a2258842921c74126113141fdcea8ce90be839`.
+- GitHub Actions [44284661349](https://github.com/JoTalbot/humanity-os/actions/runs/44284661349) completed successfully on that exact head. All 10 quality steps passed, including lint, tests, dependency audit, wheel/sdist build, distribution verification and clean-virtual-environment packaged-app HTTP smoke test.
+- The release-readiness register has been consolidated and synchronized to that CI result. This documentation commit is newer than the verified head; its automatically triggered CI must pass before claiming the new HEAD is green.
+- The branch remains divergent from `main` (latest comparison before this documentation batch: 470 ahead / 1 behind). The candidate's integration-base comparison before this documentation batch was 59 ahead / 0 behind. These are topology facts, not merge-readiness approval.
+- The main-only memory-test intent is covered in the candidate's expanded test suite; Git ancestry itself is not reconciled. Do not blindly merge, rebase or cherry-pick the stacked branch chain.
+- Clean-machine operator acceptance has not been executed. Legal/privacy/key-recovery, retention, license, governance, accessibility and supported-platform decisions remain open. They require owner/operator or qualified external evidence and must not be marked complete by documentation alone.
+- PR #26 remains the integration-foundation reference. PR #28 remains the original lease implementation/reference and must not be merged independently. PR #29 is the sole integrated candidate.
+- No merge, rebase, cherry-pick, force-push, ref rewrite, tag, publication, deployment or production operation was performed.
+
+## Completion boundary
+
+The software candidate and automated validation are in a reviewable state. HUMANITY ONE 0.1 cannot honestly be called a completed public release until the mandatory gates in [RELEASE_READINESS.md](RELEASE_READINESS.md) have evidence and the owner separately authorizes integration/publication. The remaining clean-machine procedure is ready to execute; it is not an automated CI task.
