@@ -113,7 +113,7 @@ def test_agent_runtime_denies_ungranted_tools_and_unknown_agents(tmp_path):
 
 
 def test_curator_can_create_pending_memory_but_never_approve_it(tmp_path):
-    _, client = _client(tmp_path)
+    app, client = _client(tmp_path)
     result = client.post(
         "/v1/agents/curator/invoke",
         json={
@@ -131,6 +131,12 @@ def test_curator_can_create_pending_memory_but_never_approve_it(tmp_path):
     assert result.json()["result"]["requires_owner_approval"] is True
     assert client.get("/v1/memories").json()["items"] == []
     assert client.get(f"/v1/memory/proposals/{proposal_id}").json()["status"] == "pending_review"
+    run = app.state.agent_runtime.store.list_runs()[0]
+    assert run["status"] == "completed"
+    assert [event["event_type"] for event in app.state.agent_runtime.store.list_events(run["id"])] == [
+        "tool_invocation_started",
+        "tool_invocation_completed",
+    ]
     assert "memory.approve" not in {
         item["name"] for item in client.get(
             "/v1/agents/tools", params={"agent_id": "curator"}
