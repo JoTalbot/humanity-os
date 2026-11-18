@@ -64,3 +64,13 @@ The comparison also identifies evidence links shared across all alternatives and
 Each reasoning run also checks the selected bounded claim set for possible contradictions using a deliberately narrow deterministic rule: the claims must have the same non-empty subject, predicate and object after case/whitespace normalization, the same scope, temporal scope and modality, and opposite explicit polarity (`affirmed` versus `negated`). Matching claims are returned as `potential_contradictions` with the exact basis and both claim IDs.
 
 This is candidate discovery, not natural-language entailment or a semantic contradiction judgment. It does not infer negation from prose, treat `unknown` polarity as opposition, or create graph relations automatically. Explicit reviewer-authored `contradicts` edges remain separately represented by `contradiction_candidates`. Answer Engine receives the bounded structured candidates as untrusted context.
+
+## Temporal claim differences
+
+When two selected claims share the same normalized non-empty subject, predicate and object, scope and modality, but carry different non-empty `temporal_scope` labels, the run reports a `temporal_claim_differences` entry instead of treating opposite polarities as a direct contradiction. The record preserves both claim IDs, both original time labels and whether their polarities are the same or opposite.
+
+This is deliberately label-level only. The engine does not parse arbitrary date expressions, infer chronological order, determine interval overlap, or conclude that a change occurred. Claims with the same time label and opposite explicit polarity remain eligible for structured contradiction candidate detection.
+
+## Declared dependency paths
+
+Reasoning runs expose `declared_dependency_paths`, containing only paths whose every traversed edge is an explicit `depends_on` relation. Each path preserves the ordered claim IDs and relation IDs, so an explanation can be traced to the exact graph records. These edges represent declared dependency, not experimentally established causation. Other relation types remain in the general graph paths and are not promoted into dependency chains.
