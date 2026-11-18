@@ -134,24 +134,21 @@ PR #29 is the active integrated Draft candidate, based on `integration/humanity-
 - CI update after the 2026-11-18 documentation and backup/restore test batch: [run 44279992873](https://github.com/JoTalbot/humanity-os/actions/runs/44279992873) passed all quality steps on head `bd63fe951377be1c3b82b8bb4087609f7bb89737`; 146 tests passed, one Starlette TestClient deprecation warning. The branch is 31 commits ahead and zero behind `integration/humanity-one-0.1`, and 442 commits ahead / one behind `main` (diverged). The new tests exercise CLI backup, backup verification, restore, and preservation of the pre-restore state in a safety backup. Clean-machine, cross-platform owner setup and operational recovery still require separate acceptance.
 
 
-## Reconciliation snapshot — 2026-11-18 (current)
+## Current integration snapshot — 2026-11-18
 
-- Active candidate: PR #29, branch `fix/agent-lease-side-effects-audit`, head `fe5cca73ac068a4a86ed8e9c4d74c321fd15e373`; base `integration/humanity-one-0.1` at `bfaf67c9cfaad81ec66a430c05cc25294f429979`. PR #29 remains open and Draft. GitHub's mergeable flag does not resolve the stacked-history divergence.
-- Live comparison: 40 commits ahead / 0 behind the integration base; 451 ahead / 1 behind `main`. Histories are divergent; merge base `de57a48d8d57c023d02ee1c337e29bb557451a9a`.
-- Latest automatic CI run for this exact head: [44281745359](https://github.com/JoTalbot/humanity-os/actions/runs/44281745359), in progress at the time of this snapshot. The preceding head's run [44281451823](https://github.com/JoTalbot/humanity-os/actions/runs/44281451823) passed all 10 quality steps; it is not evidence for the new head.
-- The sole main-only commit is `ac46e16728382c0af800421978f0bf7df6943de9` (`test(memory): cover explicit approval and portable lifecycle`). It adds `tests/test_memory.py`; the integration candidate has the same path with an expanded implementation (10 tests versus 7 on `main`). Treat this as content-level supersession only, not a reconciled Git history.
-- PR #28 remains the original lease implementation/reference; PR #26 remains the integration-foundation reference. Neither should be merged independently.
-- Source PRs remain open as provenance records. Do not merge the stack as separate independent feature changes after the integrated candidate.
-- Open tracked requirements still include issue #2 (fail-closed authentication and first-run boundary) and issue #4 (complete workspace export and verified deletion), alongside accessibility, privacy/retention, governance and clean-machine operator acceptance. These require implementation/owner decisions; they do not authorize external review or deployment.
-- Independent security review, external audit and penetration testing are canceled/not required. Project-owned authorization, regression, dependency and operational checks remain in scope.
-- No merge, rebase, cherry-pick, force-push, release, deployment, external integration or production action was performed.
+- Active candidate: PR #29, head `03d34e577f52ee55eeeda3a72f29bf9c88819d95`, based on `integration/humanity-one-0.1`. PR remains open and Draft.
+- Live comparison: 42 commits ahead / 0 behind integration; 453 ahead / 1 behind `main`. Histories diverge at merge base `de57a48d8d57c023d02ee1c337e29bb557451a9a`.
+- CI [44281853101](https://github.com/JoTalbot/humanity-os/actions/runs/44281853101) passed all 10 quality steps on this exact head: Ruff, pytest, dependency audit, wheel/sdist build, distribution verification and clean-venv packaged-app smoke test.
+- Issue #2 implementation is present: authentication defaults to fail-closed, owner setup is an explicit local CLI operation, and ASGI middleware rejects non-loopback peers. Regression coverage includes anonymous access, bearer auth, owner sessions, CSRF, login throttling and non-loopback requests. Clean-machine operator acceptance remains separate.
+- Issue #4 implementation is present: versioned workspace export schema 1.3.0, SHA-256 integrity metadata, secret exclusion, validated import with pre-import backup, and offline confirmed deletion with verified pre-delete backup plus WAL/SHM handling. Privacy and retention limits are documented in `docs/PRIVACY_MODEL.md`, `docs/DATA_RETENTION.md` and `docs/LOCAL_DEVELOPMENT.md`. Issue remains open until the integrated candidate is accepted.
+- PR #26 and #28 remain provenance references; #29 is the integrated candidate. The single main-only memory-test commit has expanded content-equivalent coverage in the integration branch; Git history itself remains unreconciled.
+- No merge, rebase, cherry-pick, force-push, release or deployment was performed.
 
-## Remaining release gates
+## Remaining gates
 
-1. Complete a file-level provenance inventory of the stacked history and settle an owner-approved strategy for the 451/1 divergence without discarding the main-only commit.
-2. Close issue #2 through project-owned tests for anonymous access, first-run owner setup, direct ASGI startup and loopback/network boundary behavior.
-3. Close issue #4 with a versioned full-workspace export, secret exclusion, owner-confirmed deletion, retention/backup disposal policy and round-trip/deletion tests.
-4. Validate clean-machine owner setup, startup, backup, restore and portable import on supported operating systems.
-5. Decide encryption/key recovery, privacy disclosures/legal basis, release provenance/signing, license, governance and contribution rules.
-6. Complete accessibility evaluation and supported desktop/mobile workflow acceptance.
-7. Assemble HUMANITY ONE 0.1 Release Candidate evidence. Do not merge, tag, publish, deploy, expose a network listener or activate a provider without separate explicit owner authorization.
+1. Resolve the 453/1 history divergence while preserving source PR provenance.
+2. Complete clean-machine owner setup, startup, backup, restore and import acceptance.
+3. Decide encryption/key recovery, privacy/legal disclosures, retention and backup disposal.
+4. Finalize license, governance, contribution rules and release provenance.
+5. Complete accessibility and supported desktop/mobile acceptance.
+6. Assemble HUMANITY ONE 0.1 RC evidence.
