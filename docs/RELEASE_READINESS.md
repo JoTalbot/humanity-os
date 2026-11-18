@@ -135,3 +135,8 @@ Fresh GitHub API comparison after the earlier snapshots:
 - Against `main`: 578 ahead, 1 behind (diverged); merge base `de57a48d8d57c023d02ee1c337e29bb557451a9a`.
 - Against `integration/humanity-one-0.1`: 167 ahead, 0 behind.
 - This measurement is intentionally tied to the exact input SHA above; this note itself is a subsequent documentation-only commit. Re-run comparisons before any history operation.
+
+
+## Owner decision — operator acceptance deferred (2026-11-18)
+
+The owner has cancelled the HUMANITY ONE 0.1 manual operator-acceptance runbook for the current development phase. Do not schedule or execute the clean-machine procedure, backup/restore/import walkthrough, or collect operator evidence as part of current work. The runbook remains archived as reference material only. Its non-execution is not a current development blocker and must not be reported as an active release gate. This decision does not claim that those operational scenarios have passed; their status is deferred/unvalidated. Continue with implementation, branch-history reconciliation, and milestone-based automated validation. Revisit operator acceptance only after a separate owner decision.
