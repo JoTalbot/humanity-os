@@ -51,3 +51,11 @@ The successful CI run recorded above belongs to the earlier candidate HEAD state
 - Exact post-generation source verification now fetches each chunk by document/chunk ID rather than relying on its position in a bounded search result. Full-chunk verification works when the prompt excerpt is truncated.
 - Added integration regression coverage for reasoning context, latest reviewed evidence, and truncated source excerpts.
 - Tests/workflows have not been run for this increment. Targeted Answer Engine and Reasoning Engine validation remains outstanding.
+
+## Source-lineage integration — 2026-11-18
+
+- Reasoning Runs now embed the bounded Evidence Independence report for the selected claims' parent knowledge records.
+- The report surfaces declared independence groups, shared upstream derivation clusters, and unknown lineage. It does not infer independence from URLs, publishers or hashes.
+- The report is capped at 500 declared sources. If the cap is exceeded, the run remains available and explicitly marks lineage analysis as unassessed.
+- Answer Engine receives a compact bounded lineage summary alongside claims, relations and evidence assessments when a root claim is supplied.
+- Added regression coverage for dependent-source clusters in reasoning snapshots and assertion that lineage context reaches the answer provider. Tests/workflows have not been run.
