@@ -81,6 +81,12 @@ class TemporalClaimDifference(BaseModel):
     )
 
 
+class DeclaredDependencyPath(BaseModel):
+    claim_ids: list[str]
+    relation_ids: list[str]
+    basis: Literal["explicit_depends_on_edges"] = "explicit_depends_on_edges"
+
+
 class ReasoningRun(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid4()))
     query: str
@@ -93,6 +99,7 @@ class ReasoningRun(BaseModel):
     relations: list[ClaimRelation]
     claim_assessments: list[ClaimAssessment]
     paths: list[list[str]]
+    declared_dependency_paths: list[DeclaredDependencyPath] = Field(default_factory=list)
     evidence: list[EvidenceReference]
     evidence_independence: EvidenceIndependenceReport | None = None
     contradiction_candidates: list[str]
@@ -356,6 +363,29 @@ class ReasoningEngine:
                     right_polarity=right.polarity,
                 ))
 
+        declared_dependency_paths: list[DeclaredDependencyPath] = []
+        for path in paths:
+            relation_ids: list[str] = []
+            for source_id, target_id in zip(path, path[1:]):
+                dependency = next(
+                    (
+                        edge for edge in selected_relations.values()
+                        if edge.relation == "depends_on"
+                        and edge.source_claim_id == source_id
+                        and edge.target_claim_id == target_id
+                    ),
+                    None,
+                )
+                if dependency is None:
+                    break
+                relation_ids.append(dependency.id)
+            else:
+                if relation_ids:
+                    declared_dependency_paths.append(DeclaredDependencyPath(
+                        claim_ids=path,
+                        relation_ids=relation_ids,
+                    ))
+
         knowledge_ids = sorted({claim.knowledge_id for claim in selected.values()})
         independence_report = None
         independence_limit_hit = False
@@ -375,6 +405,7 @@ class ReasoningEngine:
             "Only declared evidence links are shown; external sources are not fetched or authenticated.",
             "Potential contradictions are exact structured-field matches with opposite polarity, not semantic contradiction judgments.",
             "Temporal claim differences only report distinct non-empty time labels; interval overlap and chronological ordering are not inferred.",
+            "Declared dependency paths contain only explicit depends_on edges; they do not establish causation.",
             "Scope and temporal filters use exact string matching, not interval or ontology reasoning.",
             "The graph snapshot is bounded to at most 100 claims and 100 relations.",
         ]
@@ -399,6 +430,7 @@ class ReasoningEngine:
             relations=list(selected_relations.values()),
             claim_assessments=self.assessments.latest_for_claims(list(selected)),
             paths=paths,
+            declared_dependency_paths=declared_dependency_paths,
             evidence=evidence,
             evidence_independence=independence_report,
             contradiction_candidates=contradictions,
