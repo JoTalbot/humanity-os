@@ -233,3 +233,11 @@ This measurement is tied to the exact SHA above. The documentation commit that f
 - Temperature validation now rejects booleans and string inputs before Pydantic numeric coercion, in addition to rejecting NaN and infinities.
 - Added regression cases for both booleans and numeric-looking strings.
 - Tests and CI were not run for this increment; regression coverage remains pending targeted validation.
+
+
+### Latest measured topology — 2026-11-18
+- Candidate HEAD: `6415194717ba1d2293829091feecea93a5b49700`.
+- 215 commits ahead / 0 behind `integration/humanity-one-0.1`.
+- 626 commits ahead / 1 behind `main`; history remains divergent at merge base `de57a48d8d57c023d02ee1c337e29bb557451a9a`.
+- No workflow run or commit status is attached to this exact HEAD. The candidate is not CI-validated.
+- PR #29 remains open Draft. GitHub reports mergeable, but this does not resolve the divergent `main` history.
