@@ -222,3 +222,22 @@ def test_answer_route_uses_claim_graph_and_latest_evidence_assessment(tmp_path):
     assert "Reviewer found this excerpt does not establish the full claim." in provider.prompt
     assert "refutes" in provider.prompt
     assert body["processing"]["semantic_entailment_verified"] is False
+
+
+def test_answer_route_verifies_full_chunk_when_prompt_excerpt_is_truncated(tmp_path):
+    client = _client(tmp_path, CitedProvider())
+    content = "local-first design " + ("additional source material " * 80)
+    created = client.post("/v1/documents", json={
+        "filename": "long-source.txt",
+        "content": content,
+    })
+    assert created.status_code == 201
+
+    response = client.post("/v1/answers", json={
+        "query": "local-first design",
+        "allow_provider_processing": True,
+        "max_context_chars": 512,
+    })
+
+    assert response.status_code == 200
+    assert response.json()["citations"][0]["filename"] == "long-source.txt"
