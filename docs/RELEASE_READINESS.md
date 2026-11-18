@@ -227,3 +227,9 @@ This measurement is tied to the exact SHA above. The documentation commit that f
 - Reasoning-to-Answer context preparation now has a last-resort compact fallback when unusually large scalar metadata still exceeds the serialized prompt budget. The fallback drops graph payload rather than sending an oversized context.
 - Added regression coverage using pathological oversized metadata and asserting the serialized context stays within 24,000 characters.
 - Tests and CI were not run for this increment; the new regression cases remain pending targeted validation.
+
+
+### Model request input coercion — 2026-11-18
+- Temperature validation now rejects booleans and string inputs before Pydantic numeric coercion, in addition to rejecting NaN and infinities.
+- Added regression cases for both booleans and numeric-looking strings.
+- Tests and CI were not run for this increment; regression coverage remains pending targeted validation.
