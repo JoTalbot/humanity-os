@@ -190,3 +190,11 @@ This measurement is tied to the exact SHA above. The documentation commit that f
 - Implementation is unchanged; this closes a test-coverage gap around the existing single-transaction side-effect fence.
 - Test execution and CI were not run for this test-only increment. The check remains pending.
 - No merge, history rewrite, release, publication, or deployment was performed.
+
+
+## Expired-worker lease renewal regression — 2026-11-18
+
+- Added a focused regression test proving that a worker cannot renew an already expired lease or resurrect a run after recovery.
+- The test verifies exactly one interrupted transition and preserves the two-event append-only history.
+- Runtime implementation is unchanged; this adds coverage for the lease-expiry boundary in the existing conditional update.
+- Tests and CI were not run. The new regression remains pending execution.
