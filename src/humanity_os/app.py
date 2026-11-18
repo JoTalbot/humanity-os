@@ -20,7 +20,12 @@ from humanity_os.answer_context import (
     AnswerContextRequest,
     AnswerContextResponse,
 )
-from humanity_os.answering import DocumentAnswerService, InvalidSourceCitation, NoSourceContext
+from humanity_os.answering import (
+    DocumentAnswerService,
+    InvalidSourceCitation,
+    NoSourceContext,
+    SourceChangedDuringGeneration,
+)
 from humanity_os.auth import AuthStore
 from humanity_os.citation_verification import (
     CitationValidationRequest,
@@ -253,6 +258,11 @@ def create_app(
             raise HTTPException(status_code=502, detail="Model provider request failed") from exc
         except InvalidSourceCitation as exc:
             raise HTTPException(status_code=502, detail="Model response failed citation validation") from exc
+        except SourceChangedDuringGeneration as exc:
+            raise HTTPException(
+                status_code=409,
+                detail="A source changed during answer generation; retry with fresh context",
+            ) from exc
 
     @app.post("/v1/models/generate", response_model=ModelGenerationResponse)
     async def generate_model_output(
