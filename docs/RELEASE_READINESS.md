@@ -91,3 +91,16 @@ The successful CI run recorded above belongs to the earlier candidate HEAD state
 - Retain focused engineering review, explicit technical limitations, and the milestone-based validation policy in `DEVELOPMENT_CADENCE.md`.
 - Routine feature work does not trigger broad test campaigns. Run focused checks after completed feature batches or changes to critical invariants; reserve one full configured CI run for the exact HUMANITY ONE 0.1 release-candidate commit.
 - No manual workflow dispatch or broad test campaign was initiated by this documentation update.
+
+## Live branch topology snapshot — 2026-11-18
+
+Fresh GitHub comparison after the documentation-alignment batch:
+
+- PR #29 head: `f478bdd1a40c17d0ee995e118917b077b79ffb93` on `fix/agent-lease-side-effects-audit`; base: `integration/humanity-one-0.1` at `bfaf67c9cfaad81ec66a430c05cc25294f429979`.
+- Candidate vs integration base: **161 commits ahead, 0 behind**.
+- Candidate vs `main`: **572 commits ahead, 1 behind**, comparison status `diverged`; merge base: `de57a48d8d57c023d02ee1c337e29bb557451a9a`.
+- GitHub currently reports PR #29 open, Draft, and mergeable. This metadata does not resolve the divergent history or authorize merging.
+- The current head has no combined commit status checks attached. Historical CI runs do not validate this head.
+- The one main-only commit and the full stacked history still require an explicit, provenance-preserving integration decision. Do not attempt a blind merge, rebase, cherry-pick, force-push, or ref rewrite.
+
+This snapshot supersedes all earlier numeric ahead/behind counts in this file and the integration plan. Re-run the comparison before any future integration decision; branch counts are time-sensitive.
