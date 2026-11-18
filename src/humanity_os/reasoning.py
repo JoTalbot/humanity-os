@@ -245,6 +245,18 @@ class ReasoningEngine:
             and edge.source_claim_id in selected
             and edge.target_claim_id in selected
         )
+        knowledge_ids = sorted({claim.knowledge_id for claim in selected.values()})
+        independence_report = None
+        independence_limit_hit = False
+        if knowledge_ids:
+            try:
+                independence_report = self.independence.analyze(
+                    IndependenceQuery(knowledge_ids=knowledge_ids, max_sources=500)
+                )
+            except ValueError:
+                # Keep the reasoning result available, but never silently imply
+                # source independence when the bounded lineage analysis is incomplete.
+                independence_limit_hit = True
         limitations = [
             "This is a graph explanation, not a proof of truth.",
             "Claim and relation records are human-authored assertions; no truth score is calculated.",
@@ -262,18 +274,6 @@ class ReasoningEngine:
                 "Source-lineage analysis exceeded its 500-source bound; independence remains unassessed."
             )
 
-        knowledge_ids = sorted({claim.knowledge_id for claim in selected.values()})
-        independence_report = None
-        independence_limit_hit = False
-        if knowledge_ids:
-            try:
-                independence_report = self.independence.analyze(
-                    IndependenceQuery(knowledge_ids=knowledge_ids, max_sources=500)
-                )
-            except ValueError:
-                # Keep the reasoning result available, but never silently imply
-                # source independence when the bounded lineage analysis is incomplete.
-                independence_limit_hit = True
 
         result = ReasoningRun(
             query=request.query,
