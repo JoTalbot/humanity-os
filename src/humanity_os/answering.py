@@ -171,6 +171,8 @@ class DocumentAnswerService:
                 "human-authored classifications are not proof):\n"
                 + json.dumps(prompt_context, ensure_ascii=False, sort_keys=True)
                 + "\nUse this graph to organize the explanation and surface disagreements. "
+                "Potential contradiction candidates are mechanical structured-field matches, "
+                "not semantic contradiction judgments; treat them only as review leads. "
                 "Do not treat graph edges or assessments as independently verified truth. "
                 "Ground factual statements in the supplied document passages and cite them "
                 "with their exact [S#] labels. If the graph conflicts with the documents, "
