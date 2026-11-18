@@ -93,6 +93,7 @@ class HypothesisEvidenceProfile(BaseModel):
     evidence_stance_counts: dict[str, int]
     evidence_review_status_counts: dict[str, int]
     assessed_evidence_link_count: int
+    review_required_evidence_link_count: int
     unassessed_evidence_link_count: int
     distinct_source_count: int
     declared_independence_group_count: int
@@ -382,6 +383,7 @@ class ReasoningEngine:
             stances: dict[str, int] = {}
             statuses: dict[str, int] = {}
             assessed_links = 0
+            review_required_links = 0
             for item in run.evidence:
                 specific = next(
                     (entry for entry in item.assessments if entry.evidence_id is not None),
@@ -391,7 +393,10 @@ class ReasoningEngine:
                 if assessment is None:
                     statuses["unassessed"] = statuses.get("unassessed", 0) + 1
                     continue
-                assessed_links += 1
+                if assessment.status == "assessed":
+                    assessed_links += 1
+                else:
+                    review_required_links += 1
                 stances[assessment.stance] = stances.get(assessment.stance, 0) + 1
                 statuses[assessment.status] = statuses.get(assessment.status, 0) + 1
             profiles[run.root_claim_id] = HypothesisEvidenceProfile(
@@ -402,7 +407,10 @@ class ReasoningEngine:
                 evidence_stance_counts=stances,
                 evidence_review_status_counts=statuses,
                 assessed_evidence_link_count=assessed_links,
-                unassessed_evidence_link_count=len(run.evidence) - assessed_links,
+                review_required_evidence_link_count=review_required_links,
+                unassessed_evidence_link_count=(
+                    len(run.evidence) - assessed_links - review_required_links
+                ),
                 distinct_source_count=len({item.source_id for item in run.evidence}),
                 declared_independence_group_count=len({
                     item.independence_group_id
