@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import sqlite3
+
 from fastapi.testclient import TestClient
 
 from humanity_os.app import create_app
@@ -111,3 +113,42 @@ def test_answer_route_requires_a_configured_provider_even_after_consent(tmp_path
 
     assert response.status_code == 503
     assert response.json()["detail"] == "No model provider is configured"
+
+
+class MutatingProvider:
+    provider_id = "local-test"
+    model_id = "mutating-v1"
+
+    def __init__(self, database):
+        self.database = database
+
+    async def generate(self, request):
+        with sqlite3.connect(self.database) as connection:
+            connection.execute(
+                "UPDATE document_chunks SET content = ? WHERE ordinal = 0",
+                ("tampered while generation was running",),
+            )
+        return ProviderGeneration(
+            output="The source confirms the local-first design [S1]."
+        )
+
+
+def test_answer_route_rejects_source_changed_during_generation(tmp_path):
+    database = tmp_path / "workspace.sqlite3"
+    client = TestClient(
+        create_app(
+            str(database),
+            allow_unauthenticated_local=True,
+            model_provider=MutatingProvider(database),
+        ),
+        client=("127.0.0.1", 50000),
+    )
+    _add_source(client)
+
+    response = client.post(
+        "/v1/answers",
+        json={"query": "local-first design", "allow_provider_processing": True},
+    )
+
+    assert response.status_code == 409
+    assert response.json()["detail"].startswith("A source changed during answer generation")
