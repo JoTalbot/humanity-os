@@ -37,7 +37,7 @@ def _bounded_reasoning_context(context: dict, max_chars: int = 24_000) -> tuple[
     """Bound graph data before it is sent to a model provider."""
     compact = {key: context.get(key) for key in (
         "id", "root_claim_id", "query", "claims", "relations",
-        "claim_assessments", "evidence", "paths",
+        "claim_assessments", "evidence", "evidence_independence", "paths",
         "contradiction_candidates", "limitations",
     )}
     list_keys = (
@@ -46,6 +46,15 @@ def _bounded_reasoning_context(context: dict, max_chars: int = 24_000) -> tuple[
     )
     for key in list_keys:
         compact[key] = compact.get(key) or []
+    independence = compact.get("evidence_independence")
+    if independence is not None:
+        compact["evidence_independence"] = {
+            "source_count": len(independence.get("sources", [])),
+            "declared_groups": independence.get("declared_groups", [])[:30],
+            "dependent_clusters": independence.get("dependent_clusters", [])[:30],
+            "unknown_lineage": independence.get("unknown_lineage", [])[:50],
+            "limitations": independence.get("limitations", [])[:10],
+        }
     for claim in compact["claims"]:
         if isinstance(claim.get("statement"), str):
             claim["statement"] = claim["statement"][:600]
