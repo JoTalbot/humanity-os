@@ -504,3 +504,74 @@ def test_reasoning_exposes_only_explicit_dependency_paths(tmp_path):
         [relations[0]["id"], relations[1]["id"]],
     ]
     assert all(item["basis"] == "explicit_depends_on_edges" for item in paths)
+
+
+
+def test_hypothesis_comparison_reports_observed_structured_claim_coverage_gaps(tmp_path):
+    client = TestClient(create_app(str(tmp_path / "reasoning-coverage-gaps.sqlite3")))
+    record_a = _record(client, "Coverage hypothesis A")
+    record_b = _record(client, "Coverage hypothesis B")
+
+    hypothesis_a = client.post("/v1/claims", json={
+        "knowledge_id": record_a["id"],
+        "statement": "The battery is healthy.",
+        "subject": "Battery",
+        "predicate": "health",
+        "object": "healthy",
+        "polarity": "affirmed",
+        "scope": "vehicle",
+        "modality": "asserted",
+        "temporal_scope": "2026",
+    }).json()
+    hypothesis_b = client.post("/v1/claims", json={
+        "knowledge_id": record_b["id"],
+        "statement": "The battery is not healthy.",
+        "subject": " battery ",
+        "predicate": "HEALTH",
+        "object": "healthy",
+        "polarity": "negated",
+        "scope": "vehicle",
+        "modality": "asserted",
+        "temporal_scope": "2026",
+    }).json()
+    additional = client.post("/v1/claims", json={
+        "knowledge_id": record_b["id"],
+        "statement": "The starter circuit is intact.",
+        "subject": "Starter circuit",
+        "predicate": "integrity",
+        "object": "intact",
+        "polarity": "affirmed",
+        "scope": "vehicle",
+        "modality": "asserted",
+        "temporal_scope": "2026",
+    }).json()
+    relation = client.post("/v1/claim-relations", json={
+        "source_claim_id": hypothesis_b["id"],
+        "target_claim_id": additional["id"],
+        "relation": "supports",
+        "rationale": "Include the additional structured proposition in this bounded hypothesis view.",
+    })
+    assert relation.status_code == 201
+
+    comparison = client.post("/v1/reasoning/compare", json={
+        "query": "Compare observed proposition coverage",
+        "root_claim_ids": [hypothesis_a["id"], hypothesis_b["id"]],
+        "max_depth": 1,
+    })
+
+    assert comparison.status_code == 201
+    gaps = comparison.json()["claim_coverage_gaps"]
+    assert len(gaps) == 1
+    gap = gaps[0]
+    assert gap["target_root_claim_id"] == hypothesis_a["id"]
+    assert (gap["subject"], gap["predicate"], gap["object"]) == (
+        "starter circuit", "integrity", "intact"
+    )
+    assert gap["represented_in"] == [{
+        "root_claim_id": hypothesis_b["id"],
+        "claim_ids": [additional["id"]],
+    }]
+    assert gap["basis"] == (
+        "peer_hypothesis_structured_claim_not_present_in_target_bounded_traversal"
+    )
+    assert any("do not establish missing evidence" in item for item in comparison.json()["limitations"])
