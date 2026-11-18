@@ -1,6 +1,6 @@
 # HUMANITY ONE 0.1 Integration Plan
 
-Status: integrated HUMANITY ONE 0.1 draft candidate in PR #26; code from PR #13, #15, #17, #19, #21, #23 and #25 is assembled on this branch
+Status: integrated HUMANITY ONE 0.1 Draft candidate in PR #29, based on `integration/humanity-one-0.1`; PR #26 remains the integration-foundation reference. PR #28 is the original Agent Runtime lease implementation/reference and must not be merged independently.
 Base: `humanity-one/source-grounded-context` at `ba742e019dcdde2a51bd0bda41fc5ed85cd567ae`
 Related work: PR #11, #13, #15, #17, #19, #21, #23, #25.
 
@@ -132,3 +132,26 @@ PR #29 is the active integrated Draft candidate, based on `integration/humanity-
 
 
 - CI update after the 2026-11-18 documentation and backup/restore test batch: [run 44279992873](https://github.com/JoTalbot/humanity-os/actions/runs/44279992873) passed all quality steps on head `bd63fe951377be1c3b82b8bb4087609f7bb89737`; 146 tests passed, one Starlette TestClient deprecation warning. The branch is 31 commits ahead and zero behind `integration/humanity-one-0.1`, and 442 commits ahead / one behind `main` (diverged). The new tests exercise CLI backup, backup verification, restore, and preservation of the pre-restore state in a safety backup. Clean-machine, cross-platform owner setup and operational recovery still require separate acceptance.
+
+
+## Reconciliation snapshot — 2026-11-18 (latest)
+
+This section supersedes the earlier 2026-11-18 topology counts and CI-head references above.
+
+- Active candidate: PR #29, branch `fix/agent-lease-side-effects-audit`, head `ce14e80108c2d7cf774c2e46e11298cae47ce6e5`; base `integration/humanity-one-0.1` at `bfaf67c9cfaad81ec66a430c05cc25294f429979`. PR #29 is open and Draft. GitHub currently reports it mergeable, but this status does not resolve the wider stacked-history divergence.
+- PR #29 is 34 commits ahead and zero behind its integration base.
+- Compared with `main`, PR #29 is 445 commits ahead and one behind; histories are divergent. The merge base is `de57a48d8d57c023d02ee1c337e29bb557451a9a`. No merge, rebase, cherry-pick, force-push, or ref rewrite is authorized or performed.
+- The sole main-only commit is `ac46e16728382c0af800421978f0bf7df6943de9` (`test(memory): cover explicit approval and portable lifecycle`). It adds `tests/test_memory.py`. The integration candidate has the same path with a different expanded implementation: 10 tests versus 7 on `main`, including explicit approval/rejection, exact source linkage, archive/restore, authenticated API lifecycle, export/import, tamper rejection, append-only events, and legacy schema compatibility. This is a content-level supersession assessment, not proof of a clean merge or permission to rewrite history.
+- PR #28 remains the original lease implementation/reference; PR #26 remains the integration-foundation reference. Neither should be merged independently.
+- Latest inspected CI run [44280523557](https://github.com/JoTalbot/humanity-os/actions/runs/44280523557) completed successfully with all 10 quality steps passing: lint, tests, dependency audit, wheel/sdist build and inspection, and clean-virtualenv installed-app/HTTP smoke checks.
+- PR #29 has no submitted reviews or inline review threads in the latest inspection.
+- Independent security review, external audit, and penetration testing are canceled/not required. Project-owned regression, authorization, dependency and operational checks remain in scope.
+- No merge, release, deployment, external integration, or production action was performed.
+
+## Current next gates
+
+1. Complete a file-level inventory of the entire stacked history and trace each retained feature to its source PR.
+2. Reconcile the one main-only memory-test commit by documented content equivalence; preserve the original commit and branches until an owner-approved integration operation is selected.
+3. Validate clean-machine owner setup, backup, restore and portable import; existing CI smoke checks do not establish this operational acceptance.
+4. Resolve data deletion/retention/backup disposal, encryption/key recovery, privacy disclosures, release provenance, license/governance and accessibility decisions.
+5. Prepare the HUMANITY ONE 0.1 release-candidate evidence package. Do not merge, tag, publish, deploy, expose a network listener or activate a provider without separate explicit authorization.
