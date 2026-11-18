@@ -1,4 +1,4 @@
-"""Command-line entry point; intentionally loopback-only until security review."""
+"""Command-line entry point for the local-only HUMANITY OS prototype."""
 import argparse
 import getpass
 import json
