@@ -120,6 +120,11 @@ class DocumentAnswerRequest(BaseModel):
     passage_limit: int = Field(default=5, ge=1, le=10)
     max_context_chars: int = Field(default=8_000, ge=512, le=16_000)
     max_output_tokens: int = Field(default=768, ge=1, le=1_024)
+    root_claim_id: str | None = Field(default=None, min_length=1, max_length=128)
+    reasoning_max_depth: int = Field(default=3, ge=0, le=5)
+    reasoning_max_nodes: int = Field(default=30, ge=1, le=50)
+    reasoning_scope: str | None = Field(default=None, max_length=2_000)
+    reasoning_temporal_scope: str | None = Field(default=None, max_length=500)
 
 
 class AgentInvokeRequest(BaseModel):
@@ -237,7 +242,31 @@ def create_app(
             raise HTTPException(status_code=422, detail=str(exc)) from exc
 
     @app.post("/v1/answers")
-    async def generate_source_grounded_answer(payload: DocumentAnswerRequest) -> dict:
+    async def generate_source_grounded_answer(payload: DocumentAnswerRequest, request: Request) -> dict:
+        reasoning_context = None
+        if payload.root_claim_id is not None:
+            if not payload.allow_provider_processing:
+                raise HTTPException(
+                    status_code=403,
+                    detail="Explicit consent for configured provider processing is required",
+                )
+            try:
+                reasoning_run = reasoning.run(
+                    ReasoningQuery(
+                        query=payload.query,
+                        root_claim_id=payload.root_claim_id,
+                        max_depth=payload.reasoning_max_depth,
+                        max_nodes=payload.reasoning_max_nodes,
+                        scope=payload.reasoning_scope,
+                        temporal_scope=payload.reasoning_temporal_scope,
+                    ),
+                    actor="owner" if request.state.auth_session_token else "system",
+                )
+                reasoning_context = reasoning_run.model_dump(mode="json")
+            except LookupError as exc:
+                raise HTTPException(status_code=404, detail=str(exc)) from exc
+            except ValueError as exc:
+                raise HTTPException(status_code=422, detail=str(exc)) from exc
         try:
             return await answer_service.answer(
                 payload.query,
@@ -245,6 +274,7 @@ def create_app(
                 passage_limit=payload.passage_limit,
                 max_context_chars=payload.max_context_chars,
                 max_output_tokens=payload.max_output_tokens,
+                reasoning_context=reasoning_context,
             )
         except PermissionError as exc:
             raise HTTPException(status_code=403, detail=str(exc)) from exc
