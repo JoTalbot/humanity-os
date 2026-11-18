@@ -116,3 +116,14 @@ This snapshot supersedes all earlier numeric ahead/behind counts in this file an
 - The operator acceptance runbook remains unexecuted; legal stewardship, licensing, identity recovery/MFA, encryption/key recovery, retention guarantees, accessibility target and provider-specific controls remain open decisions.
 
 This snapshot supersedes the previous topology snapshot above.
+
+
+## Live topology correction — 2026-11-18 15:26 UTC+2
+
+Fresh GitHub API comparison after the earlier snapshots:
+
+- PR #29 current head: `d790d3351eab534154709ca0089f210255fdfcac`; base branch `integration/humanity-one-0.1` at `bfaf67c9cfaad81ec66a430c05cc25294f429979`.
+- Candidate vs `main`: **576 commits ahead, 1 behind**, status `diverged`; merge base `de57a48d8d57c023d02ee1c337e29bb557451a9a`.
+- Candidate vs `integration/humanity-one-0.1`: **165 commits ahead, 0 behind**.
+- PR #29 remains `open`, Draft; GitHub mergeability metadata is not a substitute for resolving the divergent history.
+- This live snapshot supersedes all earlier numeric topology counts in this document. No history rewrite, merge, force-push, test run, workflow dispatch, release or deployment was performed for this correction.
