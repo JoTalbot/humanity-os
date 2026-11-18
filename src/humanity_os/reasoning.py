@@ -308,8 +308,6 @@ class ReasoningEngine:
             if any(not value or not value.strip() for value in left_terms):
                 continue
             for right in selected_claims[index + 1:]:
-                if right.polarity == left.polarity:
-                    continue
                 if right.polarity not in {"affirmed", "negated"}:
                     continue
                 if left.scope != right.scope or left.modality != right.modality:
@@ -342,6 +340,8 @@ class ReasoningEngine:
                             "same" if left.polarity == right.polarity else "opposite"
                         ),
                     ))
+                    continue
+                if right.polarity == left.polarity:
                     continue
                 potential_contradictions.append(PotentialContradiction(
                     left_claim_id=left.id,
