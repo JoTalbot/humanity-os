@@ -14,3 +14,12 @@ The successful CI run recorded above belongs to the earlier candidate HEAD state
 - Updated `docs/AGENT_RUNTIME.md` with the startup/migration guarantee.
 - No tests or workflows were run for this small implementation batch, in accordance with the milestone-based validation cadence. The new regression test is pending the next focused Agent Runtime validation batch.
 - Latest candidate HEAD at this note: `e41fb1546ec7b77575990ad2ff65fc1c71400145`. The previously recorded successful CI runs apply only to their exact historical commit SHAs, not this HEAD.
+
+
+## Source-grounded answer integration — 2026-11-18
+
+- Added authenticated `POST /v1/answers` to connect local bounded document retrieval to the explicitly injected provider-neutral Model Gateway.
+- Provider processing requires per-request `allow_provider_processing: true`; the default is false. No provider is configured by default, so consent cannot activate outbound traffic by itself.
+- Generated output must cite one or more supplied `[S#]` labels unless it returns the documented insufficient-evidence response. Unknown/missing citation labels are rejected.
+- Response includes source document/chunk provenance and explicitly reports that semantic entailment is not verified. Prompts, completions and answers are not persisted by this route.
+- Added focused API tests for consent, success/provenance, missing citations, default authentication and absent provider. Tests have not yet been run.
