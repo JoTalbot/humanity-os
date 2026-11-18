@@ -212,3 +212,68 @@ def test_workspace_export_fails_closed_on_unversioned_table_schema_change(tmp_pa
 
     with pytest.raises(ValueError, match="Unsupported knowledge schema"):
         KnowledgeStore(database).export_workspace()
+
+
+
+def test_cli_backup_and_verify_backup_round_trip(tmp_path, monkeypatch, capsys):
+    database = tmp_path / "active.sqlite3"
+    app = create_app(str(database), allow_unauthenticated_local=True)
+    client = TestClient(app, client=("127.0.0.1", 50000))
+    assert client.post(
+        "/v1/knowledge",
+        json={"kind": "concept", "title": "Backup target", "content": "Snapshot me"},
+    ).status_code == 201
+
+    backup = tmp_path / "manual-backup.sqlite3"
+    monkeypatch.setenv("HUMANITY_OS_DB", str(database))
+    monkeypatch.setattr("sys.argv", ["humanity-os", "--backup-to", str(backup)])
+    main()
+    assert backup.exists()
+    assert KnowledgeStore.verify_backup(backup) == 1
+    assert "Backup created:" in capsys.readouterr().out
+
+    monkeypatch.setattr("sys.argv", ["humanity-os", "--verify-backup", str(backup)])
+    main()
+    assert "Backup verified: 1 knowledge records" in capsys.readouterr().out
+
+
+def test_cli_restore_creates_verified_pre_restore_backup_and_replaces_database(
+    tmp_path, monkeypatch, capsys
+):
+    database = tmp_path / "active.sqlite3"
+    app = create_app(str(database), allow_unauthenticated_local=True)
+    client = TestClient(app, client=("127.0.0.1", 50000))
+    assert client.post(
+        "/v1/knowledge",
+        json={"kind": "concept", "title": "Known good", "content": "Restore this"},
+    ).status_code == 201
+
+    known_good = tmp_path / "known-good.sqlite3"
+    monkeypatch.setenv("HUMANITY_OS_DB", str(database))
+    monkeypatch.setattr("sys.argv", ["humanity-os", "--backup-to", str(known_good)])
+    main()
+
+    assert client.post(
+        "/v1/knowledge",
+        json={"kind": "observation", "title": "Later data", "content": "Safety copy"},
+    ).status_code == 201
+    safety_backup = tmp_path / "pre-restore.sqlite3"
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "humanity-os",
+            "--restore-from",
+            str(known_good),
+            "--safety-backup",
+            str(safety_backup),
+            "--confirm-restore",
+        ],
+    )
+    main()
+
+    restored = KnowledgeStore(database)
+    assert [record.title for record in restored.list()] == ["Known good"]
+    assert KnowledgeStore.verify_backup(safety_backup) == 2
+    output = capsys.readouterr().out
+    assert "Restore completed: 1 knowledge records" in output
+    assert "Pre-restore safety backup:" in output
