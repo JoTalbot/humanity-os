@@ -463,3 +463,44 @@ def test_reasoning_separates_temporal_variants_from_contradictions(tmp_path):
     assert difference["right_temporal_scope"] == "2026"
     assert difference["polarity_relation"] == "opposite"
     assert difference["basis"] == "same_structured_proposition_distinct_time_labels"
+
+
+def test_reasoning_exposes_only_explicit_dependency_paths(tmp_path):
+    client = TestClient(create_app(str(tmp_path / "reasoning-dependency-paths.sqlite3")))
+    record = _record(client, "Dependency chain fixture")
+    claims = []
+    for statement in ["Outcome exists", "Process completes", "Input is available"]:
+        response = client.post("/v1/claims", json={
+            "knowledge_id": record["id"],
+            "statement": statement,
+        })
+        assert response.status_code == 201
+        claims.append(response.json())
+    relations = []
+    for source, target in zip(claims, claims[1:]):
+        response = client.post("/v1/claim-relations", json={
+            "source_claim_id": source["id"],
+            "target_claim_id": target["id"],
+            "relation": "depends_on",
+            "rationale": "Explicitly recorded dependency for the fixture.",
+        })
+        assert response.status_code == 201
+        relations.append(response.json())
+
+    result = client.post("/v1/reasoning/runs", json={
+        "query": "Explain declared dependencies",
+        "root_claim_id": claims[0]["id"],
+        "max_depth": 2,
+    })
+
+    assert result.status_code == 201
+    paths = result.json()["declared_dependency_paths"]
+    assert [item["claim_ids"] for item in paths] == [
+        [claims[0]["id"], claims[1]["id"]],
+        [claims[0]["id"], claims[1]["id"], claims[2]["id"]],
+    ]
+    assert [item["relation_ids"] for item in paths] == [
+        [relations[0]["id"]],
+        [relations[0]["id"], relations[1]["id"]],
+    ]
+    assert all(item["basis"] == "explicit_depends_on_edges" for item in paths)
