@@ -38,12 +38,14 @@ def _bounded_reasoning_context(context: dict, max_chars: int = 24_000) -> tuple[
     compact = {key: context.get(key) for key in (
         "id", "root_claim_id", "query", "claims", "relations",
         "claim_assessments", "evidence", "evidence_independence", "paths",
+        "declared_dependency_paths",
         "contradiction_candidates", "potential_contradictions",
         "temporal_claim_differences", "limitations",
     )}
     list_keys = (
         "claims", "relations", "claim_assessments", "evidence",
-        "paths", "contradiction_candidates", "potential_contradictions",
+        "paths", "declared_dependency_paths", "contradiction_candidates",
+        "potential_contradictions",
         "temporal_claim_differences", "limitations",
     )
     for key in list_keys:
@@ -95,7 +97,7 @@ def _bounded_reasoning_context(context: dict, max_chars: int = 24_000) -> tuple[
         item["assessments"] = item.get("assessments", [])[:2]
     limits = (
         ("claims", 50), ("relations", 100), ("claim_assessments", 50),
-        ("evidence", 40), ("paths", 50),
+        ("evidence", 40), ("paths", 50), ("declared_dependency_paths", 50),
         ("contradiction_candidates", 50), ("potential_contradictions", 50),
         ("temporal_claim_differences", 50),
         ("limitations", 20),
@@ -112,7 +114,8 @@ def _bounded_reasoning_context(context: dict, max_chars: int = 24_000) -> tuple[
                 encoded = json.dumps(compact, ensure_ascii=False, sort_keys=True)
     for key in (
         "evidence", "relations", "claim_assessments",
-        "potential_contradictions", "temporal_claim_differences", "paths", "claims",
+        "potential_contradictions", "temporal_claim_differences",
+        "declared_dependency_paths", "paths", "claims",
     ):
         while len(encoded) > max_chars and len(compact[key]) > (1 if key == "claims" else 0):
             compact[key].pop()
@@ -178,6 +181,7 @@ class DocumentAnswerService:
                 "not semantic contradiction judgments; treat them only as review leads. "
                 "Temporal variants only show different time labels; do not infer interval "
                 "overlap, ordering, or a change over time from labels alone. "
+                "Declared dependency paths reflect explicit depends_on records, not causation. "
                 "Do not treat graph edges or assessments as independently verified truth. "
                 "Ground factual statements in the supplied document passages and cite them "
                 "with their exact [S#] labels. If the graph conflicts with the documents, "
