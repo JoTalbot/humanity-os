@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import json
 import sqlite3
 
 from fastapi.testclient import TestClient
 
 from humanity_os.app import create_app
+from humanity_os.answering import _bounded_reasoning_context
 from humanity_os.model_gateway import ModelUsage, ProviderGeneration
 
 
@@ -247,3 +249,29 @@ def test_answer_route_verifies_full_chunk_when_prompt_excerpt_is_truncated(tmp_p
 
     assert response.status_code == 200
     assert response.json()["citations"][0]["filename"] == "long-source.txt"
+
+
+def test_reasoning_context_has_a_hard_serialized_character_ceiling():
+    context = {
+        "id": "run-" + ("x" * 100_000),
+        "root_claim_id": "claim-" + ("y" * 100_000),
+        "query": "query-" + ("z" * 100_000),
+        "claims": [{"id": "claim", "statement": "statement"}],
+        "relations": [],
+        "claim_assessments": [],
+        "evidence": [],
+        "evidence_independence": None,
+        "paths": [],
+        "declared_dependency_paths": [],
+        "contradiction_candidates": [],
+        "potential_contradictions": [],
+        "temporal_claim_differences": [],
+        "limitations": [],
+    }
+
+    bounded, truncated = _bounded_reasoning_context(context, max_chars=24_000)
+
+    assert truncated is True
+    assert len(json.dumps(bounded, ensure_ascii=False, sort_keys=True)) <= 24_000
+    assert bounded["claims"] == []
+    assert bounded["limitations"]
