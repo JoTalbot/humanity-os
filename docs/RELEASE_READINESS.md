@@ -84,3 +84,10 @@ The successful CI run recorded above belongs to the earlier candidate HEAD state
 - Added `declared_dependency_paths`, containing only traversals made entirely of explicit `depends_on` relations, with exact claim and relation IDs.
 - Dependency edges are not described as proven causality. Answer Engine receives bounded temporal and dependency context with explicit caveats.
 - Added regression tests for temporal variants, dependency chains and prompt propagation. Tests/workflows have not been run.
+
+## Owner workflow decision update — 2026-11-18
+
+- Independent security review is not required and is not a release gate.
+- Retain focused engineering review, explicit technical limitations, and the milestone-based validation policy in `DEVELOPMENT_CADENCE.md`.
+- Routine feature work does not trigger broad test campaigns. Run focused checks after completed feature batches or changes to critical invariants; reserve one full configured CI run for the exact HUMANITY ONE 0.1 release-candidate commit.
+- No manual workflow dispatch or broad test campaign was initiated by this documentation update.
