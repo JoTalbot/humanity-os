@@ -578,3 +578,42 @@ def test_concurrent_worker_startup_serializes_legacy_lease_migration(tmp_path):
         }
     assert {"worker_id", "lease_expires_at"} <= columns
     assert all(store.list_runs() == [] for store in stores)
+
+
+
+def test_curator_proposal_and_run_completion_roll_back_together_on_lease_loss(tmp_path):
+    app, _ = _client(tmp_path)
+    runtime = app.state.agent_runtime
+
+    def lose_lease_before_terminal_commit(*args, **kwargs):
+        raise AgentRunLeaseLost("lease expired before terminal commit")
+
+    runtime.store.finish_run = lose_lease_before_terminal_commit
+
+    with pytest.raises(AgentRunLeaseLost, match="lease"):
+        runtime.invoke(
+            "curator",
+            "memory.propose",
+            {
+                "title": "Atomic proposal",
+                "content": "This must roll back with the run.",
+                "rationale": "Verify one-transaction side-effect fencing.",
+            },
+        )
+
+    assert runtime.memory.list_proposals() == []
+    run = runtime.store.list_runs()[0]
+    assert run["status"] == "running"
+    assert [event["event_type"] for event in runtime.store.list_events(run["id"])] == [
+        "tool_invocation_started"
+    ]
+
+    recovered_at = datetime.now(UTC) + timedelta(seconds=120)
+    assert runtime.store.recover_expired_runs(now=recovered_at) == 1
+    recovered = runtime.store.list_runs(now=recovered_at)[0]
+    assert recovered["status"] == "failed"
+    assert recovered["error_code"] == "interrupted"
+    assert [event["event_type"] for event in runtime.store.list_events(run["id"])] == [
+        "tool_invocation_started",
+        "tool_invocation_failed",
+    ]
