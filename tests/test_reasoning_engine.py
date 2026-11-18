@@ -202,3 +202,41 @@ def test_reasoning_rejects_missing_root_and_oversized_limits(tmp_path):
         "max_depth": 99,
     })
     assert oversized.status_code == 422
+
+
+def test_reasoning_run_carries_latest_human_evidence_assessment(tmp_path):
+    client = TestClient(create_app(str(tmp_path / "reasoning-assessments.sqlite3")))
+    record = _record(client, "Assessed evidence")
+    claim = _claim(client, record, "A proposition with reviewed evidence")
+
+    first = client.post("/v1/evidence-assessments", json={
+        "knowledge_id": record["id"],
+        "source_id": "source-1",
+        "evidence_id": "evidence-1",
+        "stance": "supports",
+        "status": "review_required",
+        "method": "automated_triage",
+        "notes": "Automated triage found a possible supporting passage; human review remains required.",
+    })
+    assert first.status_code == 201
+    second = client.post("/v1/evidence-assessments", json={
+        "knowledge_id": record["id"],
+        "source_id": "source-1",
+        "evidence_id": "evidence-1",
+        "stance": "refutes",
+        "status": "assessed",
+        "method": "manual",
+        "notes": "Manual review found the excerpt does not support the proposition.",
+    })
+    assert second.status_code == 201
+
+    result = client.post("/v1/reasoning/runs", json={
+        "query": "Explain the assessed proposition",
+        "root_claim_id": claim["id"],
+    })
+    assert result.status_code == 201
+    evidence = result.json()["evidence"]
+    assert len(evidence) == 1
+    assert evidence[0]["assessments"] == [second.json()]
+    assert evidence[0]["assessments"][0]["stance"] == "refutes"
+    assert evidence[0]["assessments"][0]["status"] == "assessed"
