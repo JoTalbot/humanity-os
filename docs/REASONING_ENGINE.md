@@ -58,3 +58,9 @@ The report is limited to 500 declared sources across the selected knowledge reco
 `POST /v1/reasoning/compare` now reports a profile for each root hypothesis in addition to graph/source overlap. Each profile summarizes the bounded claim count and latest recorded claim classifications, linked evidence count, latest evidence stance counts (`supports`, `refutes`, `neutral`), review states (`assessed`, `review_required`, `unassessed`), distinct source count, declared independence groups, recorded dependency edges, and unknown-lineage source count.
 
 The comparison also identifies evidence links shared across all alternatives and evidence links unique to each alternative. Evidence-link identity is scoped by knowledge record and evidence ID, not by URL alone. A review-required automated triage event is not counted as an assessed link. These are descriptive profiles only: the engine does not calculate a hypothesis winner, truth probability, evidence quality score, or automatic verdict. Each alternative remains a separate immutable Reasoning Run.
+
+## Structured contradiction candidates
+
+Each reasoning run also checks the selected bounded claim set for possible contradictions using a deliberately narrow deterministic rule: the claims must have the same non-empty subject, predicate and object after case/whitespace normalization, the same scope, temporal scope and modality, and opposite explicit polarity (`affirmed` versus `negated`). Matching claims are returned as `potential_contradictions` with the exact basis and both claim IDs.
+
+This is candidate discovery, not natural-language entailment or a semantic contradiction judgment. It does not infer negation from prose, treat `unknown` polarity as opposition, or create graph relations automatically. Explicit reviewer-authored `contradicts` edges remain separately represented by `contradiction_candidates`. Answer Engine receives the bounded structured candidates as untrusted context.
