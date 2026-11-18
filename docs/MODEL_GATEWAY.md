@@ -13,7 +13,7 @@ Request schema version: `1.0`
 - `prompt`: required, 1–20,000 characters.
 - `system_instruction`: optional, maximum 4,000 characters.
 - `max_output_tokens`: 1–4,096, default 512.
-- `temperature`: finite numeric value from 0.0–1.0, default 0.2; NaN and positive/negative infinity are rejected.
+- `temperature`: finite numeric value from 0.0–1.0, default 0.2; NaN, positive/negative infinity, booleans and string-coerced values are rejected.
 - Unknown request fields are rejected.
 
 Response includes schema version, provider ID, model ID, output, optional token usage, finish reason and generation timestamp. Provider credentials, endpoint URLs and internal exception details are never returned.
