@@ -544,3 +544,37 @@ def test_curator_does_not_create_proposal_after_lease_expiry(tmp_path):
         )
 
     assert runtime.memory.list_proposals() == []
+
+
+def test_concurrent_worker_startup_serializes_legacy_lease_migration(tmp_path):
+    database = tmp_path / "legacy-concurrent.sqlite3"
+    with sqlite3.connect(database) as connection:
+        connection.execute(
+            """CREATE TABLE agent_runs (
+                id TEXT PRIMARY KEY, agent_id TEXT NOT NULL, tool_name TEXT NOT NULL,
+                status TEXT NOT NULL, started_at TEXT NOT NULL, finished_at TEXT,
+                input_digest TEXT NOT NULL, result_digest TEXT, error_code TEXT
+            )"""
+        )
+        connection.execute(
+            """CREATE TABLE agent_events (
+                id TEXT PRIMARY KEY, run_id TEXT NOT NULL,
+                event_type TEXT NOT NULL, occurred_at TEXT NOT NULL, details TEXT NOT NULL
+            )"""
+        )
+
+    barrier = threading.Barrier(2)
+
+    def initialize(worker_id):
+        barrier.wait(timeout=5)
+        return AgentRuntimeStore(database, worker_id=worker_id)
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        stores = list(executor.map(initialize, ("worker-a", "worker-b")))
+
+    with sqlite3.connect(database) as connection:
+        columns = {
+            row[1] for row in connection.execute("PRAGMA table_info(agent_runs)")
+        }
+    assert {"worker_id", "lease_expires_at"} <= columns
+    assert all(store.list_runs() == [] for store in stores)
