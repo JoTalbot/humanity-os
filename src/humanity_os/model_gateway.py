@@ -8,7 +8,7 @@ import asyncio
 from datetime import UTC, datetime
 from typing import Literal, Protocol
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class ModelGenerationRequest(BaseModel):
@@ -46,6 +46,14 @@ class ModelGenerationResponse(BaseModel):
     usage: ModelUsage | None = None
     finish_reason: Literal["stop", "length", "content_filter", "unknown"]
     generated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+
+    @field_validator("provider", "model")
+    @classmethod
+    def normalize_identifier(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("Provider and model identifiers must not be blank")
+        return normalized
 
 
 class ModelProvider(Protocol):
