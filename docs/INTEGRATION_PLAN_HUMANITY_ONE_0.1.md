@@ -205,3 +205,12 @@ A fresh GitHub check after the previous documentation batch found the following 
 - The release-readiness file has been synchronized to this state. Its follow-up documentation commit will require its own CI result before the updated HEAD is called green.
 - Clean-machine operator acceptance and the owner/external decisions listed in the release-readiness register remain outstanding. Automated CI does not replace them.
 - PR #29 remains the sole integrated candidate. PR #26 and #28 remain provenance references. No merge, history rewrite, tag, publication or deployment was performed.
+
+
+## Owner workflow decision update — 2026-11-18
+
+- Independent security review is not part of the project plan or a release prerequisite. Do not schedule, request, or block implementation on a separate independent review.
+- Continue ordinary engineering review of changed code and preserve documented technical limitations; removing the separate review gate does not remove the need to understand or document those limitations.
+- Development cadence follows `docs/DEVELOPMENT_CADENCE.md`: no full CI on every feature push, focused checks only after completed feature batches or changes to critical invariants, and one full validation campaign at the HUMANITY ONE 0.1 release-candidate milestone.
+- Do not manually dispatch workflows or run broad test campaigns during routine implementation.
+- This owner decision supersedes earlier plan language that listed independent security review as a required gate.
