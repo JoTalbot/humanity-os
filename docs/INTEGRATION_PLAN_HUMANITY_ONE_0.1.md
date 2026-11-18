@@ -109,7 +109,7 @@ The earlier reconciliation notes below describe the initial integration state an
 
 ## Decision
 
-PR #29 is the active integrated Draft candidate, based on `integration/humanity-one-0.1`; PR #26 remains the integration-foundation reference and PR #28 remains the original lease implementation/reference. The next gates are internal security checks of authentication and integrated API/data boundaries, clean-machine owner setup and backup/restore/import validation, accessibility and governance decisions, and reconciliation of the full stacked history against `main`. No independent security review, external audit, or penetration test is required. Deployment must stay within the documented same-host/local-SQLite support boundary. No merge or deployment is authorized by this plan.
+PR #29 is the active integrated Draft candidate, based on `integration/humanity-one-0.1`; PR #26 remains the integration-foundation reference and PR #28 remains the original lease implementation/reference. The next gates are clean-machine owner setup and backup/restore/import validation, accessibility and governance decisions, and reconciliation of the full stacked history against `main`. Deployment must stay within the documented same-host/local-SQLite support boundary. No merge or deployment is authorized by this plan.
 
 
 ## CI and branch reconciliation update — 2026-11-17 12:40 UTC+2
@@ -127,7 +127,7 @@ PR #29 is the active integrated Draft candidate, based on `integration/humanity-
 - PR #29 is 31 commits ahead and zero behind its integration base. Its latest CI run [44279992873](https://github.com/JoTalbot/humanity-os/actions/runs/44279992873) passed: Ruff, 146 pytest tests, pip-audit, wheel/sdist build, distribution-content verification, and clean-virtualenv installed CLI/app/HTTP smoke checks. The two added CLI regression tests cover backup creation/verification and restore with a verified pre-restore safety backup. One existing Starlette TestClient deprecation warning remains.
 - PR #26 remains the integration-foundation Draft on its original source-grounded-context base. PR #28 remains the original Agent Runtime lease implementation Draft. PR #29 contains the integrated and hardened lease implementation; PR #28 is retained for traceability and must not be merged independently.
 - The current PR #29 branch compared with `main` is 442 commits ahead and one behind, with divergent history. PR #28 compared with the current integration branch is 25 commits ahead and 26 behind. These are explicit stack-reconciliation blockers; no merge, rebase, cherry-pick, force-push, or ref rewrite was performed.
-- Independent security review, external audit, and penetration testing are not required or planned. Internal security tests, dependency auditing, authorization checks, lease fencing, transaction tests, and recovery tests remain part of project-owned validation.
+- Project-owned validation includes authentication and authorization regression tests, dependency auditing, lease fencing, transaction tests, and recovery tests.
 - No PR was merged, no release was tagged, no deployment was performed, and no production operation was authorized.
 
 
@@ -154,3 +154,14 @@ PR #29 is the active integrated Draft candidate, based on `integration/humanity-
 4. Finalize license, governance, contribution rules and release provenance.
 5. Complete accessibility and supported desktop/mobile acceptance.
 6. Assemble HUMANITY ONE 0.1 RC evidence.
+
+
+## Current candidate update — 2026-11-18 (latest verified)
+
+- Active candidate: PR #29, branch `fix/agent-lease-side-effects-audit`, Draft, based on `integration/humanity-one-0.1`.
+- Latest CI [44283534176](https://github.com/JoTalbot/humanity-os/actions/runs/44283534176) completed successfully on head `4fdf0ff42b4c87f765493dba1ef6d3305a483839`: all 10 steps passed, including Ruff, 147 pytest tests, dependency audit, wheel/sdist build, distribution-content verification and clean-venv packaged HTTP smoke test.
+- Added `docs/OPERATOR_ACCEPTANCE.md` with a clean-machine procedure for owner setup, local login, knowledge/document and memory workflows, SQLite backup/restore, portable import into an isolated workspace and an evidence record. The procedure is documented but has not been executed on a clean external machine.
+- Corrected `product/ACCEPTANCE_CRITERIA.md` to distinguish implemented capabilities from deferred work and linked the operator runbook.
+- Rewrote `docs/RELEASE_READINESS.md` so it reflects the current implementation, latest CI evidence, actual 0.1 limitations and explicit release blockers.
+- Main-only memory test intent is represented in the candidate: archived state and lifecycle events survive portable export/import; append-only event deletion is rejected. Git ancestry itself remains divergent.
+- No rebase, cherry-pick, force-push, ref rewrite, merge, tag, publication, deployment or production operation was performed.
