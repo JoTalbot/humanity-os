@@ -38,11 +38,11 @@ def _bounded_reasoning_context(context: dict, max_chars: int = 24_000) -> tuple[
     compact = {key: context.get(key) for key in (
         "id", "root_claim_id", "query", "claims", "relations",
         "claim_assessments", "evidence", "evidence_independence", "paths",
-        "contradiction_candidates", "limitations",
+        "contradiction_candidates", "potential_contradictions", "limitations",
     )}
     list_keys = (
         "claims", "relations", "claim_assessments", "evidence",
-        "paths", "contradiction_candidates", "limitations",
+        "paths", "contradiction_candidates", "potential_contradictions", "limitations",
     )
     for key in list_keys:
         compact[key] = compact.get(key) or []
@@ -94,7 +94,8 @@ def _bounded_reasoning_context(context: dict, max_chars: int = 24_000) -> tuple[
     limits = (
         ("claims", 50), ("relations", 100), ("claim_assessments", 50),
         ("evidence", 40), ("paths", 50),
-        ("contradiction_candidates", 50), ("limitations", 20),
+        ("contradiction_candidates", 50), ("potential_contradictions", 50),
+        ("limitations", 20),
     )
     for key, limit in limits:
         compact[key] = compact[key][:limit]
@@ -106,7 +107,10 @@ def _bounded_reasoning_context(context: dict, max_chars: int = 24_000) -> tuple[
             while len(encoded) > max_chars and lineage[key]:
                 lineage[key].pop()
                 encoded = json.dumps(compact, ensure_ascii=False, sort_keys=True)
-    for key in ("evidence", "relations", "claim_assessments", "paths", "claims"):
+    for key in (
+        "evidence", "relations", "claim_assessments",
+        "potential_contradictions", "paths", "claims",
+    ):
         while len(encoded) > max_chars and len(compact[key]) > (1 if key == "claims" else 0):
             compact[key].pop()
             encoded = json.dumps(compact, ensure_ascii=False, sort_keys=True)
