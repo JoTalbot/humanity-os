@@ -189,7 +189,10 @@ class MemoryStore:
             proposal_id=proposal_id,
             occurred_at=created_at,
         )
-        return self.get_proposal(proposal_id)
+        row = connection.execute(
+            "SELECT * FROM memory_proposals WHERE id = ?", (proposal_id,)
+        ).fetchone()
+        return dict(row)
 
     def get_proposal(self, proposal_id: str) -> dict | None:
         with self._connect() as connection:
