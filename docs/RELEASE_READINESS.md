@@ -23,7 +23,7 @@ The current product is a single-owner, local-first prototype. PR #29 is the inte
 
 ## Latest automated validation
 
-- CI run [44283534176](https://github.com/JoTalbot/humanity-os/actions/runs/44283534176) passed all 10 quality steps on candidate head `4fdf0ff42b4c87f765493dba1ef6d3305a483839`.
+- Latest verified PR-head CI run [44284176087](https://github.com/JoTalbot/humanity-os/actions/runs/44284176087) completed successfully on candidate head `139793dbbaa5ed0000d29108e60a4c428516d6e1`. The PR description records all 10 quality steps passing, including Ruff, 147 pytest tests, dependency audit, wheel/sdist build, distribution verification and clean-venv packaged-app HTTP smoke test.
 - 147 pytest tests passed.
 - Ruff lint passed.
 - Dependency vulnerability audit passed.
