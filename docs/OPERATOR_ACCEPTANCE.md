@@ -75,13 +75,13 @@ Stop the service and export the source workspace:
 humanity-os --export-workspace "$HOME/humanity-acceptance/backups/workspace.json"
 ```
 
-Create a second isolated database path and configure it for the import target:
+Create a second isolated database path and configure it for the import target. The import command initializes the target SQLite schema before applying the validated portable workspace:
 
 ```bash
 export HUMANITY_OS_DB="$HOME/humanity-acceptance/imported.sqlite3"
 ```
 
-Initialize an empty target database by starting and stopping the app once, or use the supported owner setup workflow as documented. Import the portable export:
+Import the portable export:
 
 ```bash
 humanity-os --import-workspace-from "$HOME/humanity-acceptance/backups/workspace.json" \
