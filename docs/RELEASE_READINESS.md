@@ -181,3 +181,12 @@ The owner has cancelled the HUMANITY ONE 0.1 manual operator-acceptance runbook 
 - The current owner decision remains: manual clean-machine and backup/restore/import acceptance is deferred, unvalidated, and not a current gate.
 
 This measurement is tied to the exact SHA above. The documentation commit that follows changes the branch HEAD; re-run comparisons before any future history operation.
+
+
+## Lease-fenced proposal rollback regression — 2026-11-18
+
+- Added a focused regression test proving that a curator memory proposal and its terminal Agent Runtime event roll back together if lease ownership is lost before the terminal commit.
+- The test also verifies that no proposal or proposal audit event survives, and that the still-running invocation is subsequently recovered as interrupted exactly once.
+- Implementation is unchanged; this closes a test-coverage gap around the existing single-transaction side-effect fence.
+- Test execution and CI were not run for this test-only increment. The check remains pending.
+- No merge, history rewrite, release, publication, or deployment was performed.
