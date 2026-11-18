@@ -223,6 +223,8 @@ def test_answer_route_uses_claim_graph_and_latest_evidence_assessment(tmp_path):
     assert "refutes" in provider.prompt
     assert "evidence_independence" in provider.prompt
     assert "potential_contradictions" in provider.prompt
+    assert "temporal_claim_differences" in provider.prompt
+    assert "do not infer interval" in provider.prompt
     assert body["processing"]["semantic_entailment_verified"] is False
 
 
