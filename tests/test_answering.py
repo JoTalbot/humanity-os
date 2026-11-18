@@ -152,3 +152,73 @@ def test_answer_route_rejects_source_changed_during_generation(tmp_path):
 
     assert response.status_code == 409
     assert response.json()["detail"].startswith("A source changed during answer generation")
+
+
+class ReasoningAwareProvider:
+    provider_id = "local-test"
+    model_id = "reasoning-aware-v1"
+
+    def __init__(self):
+        self.prompt = ""
+
+    async def generate(self, request):
+        self.prompt = request.prompt
+        return ProviderGeneration(
+            output="The source describes the local-first design [S1]."
+        )
+
+
+def test_answer_route_uses_claim_graph_and_latest_evidence_assessment(tmp_path):
+    provider = ReasoningAwareProvider()
+    client = _client(tmp_path, provider)
+    _add_source(client)
+    knowledge = client.post("/v1/knowledge", json={
+        "kind": "claim",
+        "title": "Local-first architecture",
+        "content": "The project stores data locally and keeps owner control.",
+        "sources": [{
+            "id": "source-1",
+            "uri": "https://example.org/local-first",
+            "title": "Architecture note",
+            "publisher": "Project documentation",
+        }],
+        "evidence": [{
+            "id": "evidence-1",
+            "source_id": "source-1",
+            "relation": "supports",
+            "excerpt": "Data remains local.",
+            "locator": "section 1",
+        }],
+    })
+    assert knowledge.status_code == 201
+    claim = client.post("/v1/claims", json={
+        "knowledge_id": knowledge.json()["id"],
+        "statement": "The system follows a local-first architecture.",
+        "evidence_ids": ["evidence-1"],
+    })
+    assert claim.status_code == 201
+    assessment = client.post("/v1/evidence-assessments", json={
+        "knowledge_id": knowledge.json()["id"],
+        "source_id": "source-1",
+        "evidence_id": "evidence-1",
+        "stance": "refutes",
+        "status": "assessed",
+        "method": "manual",
+        "notes": "Reviewer found this excerpt does not establish the full claim.",
+    })
+    assert assessment.status_code == 201
+
+    response = client.post("/v1/answers", json={
+        "query": "local-first design",
+        "allow_provider_processing": True,
+        "root_claim_id": claim.json()["id"],
+    })
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["reasoning"]["claim_ids"] == [claim.json()["id"]]
+    assert body["reasoning"]["evidence_count"] == 1
+    assert "The system follows a local-first architecture." in provider.prompt
+    assert "Reviewer found this excerpt does not establish the full claim." in provider.prompt
+    assert "refutes" in provider.prompt
+    assert body["processing"]["semantic_entailment_verified"] is False
