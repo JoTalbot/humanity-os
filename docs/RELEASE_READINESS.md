@@ -68,7 +68,7 @@ Do not tag, publish, deploy, expose to a LAN/public network, activate a remote p
 
 - Active candidate: PR #29, open Draft, head `03d34e577f52ee55eeeda3a72f29bf9c88819d95`.
 - CI [44281853101](https://github.com/JoTalbot/humanity-os/actions/runs/44281853101) passed all 10 quality steps on this exact head.
-- Branch comparison: 42 ahead / 0 behind `integration/humanity-one-0.1`; 453 ahead / 1 behind `main`. Histories diverge; merge base `de57a48d8d57c023d02ee1c337e29bb557451a9a`.
+- Branch comparison: 44 ahead / 0 behind `integration/humanity-one-0.1`; 455 ahead / 1 behind `main`. Histories diverge; merge base `de57a48d8d57c023d02ee1c337e29bb557451a9a`.
 - Authentication and workspace portability/deletion implementations and regression coverage are present. Relevant docs: `LOCAL_DEVELOPMENT.md`, `PRIVACY_MODEL.md`, `DATA_RETENTION.md`.
 - PR #26/#28 remain historical provenance references. PR #29 is the sole integrated feature candidate.
 - No merge, release, deployment or production operation was performed.
