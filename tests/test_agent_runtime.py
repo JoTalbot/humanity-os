@@ -646,3 +646,14 @@ def test_expired_worker_cannot_renew_lease_or_resurrect_run(tmp_path):
     with pytest.raises(AgentRunLeaseLost, match="lease"):
         owner.renew_run_lease(run_id, now=expired_at + timedelta(seconds=1))
     assert len(observer.list_events(run_id)) == 2
+
+
+@pytest.mark.parametrize("lease_duration", [0, -1, float("nan"), float("inf"), -float("inf"), True])
+def test_agent_runtime_rejects_non_finite_or_non_positive_lease_duration(
+    tmp_path, lease_duration
+):
+    with pytest.raises(ValueError, match="finite positive"):
+        AgentRuntimeStore(
+            tmp_path / "invalid-lease.sqlite3",
+            lease_duration_seconds=lease_duration,
+        )
