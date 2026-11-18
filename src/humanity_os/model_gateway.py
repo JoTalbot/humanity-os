@@ -92,14 +92,19 @@ class ModelGateway:
             result = await asyncio.wait_for(
                 self.provider.generate(request), timeout=self.timeout_seconds
             )
+            if not isinstance(result, ProviderGeneration):
+                raise TypeError("Provider returned an invalid response contract")
+            # Validate provider metadata and generated content inside the sanitized
+            # boundary too. A faulty adapter must never turn a malformed result into
+            # an unhandled API exception or leak its internal details.
+            return ModelGenerationResponse(
+                provider=self.provider.provider_id,
+                model=self.provider.model_id,
+                output=result.output,
+                usage=result.usage,
+                finish_reason=result.finish_reason,
+            )
         except TimeoutError as exc:
             raise ModelProviderTimeout("Model provider request timed out") from exc
         except Exception as exc:
             raise ModelProviderFailure("Model provider request failed") from exc
-        return ModelGenerationResponse(
-            provider=self.provider.provider_id,
-            model=self.provider.model_id,
-            output=result.output,
-            usage=result.usage,
-            finish_reason=result.finish_reason,
-        )
