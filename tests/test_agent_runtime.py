@@ -617,3 +617,32 @@ def test_curator_proposal_and_run_completion_roll_back_together_on_lease_loss(tm
         "tool_invocation_started",
         "tool_invocation_failed",
     ]
+
+
+def test_expired_worker_cannot_renew_lease_or_resurrect_run(tmp_path):
+    database = tmp_path / "expired-lease.sqlite3"
+    started_at = datetime.now(UTC)
+    owner = AgentRuntimeStore(
+        database, worker_id="worker-owner", lease_duration_seconds=30
+    )
+    observer = AgentRuntimeStore(
+        database, worker_id="worker-observer", lease_duration_seconds=30
+    )
+    run_id = owner.start_run(
+        "researcher",
+        "documents.search",
+        "a" * 64,
+        now=started_at,
+    )
+    expired_at = started_at + timedelta(seconds=31)
+
+    with pytest.raises(AgentRunLeaseLost, match="lease"):
+        owner.renew_run_lease(run_id, now=expired_at)
+
+    assert observer.recover_expired_runs(now=expired_at) == 1
+    recovered = observer.list_runs(now=expired_at)[0]
+    assert recovered["status"] == "failed"
+    assert recovered["error_code"] == "interrupted"
+    with pytest.raises(AgentRunLeaseLost, match="lease"):
+        owner.renew_run_lease(run_id, now=expired_at + timedelta(seconds=1))
+    assert len(observer.list_events(run_id)) == 2
