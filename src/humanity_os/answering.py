@@ -100,6 +100,12 @@ def _bounded_reasoning_context(context: dict, max_chars: int = 24_000) -> tuple[
         compact[key] = compact[key][:limit]
     encoded = json.dumps(compact, ensure_ascii=False, sort_keys=True)
     truncated = independence_truncated or len(encoded) > max_chars
+    lineage = compact.get("evidence_independence")
+    if lineage is not None:
+        for key in ("dependent_clusters", "declared_groups", "unknown_lineage", "limitations"):
+            while len(encoded) > max_chars and lineage[key]:
+                lineage[key].pop()
+                encoded = json.dumps(compact, ensure_ascii=False, sort_keys=True)
     for key in ("evidence", "relations", "claim_assessments", "paths", "claims"):
         while len(encoded) > max_chars and len(compact[key]) > (1 if key == "claims" else 0):
             compact[key].pop()
