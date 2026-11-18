@@ -96,7 +96,7 @@ Use `humanity-one/source-grounded-context` (PR #23 head) as the working baseline
 The earlier reconciliation notes below describe the initial integration state and are superseded where this section records later changes.
 
 - PR #26 remains an open Draft integration candidate based on `humanity-one/source-grounded-context`; it has not been merged or retargeted.
-- Current comparison against `main` at the latest review: integration branch is 407 commits ahead and one behind, with a divergent stacked history. This is not a merge-readiness signal. Preserve the source branches and review the full commit chain before any merge decision.
+- Historical comparison at the 2026-11-17 review: integration branch was reported 407 commits ahead and one behind `main`. This count is superseded by the 2026-11-18 comparison below; branch divergence is not a merge-readiness signal.
 - The main-only memory test change remains superseded by the integration branch's schema-1.3.0 test coverage, which includes Agent Runtime audit tables and legacy schema 1.0.0–1.2.0 import compatibility.
 - PR #28 now implements process ownership, expiring leases, daemon heartbeat renewal, owner fencing, fork-safe worker identity, and atomic stale-run recovery. Its code CI passed in run `43947884587`; the PR remains open and Draft. Its supported deployment boundary is same-host processes sharing a local SQLite database with reliable locking. No multi-host or network-filesystem guarantee is made.
 - CI now includes `integration/**`, builds wheel and sdist archives, checks the CLI entry point and static assets, and installs the wheel into an isolated target for an HTTP smoke test. Run `43969330683` passed on commit `be0ae8118c236e83eb9e62626c1e4570bd4671be`; the test confirmed the installed app serves the workspace root and static assets through a loopback peer. The initial smoke harness failed because its default TestClient peer was non-loopback; the harness was corrected without weakening the product's loopback guard.
@@ -104,12 +104,12 @@ The earlier reconciliation notes below describe the initial integration state an
 - PR #26 and #28 have no submitted reviews or inline review threads as of this review.
 - No PR was merged, no force-push was performed, no workflow was manually dispatched, and no release or deployment was made.
 - Latest verification: CI run `43970440846` passed all 10 quality steps, including lint, tests, dependency audit, wheel/sdist inspection and fresh-virtualenv packaged-app smoke checks. Automatic CI run `43970528285` also completed successfully on integration head `a55861673e5fea8e3ff8a7a20bcfdfa26700e447`. No manual workflow dispatch or out-of-CI test run was performed.
-- Latest comparison against `main`: integration branch is 407 commits ahead and one behind (`main` head `ac46e16728382c0af800421978f0bf7df6943de9`). The large divergent history remains a manual reconciliation gate, not a merge-readiness signal.
-- PR #28's head remains `229cc91266b43452ec79f7e7f72e981344f025e5`; its recorded base SHA `9804c7c3df31608cf47c36d673053055fd081e59` is older than the current integration head. Comparing the PR branches now reports 25 commits ahead and 22 behind. The available GitHub operations do not expose a safe branch-update/cherry-pick workflow, so no history rewrite or ref movement was attempted. Reconcile the stack before merge; both PRs remain Draft.
+- 2026-11-18 comparison of `fix/agent-lease-side-effects-audit` against `main`: 437 commits ahead and one behind; histories are divergent. This is a manual reconciliation gate, not a merge-readiness signal.
+- PR #28's head remains `229cc91266b43452ec79f7e7f72e981344f025e5`; its recorded base SHA `9804c7c3df31608cf47c36d673053055fd081e59` is stale. The 2026-11-18 comparison against the current integration head reports 25 commits ahead and 26 behind. PR #29 has ported and hardened the lease changes on top of the integration branch and is the active integrated candidate. Retain PR #28 as the original implementation/reference; do not merge it independently or rewrite its history.
 
 ## Decision
 
-Keep PR #26 and PR #28 as Draft review candidates. The next gates are internal security checks of lease and integrated API/data boundaries, clean-machine owner setup and backup/restore/import validation, accessibility and governance checks, and full stacked-history reconciliation. No independent security review, external audit, or penetration test is required. Deployment must stay within the documented same-host/local-SQLite support boundary. No merge or deployment is authorized by this plan.
+PR #29 is the active integrated Draft candidate, based on `integration/humanity-one-0.1`; PR #26 remains the integration-foundation reference and PR #28 remains the original lease implementation/reference. The next gates are internal security checks of authentication and integrated API/data boundaries, clean-machine owner setup and backup/restore/import validation, accessibility and governance decisions, and reconciliation of the full stacked history against `main`. No independent security review, external audit, or penetration test is required. Deployment must stay within the documented same-host/local-SQLite support boundary. No merge or deployment is authorized by this plan.
 
 
 ## CI and branch reconciliation update — 2026-11-17 12:40 UTC+2
@@ -117,5 +117,15 @@ Keep PR #26 and PR #28 as Draft review candidates. The next gates are internal s
 - CI `43970440846` completed successfully: all 10 quality steps passed, including Ruff, pytest, pip-audit, wheel/sdist builds, archive verification, and fresh-virtualenv installed-app smoke checks.
 - Automatic CI `43970528285` completed successfully on integration head `a55861673e5fea8e3ff8a7a20bcfdfa26700e447`.
 - PR #26 and PR #28 remain open Drafts. Both have zero submitted reviews and zero inline review threads at this check.
-- Current topology: integration branch is 407 commits ahead and one behind `main`; PR #28 is 25 commits ahead and 22 behind the current integration branch. Both comparisons are divergent and block merge consideration pending explicit stack reconciliation.
+- Historical topology snapshot (2026-11-17): integration branch was 407 commits ahead and one behind `main`; PR #28 was reported 25 commits ahead and 22 behind. These figures are superseded by the 2026-11-18 snapshot below.
 - No merge, force-push, ref rewrite, release, deployment, manual workflow dispatch, or production operation was performed.
+
+
+## Current integration snapshot — 2026-11-18
+
+- Active integrated candidate: PR #29, `fix/agent-lease-side-effects-audit` at `35cc1abef5e3097e519a728a4205c663db4c6d2f`, based on `integration/humanity-one-0.1`. It is open, Draft, and GitHub reports it mergeable.
+- PR #29 is 26 commits ahead and zero behind its integration base. Its latest CI run [44279234278](https://github.com/JoTalbot/humanity-os/actions/runs/44279234278) passed: Ruff, 144 pytest tests, pip-audit, wheel/sdist build, distribution-content verification, and clean-virtualenv installed CLI/app/HTTP smoke checks. One existing Starlette TestClient deprecation warning remains.
+- PR #26 remains the integration-foundation Draft on its original source-grounded-context base. PR #28 remains the original Agent Runtime lease implementation Draft. PR #29 contains the integrated and hardened lease implementation; PR #28 is retained for traceability and must not be merged independently.
+- The current PR #29 branch compared with `main` is 437 commits ahead and one behind, with divergent history. PR #28 compared with the current integration branch is 25 commits ahead and 26 behind. These are explicit stack-reconciliation blockers; no merge, rebase, cherry-pick, force-push, or ref rewrite was performed.
+- Independent security review, external audit, and penetration testing are not required or planned. Internal security tests, dependency auditing, authorization checks, lease fencing, transaction tests, and recovery tests remain part of project-owned validation.
+- No PR was merged, no release was tagged, no deployment was performed, and no production operation was authorized.
