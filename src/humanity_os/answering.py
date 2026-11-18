@@ -27,6 +27,10 @@ class InvalidSourceCitation(ValueError):
     """The provider returned citations that cannot be resolved to supplied sources."""
 
 
+class SourceChangedDuringGeneration(RuntimeError):
+    """A retrieved source changed while the provider was generating an answer."""
+
+
 class DocumentAnswerService:
     """Build transient context, invoke the configured provider, and verify citation IDs."""
 
@@ -74,6 +78,23 @@ class DocumentAnswerService:
             temperature=0.1,
         )
         response = await self.gateway.generate(request)
+        # Re-check exact chunks after the provider call: documents may be
+        # edited or deleted while generation is in flight.
+        for passage in packet["passages"]:
+            verification_source = dict(passage)
+            canonical_fields = (
+                "document_id", "chunk_id", "document_hash", "chunk_hash",
+                "start_offset", "end_offset",
+            )
+            canonical_id = ":".join(str(passage[key]) for key in canonical_fields)
+            import hashlib
+            verification_source["citation_id"] = "src-" + hashlib.sha256(
+                canonical_id.encode("utf-8")
+            ).hexdigest()[:24]
+            if not self.documents.verify_source(verification_source):
+                raise SourceChangedDuringGeneration(
+                    "A source document changed while the answer was being generated"
+                )
         labels = {item["citation_id"] for item in packet["passages"]}
         cited_labels = list(dict.fromkeys(re.findall(r"\[(S\d+)\]", response.output)))
         unknown = sorted(set(cited_labels) - labels)
@@ -125,4 +146,5 @@ __all__ = [
     "ModelProviderTimeout",
     "ModelProviderUnavailable",
     "NoSourceContext",
+    "SourceChangedDuringGeneration",
 ]
