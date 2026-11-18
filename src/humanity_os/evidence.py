@@ -88,7 +88,8 @@ class EvidenceAssessmentStore:
                 """SELECT payload FROM (
                        SELECT payload, assessed_at,
                               ROW_NUMBER() OVER (
-                                  PARTITION BY source_id, COALESCE(json_extract(payload, '$.evidence_id'), '')
+                                  PARTITION BY source_id,
+                                      COALESCE(json_extract(payload, '$.evidence_id'), '')
                                   ORDER BY assessed_at DESC, id DESC
                               ) AS position
                        FROM evidence_assessments
