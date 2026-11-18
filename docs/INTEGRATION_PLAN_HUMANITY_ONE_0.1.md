@@ -62,12 +62,12 @@ Use `humanity-one/source-grounded-context` (PR #23 head) as the working baseline
    - preserve the tool allowlist and pending-review-only memory proposals;
    - do not add shell, arbitrary Python, unrestricted filesystem/network access, autonomous loops, or implicit approval.
 6. Reconcile E2E acceptance (#19) with the final integrated journey and add coverage for the combined UI, source grounding, citation provenance, and agent permission boundaries.
-7. Keep automatic PR CI green as changes land; reserve independent security review and any manually initiated extended test campaign for a separately authorized release gate.
+7. Keep automatic PR CI green as changes land; use project-owned security checks and regression tests. Any manually initiated extended test campaign still requires separate authorization.
 8. Prepare a release-candidate PR with a change inventory, migration/compatibility notes, security limitations, and test evidence.
 
 ## Known hardening items to track
 
-- Agent Runtime: worker identity, expiring leases, heartbeat renewal and atomic stale-run recovery are ported from PR #28. PR #29 adds a SQLite write-locked transaction that atomically commits memory proposal creation, its audit event, and the run's completed state; it also records the initiating agent as the audit actor. Production remains single-process until independent security review; coordination is limited to same-host processes sharing local SQLite with reliable locking.
+- Agent Runtime: worker identity, expiring leases, heartbeat renewal and atomic stale-run recovery are ported from PR #28. PR #29 adds a SQLite write-locked transaction that atomically commits memory proposal creation, its audit event, and the run's completed state; it also records the initiating agent as the audit actor. Lease coordination is limited to same-host processes sharing local SQLite with reliable locking; multi-host and network-filesystem coordination are unsupported.
 - Citation verification: strictly validate citation identifier syntax and source offsets; document whether citation counts mean unique IDs or occurrences.
 - Workspace UI: revalidate authentication, CSRF, loopback restrictions, static asset routing, and behavior with the latest memory schema.
 - Deployment: do not describe the current runtime as OS-sandboxed or fully autonomous.
@@ -109,7 +109,7 @@ The earlier reconciliation notes below describe the initial integration state an
 
 ## Decision
 
-Keep PR #26 and PR #28 as Draft review candidates. The next gates are independent security review of the lease and integrated API/data boundaries, clean-machine owner setup and backup/restore/import validation, accessibility and governance review, and full stacked-history review. Production remains single-process until the lease design and integrated release are independently reviewed. No merge or deployment is authorized by this plan.
+Keep PR #26 and PR #28 as Draft review candidates. The next gates are internal security checks of lease and integrated API/data boundaries, clean-machine owner setup and backup/restore/import validation, accessibility and governance checks, and full stacked-history reconciliation. No independent security review, external audit, or penetration test is required. Deployment must stay within the documented same-host/local-SQLite support boundary. No merge or deployment is authorized by this plan.
 
 
 ## CI and branch reconciliation update — 2026-11-17 12:40 UTC+2
