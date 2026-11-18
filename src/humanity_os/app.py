@@ -250,6 +250,8 @@ def create_app(
                     status_code=403,
                     detail="Explicit consent for configured provider processing is required",
                 )
+            if not answer_service.capabilities()["provider_configured"]:
+                raise HTTPException(status_code=503, detail="No model provider is configured")
             try:
                 reasoning_run = reasoning.run(
                     ReasoningQuery(
