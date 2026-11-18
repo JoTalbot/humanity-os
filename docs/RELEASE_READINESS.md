@@ -59,3 +59,11 @@ The successful CI run recorded above belongs to the earlier candidate HEAD state
 - The report is capped at 500 declared sources. If the cap is exceeded, the run remains available and explicitly marks lineage analysis as unassessed.
 - Answer Engine receives a compact bounded lineage summary alongside claims, relations and evidence assessments when a root claim is supplied.
 - Added regression coverage for dependent-source clusters in reasoning snapshots and assertion that lineage context reaches the answer provider. Tests/workflows have not been run.
+
+## Comparative hypothesis evidence profiles — 2026-11-18
+
+- Extended `POST /v1/reasoning/compare` with per-hypothesis profiles for claim classifications, evidence stance counts, review states, source counts, independence groups, dependency edges and unknown lineage.
+- Added shared and hypothesis-specific evidence-link sets, identified by `(knowledge_id, evidence_id)` rather than URL alone.
+- Distinguishes manually assessed links from `review_required` triage and truly unassessed links.
+- Explicitly remains descriptive; no hypothesis ranking, truth probability, quality score or automatic verdict is produced.
+- Added a regression test covering shared/unique evidence and assessed/review-required states. Tests/workflows have not been run for this increment.
