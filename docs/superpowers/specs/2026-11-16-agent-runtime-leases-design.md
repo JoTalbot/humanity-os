@@ -21,7 +21,7 @@ Allow multiple application processes on one host to share the same SQLite worksp
 - No multi-host/distributed deployment or network-filesystem guarantee.
 - No OS sandbox, autonomous agent loop, arbitrary tool execution, or new external side effects.
 - No change to tool allowlists, one-tool-per-request, bounded inputs/results, or owner approval of durable memory.
-- Lease ownership does not roll back a local tool side effect that completed just before lease loss. Current write-capable tool only creates a pending-review memory proposal.
+- The write-capable `memory.propose` tool verifies and renews the live lease inside `BEGIN IMMEDIATE`, then commits the proposal, proposal audit event, run completion, and terminal run event in the same SQLite transaction. A stale or expired worker cannot persist the proposal. Other future side-effecting tools must adopt the same transaction/fencing contract or provide an explicit idempotency/compensation strategy.
 
 ## Approaches
 
