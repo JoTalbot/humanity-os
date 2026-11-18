@@ -1,7 +1,7 @@
 # Current candidate status — 2026-11-18 (latest batch)
 
 - Active candidate: PR #29, open Draft, branch `fix/agent-lease-side-effects-audit`, base `integration/humanity-one-0.1`.
-- Latest HEAD: `66eaf0631d9fdb36d9242799afdccb501298fa2f`.
+- Topology measured immediately before this status-note commit at HEAD `66eaf0631d9fdb36d9242799afdccb501298fa2f`; this note is a documentation-only commit following that measurement.
 - Candidate vs integration base: **186 ahead / 0 behind**.
 - Candidate vs `main`: **597 ahead / 1 behind**, status `diverged`; merge base `de57a48d8d57c023d02ee1c337e29bb557451a9a`.
 - No workflow runs are attached to this exact HEAD. The gateway metadata regression tests were added but have not been executed.
