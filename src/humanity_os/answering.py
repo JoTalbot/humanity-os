@@ -46,14 +46,39 @@ def _bounded_reasoning_context(context: dict, max_chars: int = 24_000) -> tuple[
     )
     for key in list_keys:
         compact[key] = compact.get(key) or []
+    independence_truncated = False
     independence = compact.get("evidence_independence")
     if independence is not None:
+        groups = independence.get("declared_groups", [])
+        clusters = independence.get("dependent_clusters", [])
+        unknown = independence.get("unknown_lineage", [])
+        independence_truncated = (
+            len(groups) > 30 or len(clusters) > 30 or len(unknown) > 50
+            or any(len(item.get("source_keys", [])) > 20 for item in groups[:30])
+            or any(len(item.get("member_source_ids", [])) > 40 for item in clusters[:30])
+        )
         compact["evidence_independence"] = {
             "source_count": len(independence.get("sources", [])),
-            "declared_groups": independence.get("declared_groups", [])[:30],
-            "dependent_clusters": independence.get("dependent_clusters", [])[:30],
-            "unknown_lineage": independence.get("unknown_lineage", [])[:50],
+            "declared_groups": [
+                {
+                    "knowledge_id": item.get("knowledge_id"),
+                    "group_id": item.get("group_id"),
+                    "source_keys": item.get("source_keys", [])[:20],
+                }
+                for item in groups[:30]
+            ],
+            "dependent_clusters": [
+                {
+                    "knowledge_id": item.get("knowledge_id"),
+                    "root_source_ids": item.get("root_source_ids", [])[:10],
+                    "member_source_ids": item.get("member_source_ids", [])[:40],
+                    "explanation": str(item.get("explanation", ""))[:300],
+                }
+                for item in clusters[:30]
+            ],
+            "unknown_lineage": unknown[:50],
             "limitations": independence.get("limitations", [])[:10],
+            "summary_truncated": independence_truncated,
         }
     for claim in compact["claims"]:
         if isinstance(claim.get("statement"), str):
@@ -74,7 +99,7 @@ def _bounded_reasoning_context(context: dict, max_chars: int = 24_000) -> tuple[
     for key, limit in limits:
         compact[key] = compact[key][:limit]
     encoded = json.dumps(compact, ensure_ascii=False, sort_keys=True)
-    truncated = len(encoded) > max_chars
+    truncated = independence_truncated or len(encoded) > max_chars
     for key in ("evidence", "relations", "claim_assessments", "paths", "claims"):
         while len(encoded) > max_chars and len(compact[key]) > (1 if key == "claims" else 0):
             compact[key].pop()
