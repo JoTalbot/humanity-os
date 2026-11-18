@@ -210,6 +210,11 @@ class ReasoningEngine:
                 source = source_by_id.get(item.source_id) if item else None
                 if item is None or source is None:
                     continue
+                linked_assessments = [
+                    assessments_by_key[key]
+                    for key in ((source.id, item.id), (source.id, None))
+                    if key in assessments_by_key
+                ]
                 evidence.append(EvidenceReference(
                     knowledge_id=record.id,
                     evidence_id=item.id,
@@ -222,7 +227,7 @@ class ReasoningEngine:
                     source_type=source.source_type,
                     independence_group_id=source.independence_group_id,
                     derived_from_source_ids=list(source.derived_from_source_ids),
-                    assessments=[assessment for key in ((source.id, item.id), (source.id, None)) if (assessment := assessments_by_key.get(key)) is not None],
+                    assessments=linked_assessments,
                     excerpt=item.excerpt,
                     locator=item.locator,
                 ))
