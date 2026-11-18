@@ -231,6 +231,29 @@ def create_app(
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
 
+    @app.post("/v1/answers")
+    async def generate_source_grounded_answer(payload: DocumentAnswerRequest) -> dict:
+        try:
+            return await answer_service.answer(
+                payload.query,
+                allow_provider_processing=payload.allow_provider_processing,
+                passage_limit=payload.passage_limit,
+                max_context_chars=payload.max_context_chars,
+                max_output_tokens=payload.max_output_tokens,
+            )
+        except PermissionError as exc:
+            raise HTTPException(status_code=403, detail=str(exc)) from exc
+        except NoSourceContext as exc:
+            raise HTTPException(status_code=404, detail="No matching source passages were found") from exc
+        except ModelProviderUnavailable as exc:
+            raise HTTPException(status_code=503, detail="No model provider is configured") from exc
+        except ModelProviderTimeout as exc:
+            raise HTTPException(status_code=504, detail="Model provider timed out") from exc
+        except ModelProviderFailure as exc:
+            raise HTTPException(status_code=502, detail="Model provider request failed") from exc
+        except InvalidSourceCitation as exc:
+            raise HTTPException(status_code=502, detail="Model response failed citation validation") from exc
+
     @app.post("/v1/models/generate", response_model=ModelGenerationResponse)
     async def generate_model_output(
         payload: ModelGenerationRequest,
