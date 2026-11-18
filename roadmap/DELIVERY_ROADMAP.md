@@ -13,7 +13,7 @@ Implement provider-neutral model gateway, document ingestion, source-aware searc
 Implement bounded lifecycle, capabilities, approvals, tool adapters, quotas, cancellation and audit. Exit: tests prove agents cannot exceed permissions.
 
 ## 4 — Release hardening
-Complete focused engineering review, privacy and accessibility evaluation, dependency/build validation, documentation review, and the milestone-based RC test campaign. Exit: documented limitations, no unresolved release-blocking defect, and reproducible operator acceptance. A separate independent security review is not part of this delivery plan.
+Complete focused engineering review, privacy and accessibility evaluation, dependency/build validation, documentation review, and the milestone-based RC test campaign. Exit: documented limitations, no unresolved release-blocking defect, reproducible automated build/validation evidence, and an explicit owner decision on deferred operational acceptance. Manual operator acceptance is currently deferred and is not a development gate. A separate independent security review is not part of this delivery plan.
 
 ## 5 — Public 0.1
 Publish source, specs, reproducible build, deployment/operator guides, known limitations and contribution process. Exit: an independent developer can install, operate and extend the system.
