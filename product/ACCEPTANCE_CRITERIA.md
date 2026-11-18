@@ -11,7 +11,7 @@
 - [x] Opaque sessions are stored as token digests and expire after 12 hours.
 - [x] Logout revokes the current session; password rotation revokes all sessions.
 - [x] Cookie-authenticated state-changing requests require a CSRF token.
-- [ ] Password recovery, MFA, login throttling, session inspection UI, and multi-user workspace isolation.
+- [x] Persistent login throttling (five failed attempts per owner/source-IP bucket in 15 minutes trigger a 15-minute lockout).\n- [ ] Password recovery, MFA, session inspection UI, and multi-user workspace isolation.
 - [ ] Private data is excluded from sharing by default.
 
 ## Knowledge
@@ -38,7 +38,7 @@
 - [ ] Secret scanning is enabled and passes.
 - [ ] Production backup scheduling, encryption-at-rest policy, retention, and off-device recovery.
 - [ ] Accessibility review and independent security review.
-- [ ] Operator runbook and user documentation complete.
+- [x] Operator acceptance runbook and evidence template documented ([Operator Acceptance](../docs/OPERATOR_ACCEPTANCE.md)).\n- [ ] Full user documentation complete.
 
 A checkbox without evidence is not acceptance. CI evidence is recorded in GitHub Actions.
 
