@@ -222,6 +222,12 @@ def test_generation_request_rejects_non_finite_temperature(temperature):
         ModelGenerationRequest(prompt="hello", temperature=temperature)
 
 
+@pytest.mark.parametrize("temperature", [True, False, "0.5"])
+def test_generation_request_rejects_coerced_temperature_inputs(temperature):
+    with pytest.raises(ValueError, match="finite number"):
+        ModelGenerationRequest(prompt="hello", temperature=temperature)
+
+
 @pytest.mark.parametrize("temperature", [0, 0.2, 1])
 def test_generation_request_accepts_finite_temperature_boundaries(temperature):
     request = ModelGenerationRequest(prompt="hello", temperature=temperature)
