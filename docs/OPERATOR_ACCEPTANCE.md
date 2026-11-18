@@ -8,18 +8,27 @@ Record the date, OS and version, architecture, Python version (3.11+), install m
 
 ## 2. Install and initialize
 
-Follow [Local development](LOCAL_DEVELOPMENT.md) for the selected install method. In a fresh shell, select a dedicated database path so the acceptance run cannot touch an existing workspace:
+For a candidate-branch acceptance run, clone the exact branch under test and record its commit SHA:
 
 ```bash
+git clone --branch fix/agent-lease-side-effects-audit --single-branch \
+  https://github.com/JoTalbot/humanity-os.git
+cd humanity-os
+git rev-parse HEAD
 mkdir -p "$HOME/humanity-acceptance/backups"
 export HUMANITY_OS_DB="$HOME/humanity-acceptance/workspace.sqlite3"
 python -m venv "$HOME/humanity-acceptance/venv"
 . "$HOME/humanity-acceptance/venv/bin/activate"
-python -m pip install 'humanity-os[dev]'
-humanity-os --set-owner-password
+python -m pip install '.[dev]'
 ```
 
-If validating a locally built wheel, install that exact wheel instead of the package-index example above. Record the wheel filename and SHA-256. Do not put passwords or bearer tokens in shell arguments, shell history, CI logs, or screenshots.
+For an artifact acceptance run, install the exact wheel produced by the candidate CI instead of installing from the source checkout. Record the artifact filename, SHA-256 and source commit. Do not use an unrelated package-index release. Do not put passwords or bearer tokens in shell arguments, shell history, CI logs, or screenshots.
+
+Set the owner password interactively:
+
+```bash
+humanity-os --set-owner-password
+```
 
 Start the application in the same environment:
 
