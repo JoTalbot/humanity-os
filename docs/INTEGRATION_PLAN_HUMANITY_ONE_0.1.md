@@ -134,35 +134,24 @@ PR #29 is the active integrated Draft candidate, based on `integration/humanity-
 - CI update after the 2026-11-18 documentation and backup/restore test batch: [run 44279992873](https://github.com/JoTalbot/humanity-os/actions/runs/44279992873) passed all quality steps on head `bd63fe951377be1c3b82b8bb4087609f7bb89737`; 146 tests passed, one Starlette TestClient deprecation warning. The branch is 31 commits ahead and zero behind `integration/humanity-one-0.1`, and 442 commits ahead / one behind `main` (diverged). The new tests exercise CLI backup, backup verification, restore, and preservation of the pre-restore state in a safety backup. Clean-machine, cross-platform owner setup and operational recovery still require separate acceptance.
 
 
-## Reconciliation snapshot — 2026-11-18 (latest)
+## Reconciliation snapshot — 2026-11-18 (current)
 
-This section supersedes the earlier 2026-11-18 topology counts and CI-head references above.
-
-- Active candidate: PR #29, branch `fix/agent-lease-side-effects-audit`, head `5ec2f46da157655dcf2b3ad6f6b147f5e46a5201`; base `integration/humanity-one-0.1` at `bfaf67c9cfaad81ec66a430c05cc25294f429979`. PR #29 is open and Draft. GitHub currently reports it mergeable, but this status does not resolve the wider stacked-history divergence.
-- PR #29 is 36 commits ahead and zero behind its integration base.
-- Compared with `main`, PR #29 is 447 commits ahead and one behind; histories are divergent. The merge base is `de57a48d8d57c023d02ee1c337e29bb557451a9a`. No merge, rebase, cherry-pick, force-push, or ref rewrite is authorized or performed.
-- The sole main-only commit is `ac46e16728382c0af800421978f0bf7df6943de9` (`test(memory): cover explicit approval and portable lifecycle`). It adds `tests/test_memory.py`. The integration candidate has the same path with a different expanded implementation: 10 tests versus 7 on `main`, including explicit approval/rejection, exact source linkage, archive/restore, authenticated API lifecycle, export/import, tamper rejection, append-only events, and legacy schema compatibility. This is a content-level supersession assessment, not proof of a clean merge or permission to rewrite history.
+- Active candidate: PR #29, branch `fix/agent-lease-side-effects-audit`, head `fe5cca73ac068a4a86ed8e9c4d74c321fd15e373`; base `integration/humanity-one-0.1` at `bfaf67c9cfaad81ec66a430c05cc25294f429979`. PR #29 remains open and Draft. GitHub's mergeable flag does not resolve the stacked-history divergence.
+- Live comparison: 40 commits ahead / 0 behind the integration base; 451 ahead / 1 behind `main`. Histories are divergent; merge base `de57a48d8d57c023d02ee1c337e29bb557451a9a`.
+- Latest automatic CI run for this exact head: [44281745359](https://github.com/JoTalbot/humanity-os/actions/runs/44281745359), in progress at the time of this snapshot. The preceding head's run [44281451823](https://github.com/JoTalbot/humanity-os/actions/runs/44281451823) passed all 10 quality steps; it is not evidence for the new head.
+- The sole main-only commit is `ac46e16728382c0af800421978f0bf7df6943de9` (`test(memory): cover explicit approval and portable lifecycle`). It adds `tests/test_memory.py`; the integration candidate has the same path with an expanded implementation (10 tests versus 7 on `main`). Treat this as content-level supersession only, not a reconciled Git history.
 - PR #28 remains the original lease implementation/reference; PR #26 remains the integration-foundation reference. Neither should be merged independently.
-- Latest inspected CI run [44280523557](https://github.com/JoTalbot/humanity-os/actions/runs/44280523557) completed successfully with all 10 quality steps passing: lint, tests, dependency audit, wheel/sdist build and inspection, and clean-virtualenv installed-app/HTTP smoke checks.
-- PR #29 has no submitted reviews or inline review threads in the latest inspection.
-- Independent security review, external audit, and penetration testing are canceled/not required. Project-owned regression, authorization, dependency and operational checks remain in scope.
-- No merge, release, deployment, external integration, or production action was performed.
+- Source PRs remain open as provenance records. Do not merge the stack as separate independent feature changes after the integrated candidate.
+- Open tracked requirements still include issue #2 (fail-closed authentication and first-run boundary) and issue #4 (complete workspace export and verified deletion), alongside accessibility, privacy/retention, governance and clean-machine operator acceptance. These require implementation/owner decisions; they do not authorize external review or deployment.
+- Independent security review, external audit and penetration testing are canceled/not required. Project-owned authorization, regression, dependency and operational checks remain in scope.
+- No merge, rebase, cherry-pick, force-push, release, deployment, external integration or production action was performed.
 
-## Current next gates
+## Remaining release gates
 
-1. Complete a file-level inventory of the entire stacked history and trace each retained feature to its source PR.
-2. Reconcile the one main-only memory-test commit by documented content equivalence; preserve the original commit and branches until an owner-approved integration operation is selected.
-3. Validate clean-machine owner setup, backup, restore and portable import; existing CI smoke checks do not establish this operational acceptance.
-4. Resolve data deletion/retention/backup disposal, encryption/key recovery, privacy disclosures, release provenance, license/governance and accessibility decisions.
-5. Prepare the HUMANITY ONE 0.1 release-candidate evidence package. Do not merge, tag, publish, deploy, expose a network listener or activate a provider without separate explicit authorization.
-
-
-
-
-## Evidence refresh — 2026-11-18
-
-- Current active candidate is PR #29, Draft, head `02908bc68c0f5d04994f4ca14ecc5cc7066a5854`, base `integration/humanity-one-0.1`.
-- Latest live comparison: 38 commits ahead / 0 behind the integration base; 449 ahead / 1 behind `main` (diverged). Merge base: `de57a48d8d57c023d02ee1c337e29bb557451a9a`.
-- Latest completed CI on that head: [44281451823](https://github.com/JoTalbot/humanity-os/actions/runs/44281451823), all 10 quality steps passed. Later documentation commits will trigger another automatic run.
-- The main-only memory-test commit is still treated as content-level superseded by the expanded integration test file, not as a reconciled Git commit.
-- Independent security review, external audit and penetration testing remain canceled/not required. No merge, release, deployment, external integration or production operation was performed.
+1. Complete a file-level provenance inventory of the stacked history and settle an owner-approved strategy for the 451/1 divergence without discarding the main-only commit.
+2. Close issue #2 through project-owned tests for anonymous access, first-run owner setup, direct ASGI startup and loopback/network boundary behavior.
+3. Close issue #4 with a versioned full-workspace export, secret exclusion, owner-confirmed deletion, retention/backup disposal policy and round-trip/deletion tests.
+4. Validate clean-machine owner setup, startup, backup, restore and portable import on supported operating systems.
+5. Decide encryption/key recovery, privacy disclosures/legal basis, release provenance/signing, license, governance and contribution rules.
+6. Complete accessibility evaluation and supported desktop/mobile workflow acceptance.
+7. Assemble HUMANITY ONE 0.1 Release Candidate evidence. Do not merge, tag, publish, deploy, expose a network listener or activate a provider without separate explicit owner authorization.
