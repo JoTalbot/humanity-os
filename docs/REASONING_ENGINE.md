@@ -52,3 +52,9 @@ Reasoning context is size-bounded before provider transmission. Exact source chu
 Every reasoning run now includes a bounded source-lineage report for the selected claims' parent knowledge records. It exposes explicitly declared independence groups, shared upstream derivation clusters, source lineage status, and unknown lineage. This is the same deterministic metadata analysis exposed by the standalone Evidence Independence API, reused by the Reasoning Engine rather than reimplemented.
 
 The report is limited to 500 declared sources across the selected knowledge records. If that bound is exceeded, the reasoning run remains available but records an explicit limitation and leaves independence unassessed. It does not infer independence from different URLs, publishers, or hashes, and it does not score corroboration or truth. Answer Engine receives a compact, bounded summary of this report when reasoning context is enabled.
+
+## Comparative hypothesis evidence profiles
+
+`POST /v1/reasoning/compare` now reports a profile for each root hypothesis in addition to graph/source overlap. Each profile summarizes the bounded claim count and latest human claim classifications, linked evidence count, latest evidence stance counts (`supports`, `refutes`, `neutral`), review states (`assessed`, `review_required`, `unassessed`), distinct source count, declared independence groups, recorded dependency edges, and unknown-lineage source count.
+
+The comparison also identifies evidence links shared across all alternatives and evidence links unique to each alternative. Evidence-link identity is scoped by knowledge record and evidence ID, not by URL alone. A review-required automated triage event is not counted as an assessed link. These are descriptive profiles only: the engine does not calculate a hypothesis winner, truth probability, evidence quality score, or automatic verdict. Each alternative remains a separate immutable Reasoning Run.
