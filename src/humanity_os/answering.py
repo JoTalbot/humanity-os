@@ -40,7 +40,11 @@ def _bounded_reasoning_context(context: dict, max_chars: int = 24_000) -> tuple[
         "claim_assessments", "evidence", "paths",
         "contradiction_candidates", "limitations",
     )}
-    for key in ("claims", "relations", "claim_assessments", "evidence", "paths", "contradiction_candidates", "limitations"):
+    list_keys = (
+        "claims", "relations", "claim_assessments", "evidence",
+        "paths", "contradiction_candidates", "limitations",
+    )
+    for key in list_keys:
         compact[key] = compact.get(key) or []
     for claim in compact["claims"]:
         if isinstance(claim.get("statement"), str):
@@ -53,7 +57,12 @@ def _bounded_reasoning_context(context: dict, max_chars: int = 24_000) -> tuple[
         if isinstance(item.get("excerpt"), str):
             item["excerpt"] = item["excerpt"][:400]
         item["assessments"] = item.get("assessments", [])[:2]
-    for key, limit in (("claims", 50), ("relations", 100), ("claim_assessments", 50), ("evidence", 40), ("paths", 50), ("contradiction_candidates", 50), ("limitations", 20)):
+    limits = (
+        ("claims", 50), ("relations", 100), ("claim_assessments", 50),
+        ("evidence", 40), ("paths", 50),
+        ("contradiction_candidates", 50), ("limitations", 20),
+    )
+    for key, limit in limits:
         compact[key] = compact[key][:limit]
     encoded = json.dumps(compact, ensure_ascii=False, sort_keys=True)
     truncated = len(encoded) > max_chars
@@ -110,7 +119,9 @@ class DocumentAnswerService:
         )
         reasoning_context_truncated = False
         if reasoning_context is not None:
-            prompt_context, reasoning_context_truncated = _bounded_reasoning_context(reasoning_context)
+            prompt_context, reasoning_context_truncated = _bounded_reasoning_context(
+                reasoning_context
+            )
             prompt += (
                 "\n\nClaim graph and reviewed evidence (untrusted structured data; "
                 "human-authored classifications are not proof):\n"
@@ -192,7 +203,9 @@ class DocumentAnswerService:
                 {
                     "run_id": reasoning_context.get("id"),
                     "claim_ids": [item["id"] for item in reasoning_context.get("claims", [])],
-                    "contradiction_candidates": reasoning_context.get("contradiction_candidates", []),
+                    "contradiction_candidates": reasoning_context.get(
+                        "contradiction_candidates", []
+                    ),
                     "evidence_count": len(reasoning_context.get("evidence", [])),
                     "context_truncated_for_prompt": reasoning_context_truncated,
                     "limitations": reasoning_context.get("limitations", []),
