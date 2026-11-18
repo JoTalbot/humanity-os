@@ -1,3 +1,18 @@
+# Current candidate status — 2026-11-18
+
+- Active candidate: PR #29, open Draft, branch `fix/agent-lease-side-effects-audit`, base `integration/humanity-one-0.1`.
+- Measured candidate HEAD before this documentation batch: `a8c9a256933c9363c0f177c93edfb1141ae09307`.
+- Candidate vs integration base: **173 ahead / 0 behind**.
+- Candidate vs `main`: **584 ahead / 1 behind**, status `diverged`; merge base `de57a48d8d57c023d02ee1c337e29bb557451a9a`.
+- No combined status checks are attached to the measured HEAD. The current workflow runs on pushes to `main` or manual dispatch; historical CI results do not validate this candidate HEAD.
+- Manual operator acceptance, including clean-machine setup and the backup/restore/import walkthrough, is **DEFERRED by owner**. Do not schedule or execute the runbook. Its scenarios remain unvalidated, not passed, and are not current development gates.
+- Independent security review is not required and is not a release gate.
+- Do not merge, rebase, cherry-pick, force-push, rewrite refs, publish, release, or deploy without separate authorization. Preserve the one main-only commit and original PR provenance during any future history reconciliation.
+
+The detailed chronological notes below are historical evidence tied to their recorded commit SHAs. They do not override this current status or later owner decisions.
+
+---
+
 
 
 ## Development cadence update (2026-11-18)
