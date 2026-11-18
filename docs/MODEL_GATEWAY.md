@@ -78,3 +78,7 @@ Reasoning-aware prompts also receive a compact summary of the source-lineage rep
 Reasoning-aware prompts may also contain `potential_contradictions`: deterministic matches of the same non-empty structured subject/predicate/object, scope, temporal scope and modality with opposite explicit polarity. They are review leads only, not semantic contradiction judgments; the prompt says so explicitly. Explicit reviewer-authored contradiction edges remain distinct.
 
 Reasoning context may include `temporal_claim_differences` and `declared_dependency_paths`. Temporal entries preserve distinct source labels without inferring interval overlap or chronology. Dependency paths include only explicit `depends_on` edges and are not causation evidence. The Answer Engine is instructed to preserve these limits.
+
+### Provider identity normalization
+
+Provider and model identifiers are trimmed before they are returned. Identifiers containing only whitespace are rejected inside the gateway's sanitized provider-failure boundary and produce the same generic HTTP 502 response as other malformed adapter metadata. This prevents ambiguous blank identities and avoids exposing adapter validation details. Regression tests cover blank identifiers, whitespace normalization, and the sanitized exception type.
