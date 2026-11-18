@@ -205,3 +205,12 @@ def test_provider_and_model_identifiers_are_normalized():
 
     assert response.provider == "test-provider"
     assert response.model == "deterministic-v1"
+
+
+@pytest.mark.parametrize(
+    "timeout_seconds",
+    [0, -1, 0.09, 120.01, float("nan"), float("inf"), -float("inf"), True, False, "30"],
+)
+def test_gateway_rejects_invalid_timeout_configuration(timeout_seconds):
+    with pytest.raises(ValueError, match="finite number"):
+        ModelGateway(timeout_seconds=timeout_seconds)
