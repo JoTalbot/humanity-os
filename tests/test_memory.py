@@ -180,7 +180,8 @@ def test_memory_export_import_round_trip_and_secret_exclusion(tmp_path):
         "/v1/memory/proposals",
         json={"title": "Portable memory", "content": "Export this selected memory.", "rationale": "Owner choice."},
     ).json()
-    client.post(f"/v1/memory/proposals/{proposal['id']}/approve")
+    approved = client.post(f"/v1/memory/proposals/{proposal['id']}/approve").json()
+    client.post(f"/v1/memories/{approved['id']}/archive")
     exported = KnowledgeStore(source).export_workspace()
     assert exported["schema_version"] == "1.3.0"
     assert len(exported["tables"]["memory_proposals"]) == 1
@@ -199,6 +200,11 @@ def test_memory_export_import_round_trip_and_secret_exclusion(tmp_path):
     restored = MemoryStore(target).list_memories()
     assert len(restored) == 1
     assert restored[0]["content"] == "Export this selected memory."
+    assert restored[0]["status"] == "archived"
+    assert [
+        event["event_type"]
+        for event in MemoryStore(target).list_events(memory_id=restored[0]["id"])
+    ] == ["proposal_approved", "memory_archived"]
 
 
 def test_memory_import_rejects_domain_tampering_even_with_recomputed_digest(tmp_path):
@@ -248,6 +254,10 @@ def test_memory_events_are_append_only(tmp_path):
             "UPDATE memory_events SET event_type = 'rewritten' WHERE id = ?",
             (event["id"],),
         )
+    with sqlite3.connect(database) as connection, pytest.raises(
+        sqlite3.IntegrityError, match="append-only"
+    ):
+        connection.execute("DELETE FROM memory_events WHERE id = ?", (event["id"],))
 
 
 @pytest.mark.parametrize("legacy_version", ["1.0.0", "1.1.0", "1.2.0"])
