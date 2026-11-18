@@ -63,3 +63,12 @@ A future provider switch must be explicit and visible. No provider may be silent
 
 
 After provider generation, the answer service re-fetches and verifies every full source chunk against current local document content and hashes. If a source was edited or deleted while generation was in flight, the answer is discarded and the API returns HTTP 409; callers must retrieve fresh context and retry. This also checks full chunk integrity when the prompt context used a bounded excerpt.
+
+
+### Reasoning-aware answer generation
+
+`POST /v1/answers` optionally accepts `root_claim_id` plus bounded reasoning controls (`reasoning_max_depth`, `reasoning_max_nodes`, exact `reasoning_scope`, and `reasoning_temporal_scope`). When supplied, the API creates an immutable Reasoning Engine run and passes a compact, size-bounded representation of its claims, typed relations, claim assessments, evidence provenance, and latest evidence assessments to the provider alongside the local document excerpts.
+
+The graph is explicitly untrusted explanatory context, not proof. The prompt directs the provider to surface disagreements and ground factual statements in the retrieved document passages using `[S#]` citations. The response includes the reasoning run ID, selected claim IDs, contradiction candidates, evidence count, limitations, and whether graph context was truncated for the prompt. Provider consent is checked before creating a reasoning run when `root_claim_id` is supplied. The reasoning context is only transmitted when the same per-request provider consent is true.
+
+Post-generation source verification fetches each exact document chunk by its immutable document/chunk IDs; it does not depend on the chunk remaining in a bounded lexical search result page. Truncated prompt excerpts are checked against the full stored chunk and its hashes.
