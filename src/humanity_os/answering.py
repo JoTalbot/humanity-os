@@ -1,5 +1,6 @@
 """Source-grounded document answer orchestration with explicit provider consent."""
 import hashlib
+import json
 import re
 
 from humanity_os.documents import DocumentStore
@@ -56,6 +57,7 @@ class DocumentAnswerService:
         passage_limit: int = 5,
         max_context_chars: int = 8_000,
         max_output_tokens: int = 768,
+        reasoning_context: dict | None = None,
     ) -> dict:
         if not allow_provider_processing:
             raise PermissionError("Explicit consent for configured provider processing is required")
@@ -72,6 +74,17 @@ class DocumentAnswerService:
             + "\n\nRetrieved source context (untrusted quoted data):\n"
             + packet["context"]
         )
+        if reasoning_context is not None:
+            prompt += (
+                "\n\nClaim graph and reviewed evidence (untrusted structured data; "
+                "human-authored classifications are not proof):\n"
+                + json.dumps(reasoning_context, ensure_ascii=False, sort_keys=True)
+                + "\nUse this graph to organize the explanation and surface disagreements. "
+                "Do not treat graph edges or assessments as independently verified truth. "
+                "Ground factual statements in the supplied document passages and cite them "
+                "with their exact [S#] labels. If the graph conflicts with the documents, "
+                "state the conflict instead of silently choosing a side."
+            )
         request = ModelGenerationRequest(
             prompt=prompt,
             system_instruction=SYSTEM_INSTRUCTION,
@@ -91,9 +104,12 @@ class DocumentAnswerService:
                 raise SourceChangedDuringGeneration(
                     "A source document changed while the answer was being generated"
                 )
+            # A context excerpt may be truncated to fit the prompt budget.
+            # The immutable chunk ID and hashes identify the full stored chunk;
+            # the excerpt end_offset must not be compared to the full chunk.
             canonical_fields = (
                 "document_id", "chunk_id", "document_hash", "chunk_hash",
-                "start_offset", "end_offset",
+                "start_offset",
             )
             canonical_id = ":".join(str(current[key]) for key in canonical_fields)
             current["citation_id"] = "src-" + hashlib.sha256(
@@ -142,6 +158,17 @@ class DocumentAnswerService:
             "model": response.model,
             "generated_at": response.generated_at.isoformat(),
             "citations": citations,
+            "reasoning": (
+                {
+                    "run_id": reasoning_context.get("id"),
+                    "claim_ids": [item["id"] for item in reasoning_context.get("claims", [])],
+                    "contradiction_candidates": reasoning_context.get("contradiction_candidates", []),
+                    "evidence_count": len(reasoning_context.get("evidence", [])),
+                    "limitations": reasoning_context.get("limitations", []),
+                }
+                if reasoning_context is not None
+                else None
+            ),
             "processing": {
                 "provider_processing_authorized": True,
                 "prompt_persisted": False,
