@@ -67,3 +67,11 @@ The successful CI run recorded above belongs to the earlier candidate HEAD state
 - Distinguishes manually assessed links from `review_required` triage and truly unassessed links.
 - Explicitly remains descriptive; no hypothesis ranking, truth probability, quality score or automatic verdict is produced.
 - Added a regression test covering shared/unique evidence and assessed/review-required states. Tests/workflows have not been run for this increment.
+
+## Structured contradiction discovery — 2026-11-18
+
+- Reasoning Runs now detect candidate pairs with matching non-empty structured subject/predicate/object, exact scope/temporal-scope/modality and opposite explicit polarity.
+- Candidate records include both claim IDs and a machine-readable basis. They are separate from explicit reviewer-authored `contradicts` graph edges.
+- Detection is deterministic and narrow; it does not perform semantic entailment, infer negation from prose, or create graph edges.
+- Answer Engine receives bounded potential-contradiction context.
+- Added regression coverage for normalized structured matches and propagation into the Answer Engine prompt. Tests/workflows have not been run.
