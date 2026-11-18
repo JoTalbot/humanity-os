@@ -55,3 +55,8 @@ A future provider switch must be explicit and visible. No provider may be silent
 - A retrieval-only `/v1/answers/context` endpoint now prepares bounded source manifests, but it does not invoke the model gateway, synthesize answers, or verify citations in generated output.
 - Token usage is provider-reported and cannot be independently verified by the gateway.
 - The timeout bounds the awaited provider call; adapter implementations must also enforce transport-level connection and read timeouts.
+
+
+## Source-grounded answer endpoint
+
+`POST /v1/answers` composes local document retrieval with the explicitly injected Model Gateway. It is separate from `/v1/answers/context` (which never calls a model) and `/v1/answers/validate` (which checks provenance only). The request requires `allow_provider_processing: true`; the default is false and returns HTTP 403 without calling a provider. Even after consent, the default app has no provider and returns HTTP 503. A configured provider receives the query and bounded local excerpts. The response resolves every returned `[S#]` citation to the exact retrieved document/chunk metadata and reports `semantic_entailment_verified: false`. Missing or unknown citations are rejected. The endpoint does not persist prompts, completions, or generated answers and does not write memory. This citation check confirms label resolution, not that the source logically supports the claim.
