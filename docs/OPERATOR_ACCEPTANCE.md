@@ -1,3 +1,5 @@
+> **Status: DEFERRED by owner (2026-11-18).** This runbook is retained as reference documentation only. Do not execute or schedule this manual acceptance procedure during the current development phase. Backup/restore/import operator evidence is not a current development or release-readiness gate. The scenarios remain unvalidated, not passed. Resume this procedure only after a separate owner decision.
+
 # HUMANITY ONE 0.1 — Operator Acceptance Runbook
 
 This procedure is for a **disposable test workspace on a clean machine**. Do not use a production or only-copy workspace. The 0.1 prototype is local-only and must not be exposed to a LAN, reverse proxy, or public network.
