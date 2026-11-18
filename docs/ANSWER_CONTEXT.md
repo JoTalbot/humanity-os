@@ -36,6 +36,6 @@ The current lexical retriever scans local chunks and requires every extracted qu
 
 ## Citation provenance validation
 
-`POST /v1/answers/validate` accepts answer text, the exact source manifest and its digest. It extracts `[src-<24 hex>]` markers, checks the manifest digest, rejects duplicate manifest IDs, and compares every cited excerpt with the current local document and chunk records, including content hashes, chunk ordinal, offsets, filename and media type.
+`POST /v1/answers/validate` accepts answer text, the exact source manifest and its digest. It extracts only exact lowercase `[src-<24 hex>]` markers. Malformed `src-` markers are returned as explicit `invalid_format` checks and make the result unverified, even if other citations are valid. The validator checks the manifest digest, rejects duplicate manifest IDs, and compares every cited excerpt with the current local document and chunk records, including content hashes, chunk ordinal, offsets, filename and media type.
 
 A `verified` result means only that each cited excerpt is present in the supplied manifest and matches the current local source record. It does **not** prove that the excerpt logically supports the answer, that the source is accurate, or that the answer is true. Semantic support assessment remains a separate future capability.
