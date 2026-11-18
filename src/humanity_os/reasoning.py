@@ -142,6 +142,27 @@ class HypothesisEvidenceProfile(BaseModel):
     unknown_lineage_source_count: int
 
 
+class HypothesisClaimCoverageReference(BaseModel):
+    root_claim_id: str
+    claim_ids: list[str] = Field(default_factory=list, max_length=50)
+
+
+class HypothesisClaimCoverageGap(BaseModel):
+    target_root_claim_id: str
+    subject: str
+    predicate: str
+    object: str
+    scope: str | None = None
+    modality: str
+    temporal_scope: str | None = None
+    represented_in: list[HypothesisClaimCoverageReference] = Field(
+        default_factory=list, max_length=9
+    )
+    basis: Literal[
+        "peer_hypothesis_structured_claim_not_present_in_target_bounded_traversal"
+    ] = "peer_hypothesis_structured_claim_not_present_in_target_bounded_traversal"
+
+
 class ReasoningComparison(BaseModel):
     query: str
     runs: list[ReasoningRun]
@@ -154,6 +175,7 @@ class ReasoningComparison(BaseModel):
     evidence_profiles: dict[str, HypothesisEvidenceProfile] = Field(default_factory=dict)
     shared_evidence_ids: list[str] = Field(default_factory=list)
     unique_evidence_ids: dict[str, list[str]] = Field(default_factory=dict)
+    claim_coverage_gaps: list[HypothesisClaimCoverageGap] = Field(default_factory=list, max_length=500)
     dependent_source_edges: list[str] = Field(default_factory=list)
     unknown_lineage_sources: list[str] = Field(default_factory=list)
     limitations: list[str]
@@ -566,6 +588,59 @@ class ReasoningEngine:
                 dependent_source_edge_count=len(dependency_edges),
                 unknown_lineage_source_count=len(unknown_sources),
             )
+        # Report only structured-claim coverage differences observed in these
+        # bounded traversals. A gap is not a claim that evidence should exist.
+        structured_claims: dict[str, dict[tuple[str, str, str, str | None, str, str | None], list[ClaimNode]]] = {}
+        for run in runs:
+            by_key: dict[tuple[str, str, str, str | None, str, str | None], list[ClaimNode]] = {}
+            for claim in run.claims:
+                terms = (claim.subject, claim.predicate, claim.object)
+                if any(not value or not value.strip() for value in terms):
+                    continue
+                key = (
+                    " ".join((claim.subject or "").casefold().split()),
+                    " ".join((claim.predicate or "").casefold().split()),
+                    " ".join((claim.object or "").casefold().split()),
+                    " ".join(claim.scope.casefold().split()) if claim.scope else None,
+                    claim.modality,
+                    " ".join(claim.temporal_scope.casefold().split()) if claim.temporal_scope else None,
+                )
+                by_key.setdefault(key, []).append(claim)
+            structured_claims[run.root_claim_id] = by_key
+
+        all_propositions = set().union(
+            *(set(items) for items in structured_claims.values())
+        )
+        coverage_gaps: list[HypothesisClaimCoverageGap] = []
+        for target_root_id in sorted(structured_claims):
+            target_keys = structured_claims[target_root_id]
+            for key in sorted(all_propositions - set(target_keys), key=repr):
+                represented_in = [
+                    HypothesisClaimCoverageReference(
+                        root_claim_id=peer_root_id,
+                        claim_ids=sorted({claim.id for claim in peer_claims[key]}),
+                    )
+                    for peer_root_id, peer_claims in sorted(structured_claims.items())
+                    if peer_root_id != target_root_id and key in peer_claims
+                ]
+                if not represented_in:
+                    continue
+                subject, predicate, object_value, scope, modality, temporal_scope = key
+                coverage_gaps.append(HypothesisClaimCoverageGap(
+                    target_root_claim_id=target_root_id,
+                    subject=subject,
+                    predicate=predicate,
+                    object=object_value,
+                    scope=scope,
+                    modality=modality,
+                    temporal_scope=temporal_scope,
+                    represented_in=represented_in,
+                ))
+                if len(coverage_gaps) >= 500:
+                    break
+            if len(coverage_gaps) >= 500:
+                break
+
         dependent_edges = sorted({
             f"{item.knowledge_id}:{item.source_id}<-{parent_id}"
             for run in runs
@@ -606,6 +681,7 @@ class ReasoningEngine:
                 root_id: sorted(values - shared_evidence)
                 for root_id, values in evidence_sets.items()
             },
+            claim_coverage_gaps=coverage_gaps,
             dependent_source_edges=dependent_edges,
             unknown_lineage_sources=unknown_lineage,
             limitations=[
@@ -614,6 +690,7 @@ class ReasoningEngine:
                 "Independence groups are reviewer-declared and scoped to parent knowledge records; unknown lineage remains unknown.",
                 "Derived-source edges indicate recorded dependency, not verified copying or publisher identity.",
                 "Each alternative is stored as its own immutable reasoning run.",
+                "Claim coverage gaps report structured propositions absent from a bounded traversal; they do not establish missing evidence, relevance, or falsity.",
             ],
             actor=actor,
         )
