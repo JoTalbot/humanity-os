@@ -23,17 +23,17 @@ PR #29 is the single integrated Draft candidate. Its current HEAD has passed the
 
 ## Latest automated validation
 
-- Current PR HEAD at this register update: `76cbc8f2095d25310b5f927b4c8f90bd835a55cb`.
-- GitHub Actions [run 44285074354](https://github.com/JoTalbot/humanity-os/actions/runs/44285074354) completed successfully on this exact HEAD.
+- Current PR HEAD at this register update: `be512a9a64c0e5db2fe7b85c09010777ca065671`.
+- GitHub Actions [run 44285480727](https://github.com/JoTalbot/humanity-os/actions/runs/44285480727) completed successfully on this exact HEAD.
 - All 10 quality steps passed: setup, dependency installation, Ruff lint, pytest, dependency vulnerability audit, wheel/sdist build, distribution-content verification and clean-virtual-environment packaged-app HTTP smoke test.
 - The test step passed; this run's job summary does not expose a test-count value. Do not infer a count from earlier runs.
 - CI does not prove clean-machine owner setup, supported-OS operation, real backup/restore/import acceptance, accessibility, legal readiness or production readiness.
-- The current documentation synchronization is newer than this validated HEAD; check the automatically triggered CI for the new HEAD before treating it as validated.
+- The current candidate HEAD has passed all 10 CI quality steps, including the isolated wheel installation and packaged-app HTTP smoke test. This does not replace clean-machine operator acceptance.
 
 ## Candidate and branch topology
 
 - Active candidate: [PR #29](https://github.com/JoTalbot/humanity-os/pull/29), open Draft, branch `fix/agent-lease-side-effects-audit`, base `integration/humanity-one-0.1`.
-- Live comparison checked 2026-11-18: PR #29 is 62 commits ahead / 0 behind `integration/humanity-one-0.1`.
+- Live comparison checked 2026-11-18: PR #29 is 65 commits ahead / 0 behind `integration/humanity-one-0.1`.
 - Live comparison checked 2026-11-18 against `main`: 473 commits ahead / 1 behind; histories are divergent. Merge base: `de57a48d8d57c023d02ee1c337e29bb557451a9a`.
 - The one main-only memory-test commit's relevant intent is represented in the candidate's expanded tests, including append-only deletion protection and archived-state export/import. This is content-level coverage, not Git ancestry reconciliation.
 - PR #26 remains the integration-foundation reference. PR #28 remains the original lease implementation/reference. PR #29 is the sole integrated candidate; do not merge PR #28 independently.
