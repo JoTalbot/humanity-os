@@ -150,7 +150,7 @@ def create_app(
     evidence_assessments = EvidenceAssessmentStore(store.database_path)
     claim_graph = ClaimGraphStore(store.database_path)
     claim_assessments = ClaimAssessmentStore(store.database_path)
-    reasoning = ReasoningEngine(store.database_path, store, claim_graph)
+    reasoning = ReasoningEngine(store.database_path, store, claim_graph, evidence_assessments)
     independence = EvidenceIndependenceEngine(store)
     model_gateway = ModelGateway(model_provider)
     answer_service = DocumentAnswerService(documents, model_gateway)
