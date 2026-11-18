@@ -411,3 +411,55 @@ def test_reasoning_detects_structured_opposite_polarity_candidates(tmp_path):
     assert candidates[0]["right_claim_id"] == second.json()["id"]
     assert candidates[0]["basis"] == "exact_structured_match_opposite_polarity"
     assert result.json()["contradiction_candidates"] == []
+
+
+def test_reasoning_separates_temporal_variants_from_contradictions(tmp_path):
+    client = TestClient(create_app(str(tmp_path / "reasoning-temporal-variants.sqlite3")))
+    record_a = _record(client, "Earlier-period service claim")
+    record_b = _record(client, "Later-period service claim")
+    first = client.post("/v1/claims", json={
+        "knowledge_id": record_a["id"],
+        "statement": "The service is available in the earlier period.",
+        "subject": "Service",
+        "predicate": "available",
+        "object": "region A",
+        "polarity": "affirmed",
+        "scope": "region A",
+        "modality": "asserted",
+        "temporal_scope": "2025",
+    })
+    second = client.post("/v1/claims", json={
+        "knowledge_id": record_b["id"],
+        "statement": "The service is unavailable in the later period.",
+        "subject": " service ",
+        "predicate": "AVAILABLE",
+        "object": "REGION A",
+        "polarity": "negated",
+        "scope": "region A",
+        "modality": "asserted",
+        "temporal_scope": "2026",
+    })
+    assert first.status_code == second.status_code == 201
+    relation = client.post("/v1/claim-relations", json={
+        "source_claim_id": first.json()["id"],
+        "target_claim_id": second.json()["id"],
+        "relation": "supports",
+        "rationale": "Link the claims for temporal comparison only.",
+    })
+    assert relation.status_code == 201
+
+    result = client.post("/v1/reasoning/runs", json={
+        "query": "Compare service availability over time",
+        "root_claim_id": first.json()["id"],
+        "max_depth": 1,
+    })
+
+    assert result.status_code == 201
+    body = result.json()
+    assert body["potential_contradictions"] == []
+    assert len(body["temporal_claim_differences"]) == 1
+    difference = body["temporal_claim_differences"][0]
+    assert difference["left_temporal_scope"] == "2025"
+    assert difference["right_temporal_scope"] == "2026"
+    assert difference["polarity_relation"] == "opposite"
+    assert difference["basis"] == "same_structured_proposition_distinct_time_labels"
