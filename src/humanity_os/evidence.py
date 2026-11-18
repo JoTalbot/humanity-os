@@ -86,7 +86,7 @@ class EvidenceAssessmentStore:
         with self._connect() as connection:
             rows = connection.execute(
                 """SELECT payload FROM (
-                       SELECT payload,
+                       SELECT payload, assessed_at,
                               ROW_NUMBER() OVER (
                                   PARTITION BY source_id, COALESCE(evidence_id, '')
                                   ORDER BY assessed_at DESC, id DESC
