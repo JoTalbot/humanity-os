@@ -19,15 +19,16 @@
 
 ## Required before a public 0.1 release
 
-The integrated HUMANITY ONE 0.1 candidate is tracked in Draft PR #29, based on `integration/humanity-one-0.1`; PR #26 is the integration-foundation reference. Latest CI run [44279234278](https://github.com/JoTalbot/humanity-os/actions/runs/44279234278) passed all 10 quality steps on head `35cc1abef5e3097e519a728a4205c663db4c6d2f`: Ruff, 144 pytest tests, pip-audit, wheel/sdist builds, archive verification, and a fresh-virtualenv installed-app smoke test. The smoke verifies the installed CLI, packaged app import, and workspace plus static-asset routes through a loopback peer; it is not clean-machine owner setup, backup/restore, cross-platform or production validation. One existing Starlette TestClient deprecation warning remains. PR #29 has not been merged into `main`, and no release is declared. Current branch topology and stack-reconciliation notes are recorded in `docs/INTEGRATION_PLAN_HUMANITY_ONE_0.1.md`.
+The integrated HUMANITY ONE 0.1 candidate is tracked in Draft PR #29, based on `integration/humanity-one-0.1`; PR #26 is the integration-foundation reference. Latest CI run [44279992873](https://github.com/JoTalbot/humanity-os/actions/runs/44279992873) passed all 10 quality steps on head `bd63fe951377be1c3b82b8bb4087609f7bb89737`: Ruff, 146 pytest tests, pip-audit, wheel/sdist builds, archive verification, and a fresh-virtualenv installed-app smoke test. New CLI regression tests cover backup creation, backup verification, restore, and preservation of the pre-restore safety snapshot. The smoke verifies the installed CLI, packaged app import, and workspace plus static-asset routes through a loopback peer; it is not clean-machine owner setup, backup/restore, cross-platform or production validation. One existing Starlette TestClient deprecation warning remains. PR #29 has not been merged into `main`, and no release is declared. Current branch topology and stack-reconciliation notes are recorded in `docs/INTEGRATION_PLAN_HUMANITY_ONE_0.1.md`.
 
 ### Integration and verification
 - [ ] Complete internal reconciliation of integration PR #26 and confirm every originating feature change is represented; preserve source PRs as historical references.
 - [ ] Re-run full CI and end-to-end acceptance against the resulting \`main\` branch.
 - [ ] Verify fresh install, password setup, local startup, backup, restore and portable import on a clean machine.
+- [x] Automated CLI regression coverage for backup creation/verification and restore with a verified pre-restore safety backup (CI [44279992873](https://github.com/JoTalbot/humanity-os/actions/runs/44279992873)); this does not replace clean-machine operator acceptance.
 - [x] CI builds and inspects wheel/sdist contents, including the CLI entry point and static UI assets (run [43948575859](https://github.com/JoTalbot/humanity-os/actions/runs/43948575859)).
 - [x] CI installs the built wheel and declared runtime dependencies into a fresh virtual environment, exercises the installed CLI, imports the packaged app, and verifies workspace plus static-asset HTTP routes over loopback (run [43970440846](https://github.com/JoTalbot/humanity-os/actions/runs/43970440846)).
-- [ ] Validate owner-password setup, service startup, backup, restore and portable import on a clean machine and supported operating systems.
+- [ ] Validate owner-password setup, service startup, backup, restore and portable import on a clean machine and supported operating systems; current CI coverage is automated CLI-level regression, not cross-platform operational acceptance.
 - [ ] Select a versioning and release artifact/signing policy.
 
 ### Security and privacy
