@@ -347,4 +347,4 @@ def test_reasoning_comparison_profiles_evidence_without_truth_ranking(tmp_path):
     assert profile_b["review_required_evidence_link_count"] == 1
     assert profile_b["evidence_stance_counts"] == {"refutes": 1, "supports": 1}
     assert "ranking" in body["limitations"][0]
-    assert "truth" in body["limitations"][1]
+    assert "correctness" in body["limitations"][1]
