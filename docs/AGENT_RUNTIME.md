@@ -38,7 +38,7 @@ Agent runs and events are included in workspace export schema 1.3.0. Import vali
 - \`GET /v1/agents/runs\`
 - \`GET /v1/agents/events?run_id=...\`
 
-Every endpoint uses the existing authentication boundary. The UI exposes a manual one-tool runner. The curator can submit a pending memory proposal but cannot approve it.
+Every endpoint uses the existing authentication boundary. The UI exposes a manual one-tool runner. The curator can submit a pending memory proposal but cannot approve it. Proposal creation runs inside a SQLite `BEGIN IMMEDIATE` transaction that first verifies and renews the invoking worker's live lease. The proposal and its `proposal_created` audit event commit atomically; an expired or reassigned lease cannot create the proposal. The audit actor is the initiating agent ID (for example, `curator`); direct owner API proposals remain attributed to `owner`.
 
 ## Limits
 
