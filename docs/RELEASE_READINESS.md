@@ -213,3 +213,9 @@ This measurement is tied to the exact SHA above. The documentation commit that f
 - Gateway constructor now accepts only numeric, finite timeout values in the documented 0.1–120 second range; booleans, strings, NaN and infinities are rejected with a stable ValueError.
 - Added parameterized regression coverage for invalid timeout configuration.
 - Updated the gateway contract documentation. Tests and CI remain unrun for this increment.
+
+
+### Model Gateway request numeric validation — 2026-11-18
+- Model generation requests now reject non-finite temperature values (NaN and positive/negative infinity) while retaining the documented inclusive 0.0–1.0 range.
+- Added regression coverage for non-finite values and valid boundary values.
+- Updated the public request contract. Tests and CI remain unrun for this increment.
