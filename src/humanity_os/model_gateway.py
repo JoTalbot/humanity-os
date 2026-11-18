@@ -5,6 +5,7 @@ No network provider is included. The default application has no configured provi
 from __future__ import annotations
 
 import asyncio
+import math
 from datetime import UTC, datetime
 from typing import Literal, Protocol
 
@@ -88,10 +89,15 @@ class ModelGateway:
     def __init__(
         self, provider: ModelProvider | None = None, *, timeout_seconds: float = 30.0
     ) -> None:
-        if not 0.1 <= timeout_seconds <= 120.0:
-            raise ValueError("Model gateway timeout must be between 0.1 and 120 seconds")
+        if isinstance(timeout_seconds, bool) or not isinstance(
+            timeout_seconds, (int, float)
+        ):
+            raise ValueError("Model gateway timeout must be a finite number between 0.1 and 120 seconds")
+        timeout = float(timeout_seconds)
+        if not math.isfinite(timeout) or not 0.1 <= timeout <= 120.0:
+            raise ValueError("Model gateway timeout must be a finite number between 0.1 and 120 seconds")
         self.provider = provider
-        self.timeout_seconds = timeout_seconds
+        self.timeout_seconds = timeout
 
     async def generate(self, request: ModelGenerationRequest) -> ModelGenerationResponse:
         if self.provider is None:
