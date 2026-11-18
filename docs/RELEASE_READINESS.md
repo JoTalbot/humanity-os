@@ -64,25 +64,21 @@ Use [`docs/SECURITY_REVIEW_CHECKLIST.md`](SECURITY_REVIEW_CHECKLIST.md) as the p
 Do not tag, publish, deploy, expose to a LAN/public network, activate a remote provider, or merge stacked PRs solely because feature-branch CI passes. The active candidate is PR #29; PR #28 is an original implementation/reference branch and must not be merged independently. Each release action requires explicit owner authorization and a reconciled history against `main`.
 
 
-## Reconciliation status — 2026-11-18 (current)
+## Current release status — 2026-11-18
 
-- Active candidate: PR #29, open Draft, head `fe5cca73ac068a4a86ed8e9c4d74c321fd15e373`, based on `integration/humanity-one-0.1`.
-- Live comparison: 40 commits ahead / 0 behind the integration base; 451 ahead / 1 behind `main`. Histories remain divergent; merge base is `de57a48d8d57c023d02ee1c337e29bb557451a9a`. No merge or history rewrite has been performed.
-- Latest automatic CI run for this exact head is [44281745359](https://github.com/JoTalbot/humanity-os/actions/runs/44281745359), in progress at the time of this snapshot. The preceding head's [44281451823](https://github.com/JoTalbot/humanity-os/actions/runs/44281451823) passed all 10 quality steps but does not validate the current head.
-- The single main-only commit (`ac46e16728382c0af800421978f0bf7df6943de9`) adds `tests/test_memory.py`; the integration candidate contains an expanded 10-test implementation versus 7 tests on `main`. This is a content-level supersession assessment only, not completed Git-history reconciliation.
-- PR #28 remains a historical source/reference, not a separate merge candidate. PR #26 remains the integration-foundation reference.
-- Independent security review, external audit and penetration testing are canceled/not required. Project-owned regression, authorization, dependency and operational checks remain in scope.
-- No merge, release, deployment, external integration or production operation was performed.
+- Active candidate: PR #29, open Draft, head `03d34e577f52ee55eeeda3a72f29bf9c88819d95`.
+- CI [44281853101](https://github.com/JoTalbot/humanity-os/actions/runs/44281853101) passed all 10 quality steps on this exact head.
+- Branch comparison: 42 ahead / 0 behind `integration/humanity-one-0.1`; 453 ahead / 1 behind `main`. Histories diverge; merge base `de57a48d8d57c023d02ee1c337e29bb557451a9a`.
+- Authentication and workspace portability/deletion implementations and regression coverage are present. Relevant docs: `LOCAL_DEVELOPMENT.md`, `PRIVACY_MODEL.md`, `DATA_RETENTION.md`.
+- PR #26/#28 remain historical provenance references. PR #29 is the sole integrated feature candidate.
+- No merge, release, deployment or production operation was performed.
 
-### Remaining release blockers, ordered
+### Remaining release blockers
 
-1. **Stacked history:** settle the 451/1 divergence and preserve source PR provenance and the main-only commit; no blind merge or ref rewrite.
-2. **Authentication boundary (issue #2):** project-owned regression coverage for no owner/no token, configured owner/token, direct ASGI startup and unsupported network exposure; explicit safe first-run owner setup.
-3. **Portability and deletion (issue #4):** versioned complete workspace export, secret exclusion, owner-confirmed full deletion, retention/backup disposal rules and verifiable round-trip/deletion behavior.
-4. **Operator acceptance:** clean-machine setup, startup, backup, restore and portable import on supported operating systems.
-5. **Privacy and recovery:** encryption-at-rest/export decision, key recovery, privacy disclosures/legal basis, retention expiry and backup disposal.
-6. **Release engineering:** versioning, artifact provenance/signing, vulnerability disclosure and security update process.
-7. **Governance:** license, contribution rules, ownership/representation and open constitutional decisions.
-8. **Product quality:** accessibility evaluation and desktop/mobile workflow acceptance.
+1. Reconcile the stacked Git history without losing the main-only memory-test change or source PR provenance.
+2. Complete clean-machine owner setup, startup, backup, restore and portable import acceptance.
+3. Decide encryption/key recovery, privacy/legal disclosures, retention expiry and backup disposal.
+4. Finalize release provenance/signing, license, governance and contribution rules.
+5. Complete accessibility evaluation and supported desktop/mobile acceptance.
 
-The above do not add an independent security review or external audit as a gate. Do not merge, tag, publish, deploy, expose to LAN/public network or activate a remote provider without separate explicit owner authorization.
+Do not merge, tag, publish or deploy until the history and operator acceptance gates are resolved and the owner explicitly authorizes the action.
