@@ -198,3 +198,12 @@ This measurement is tied to the exact SHA above. The documentation commit that f
 - The test verifies exactly one interrupted transition and preserves the two-event append-only history.
 - Runtime implementation is unchanged; this adds coverage for the lease-expiry boundary in the existing conditional update.
 - Tests and CI were not run. The new regression remains pending execution.
+
+
+## Agent lease configuration validation — 2026-11-18
+
+- Agent Runtime now rejects boolean, non-finite, zero and negative lease durations during store construction.
+- This prevents invalid configuration such as NaN or infinity from reaching lease-expiry arithmetic and producing undefined runtime behavior.
+- Added parameterized regression coverage for zero, negative, NaN, positive/negative infinity and boolean values.
+- Updated the Agent Runtime contract and threat model.
+- Tests and CI were not run for this increment; the new cases remain pending targeted validation.
