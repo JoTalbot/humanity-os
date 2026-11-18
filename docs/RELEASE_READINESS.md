@@ -1,9 +1,9 @@
 # Current candidate status — 2026-11-18
 
 - Active candidate: PR #29, open Draft, branch `fix/agent-lease-side-effects-audit`, base `integration/humanity-one-0.1`.
-- Measured candidate HEAD before this documentation batch: `a8c9a256933c9363c0f177c93edfb1141ae09307`.
-- Candidate vs integration base: **173 ahead / 0 behind**.
-- Candidate vs `main`: **584 ahead / 1 behind**, status `diverged`; merge base `de57a48d8d57c023d02ee1c337e29bb557451a9a`.
+- Measured candidate HEAD before this documentation batch: `e6332b81ccdf66b8850cb1397fa219162b5451ed`.
+- Candidate vs integration base: **177 ahead / 0 behind**.
+- Candidate vs `main`: **588 ahead / 1 behind**, status `diverged`; merge base `de57a48d8d57c023d02ee1c337e29bb557451a9a`.
 - No combined status checks are attached to the measured HEAD. The current workflow runs on pushes to `main` or manual dispatch; historical CI results do not validate this candidate HEAD.
 - Manual operator acceptance, including clean-machine setup and the backup/restore/import walkthrough, is **DEFERRED by owner**. Do not schedule or execute the runbook. Its scenarios remain unvalidated, not passed, and are not current development gates.
 - Independent security review is not required and is not a release gate.
@@ -155,3 +155,16 @@ Fresh GitHub API comparison after the earlier snapshots:
 ## Owner decision — operator acceptance deferred (2026-11-18)
 
 The owner has cancelled the HUMANITY ONE 0.1 manual operator-acceptance runbook for the current development phase. Do not schedule or execute the clean-machine procedure, backup/restore/import walkthrough, or collect operator evidence as part of current work. The runbook remains archived as reference material only. Its non-execution is not a current development blocker and must not be reported as an active release gate. This decision does not claim that those operational scenarios have passed; their status is deferred/unvalidated. Continue with implementation, branch-history reconciliation, and milestone-based automated validation. Revisit operator acceptance only after a separate owner decision.
+
+
+## Live topology and validation snapshot — 2026-11-18
+
+- Measured HEAD: `e6332b81ccdf66b8850cb1397fa219162b5451ed`.
+- Candidate vs `integration/humanity-one-0.1`: **177 ahead / 0 behind**.
+- Candidate vs `main`: **588 ahead / 1 behind**, `diverged`; merge base `de57a48d8d57c023d02ee1c337e29bb557451a9a`.
+- PR #29 is open and Draft. Its base is `integration/humanity-one-0.1` at `bfaf67c9cfaad81ec66a430c05cc25294f429979`.
+- No combined status checks are attached to this HEAD. No tests or workflows were run during this documentation batch.
+- `security/THREAT_MODEL.md` now reflects same-host SQLite lease coordination, clock-skew limitations, the lack of application-level backup encryption, and the owner's deferral of manual operator acceptance.
+- The current owner decision remains: manual clean-machine and backup/restore/import acceptance is deferred, unvalidated, and not a current gate.
+
+This measurement is tied to the exact SHA above. The documentation commit that follows changes the branch HEAD; re-run comparisons before any future history operation.
