@@ -225,3 +225,8 @@ Fresh GitHub API comparison after the earlier snapshots:
 - Candidate vs `integration/humanity-one-0.1`: **165 commits ahead, 0 behind**.
 - PR #29 remains `open`, Draft; GitHub mergeability metadata is not a substitute for resolving the divergent history.
 - This live snapshot supersedes all earlier numeric topology counts in this document. No history rewrite, merge, force-push, test run, workflow dispatch, release or deployment was performed for this correction.
+
+
+## Owner decision — manual operator acceptance deferred (2026-11-18)
+
+The owner has cancelled the manual operator-acceptance runbook for the current development phase. The clean-machine setup and manual backup/restore/import procedure in `docs/OPERATOR_ACCEPTANCE.md` is retained for reference but is inactive: do not schedule or execute it, and do not require its evidence for current development milestones. Record the capability as deferred/unvalidated, not passed. The current workstream should prioritize implementation, provenance-preserving branch reconciliation, and milestone-based automated checks. Reintroducing manual operator acceptance requires a separate owner decision.
