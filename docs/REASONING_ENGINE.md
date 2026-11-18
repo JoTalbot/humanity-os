@@ -55,6 +55,6 @@ The report is limited to 500 declared sources across the selected knowledge reco
 
 ## Comparative hypothesis evidence profiles
 
-`POST /v1/reasoning/compare` now reports a profile for each root hypothesis in addition to graph/source overlap. Each profile summarizes the bounded claim count and latest human claim classifications, linked evidence count, latest evidence stance counts (`supports`, `refutes`, `neutral`), review states (`assessed`, `review_required`, `unassessed`), distinct source count, declared independence groups, recorded dependency edges, and unknown-lineage source count.
+`POST /v1/reasoning/compare` now reports a profile for each root hypothesis in addition to graph/source overlap. Each profile summarizes the bounded claim count and latest recorded claim classifications, linked evidence count, latest evidence stance counts (`supports`, `refutes`, `neutral`), review states (`assessed`, `review_required`, `unassessed`), distinct source count, declared independence groups, recorded dependency edges, and unknown-lineage source count.
 
 The comparison also identifies evidence links shared across all alternatives and evidence links unique to each alternative. Evidence-link identity is scoped by knowledge record and evidence ID, not by URL alone. A review-required automated triage event is not counted as an assessed link. These are descriptive profiles only: the engine does not calculate a hypothesis winner, truth probability, evidence quality score, or automatic verdict. Each alternative remains a separate immutable Reasoning Run.
