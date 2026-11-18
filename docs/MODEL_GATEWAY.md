@@ -74,3 +74,5 @@ The graph is explicitly untrusted explanatory context, not proof. The prompt dir
 Post-generation source verification fetches each exact document chunk by its immutable document/chunk IDs; it does not depend on the chunk remaining in a bounded lexical search result page. Truncated prompt excerpts are checked against the full stored chunk and its hashes.
 
 Reasoning-aware prompts also receive a compact summary of the source-lineage report: declared groups, shared upstream derivation clusters, and sources whose lineage is unknown. This is derived only from owner-declared provenance metadata. The summary is bounded before provider transmission and must not be interpreted as independent verification or a truth/corroboration score.
+
+Reasoning-aware prompts may also contain `potential_contradictions`: deterministic matches of the same non-empty structured subject/predicate/object, scope, temporal scope and modality with opposite explicit polarity. They are review leads only, not semantic contradiction judgments; the prompt says so explicitly. Explicit reviewer-authored contradiction edges remain distinct.
