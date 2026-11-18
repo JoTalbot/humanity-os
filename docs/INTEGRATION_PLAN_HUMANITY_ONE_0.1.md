@@ -137,7 +137,7 @@ PR #29 is the active integrated Draft candidate, based on `integration/humanity-
 ## Current integration snapshot — 2026-11-18
 
 - Active candidate: PR #29, head `03d34e577f52ee55eeeda3a72f29bf9c88819d95`, based on `integration/humanity-one-0.1`. PR remains open and Draft.
-- Live comparison: 42 commits ahead / 0 behind integration; 453 ahead / 1 behind `main`. Histories diverge at merge base `de57a48d8d57c023d02ee1c337e29bb557451a9a`.
+- Live comparison: 44 commits ahead / 0 behind integration; 455 ahead / 1 behind `main`. Histories diverge at merge base `de57a48d8d57c023d02ee1c337e29bb557451a9a`.
 - CI [44281853101](https://github.com/JoTalbot/humanity-os/actions/runs/44281853101) passed all 10 quality steps on this exact head: Ruff, pytest, dependency audit, wheel/sdist build, distribution verification and clean-venv packaged-app smoke test.
 - Issue #2 implementation is present: authentication defaults to fail-closed, owner setup is an explicit local CLI operation, and ASGI middleware rejects non-loopback peers. Regression coverage includes anonymous access, bearer auth, owner sessions, CSRF, login throttling and non-loopback requests. Clean-machine operator acceptance remains separate.
 - Issue #4 implementation is present: versioned workspace export schema 1.3.0, SHA-256 integrity metadata, secret exclusion, validated import with pre-import backup, and offline confirmed deletion with verified pre-delete backup plus WAL/SHM handling. Privacy and retention limits are documented in `docs/PRIVACY_MODEL.md`, `docs/DATA_RETENTION.md` and `docs/LOCAL_DEVELOPMENT.md`. Issue remains open until the integrated candidate is accepted.
