@@ -214,3 +214,15 @@ def test_provider_and_model_identifiers_are_normalized():
 def test_gateway_rejects_invalid_timeout_configuration(timeout_seconds):
     with pytest.raises(ValueError, match="finite number"):
         ModelGateway(timeout_seconds=timeout_seconds)
+
+
+@pytest.mark.parametrize("temperature", [float("nan"), float("inf"), -float("inf")])
+def test_generation_request_rejects_non_finite_temperature(temperature):
+    with pytest.raises(ValueError, match="finite number"):
+        ModelGenerationRequest(prompt="hello", temperature=temperature)
+
+
+@pytest.mark.parametrize("temperature", [0, 0.2, 1])
+def test_generation_request_accepts_finite_temperature_boundaries(temperature):
+    request = ModelGenerationRequest(prompt="hello", temperature=temperature)
+    assert request.temperature == temperature
