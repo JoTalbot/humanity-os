@@ -221,6 +221,7 @@ def test_answer_route_uses_claim_graph_and_latest_evidence_assessment(tmp_path):
     assert "The system follows a local-first architecture." in provider.prompt
     assert "Reviewer found this excerpt does not establish the full claim." in provider.prompt
     assert "refutes" in provider.prompt
+    assert "evidence_independence" in provider.prompt
     assert body["processing"]["semantic_entailment_verified"] is False
 
 
