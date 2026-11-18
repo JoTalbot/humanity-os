@@ -639,7 +639,16 @@ class KnowledgeStore:
                     row["name"]
                     for row in connection.execute(f'PRAGMA table_info("{table}")').fetchall()
                 }
-                if actual_columns != set(columns):
+                if table == "agent_runs":
+                    operational_columns = {"worker_id", "lease_expires_at"}
+                    if (
+                        not set(columns).issubset(actual_columns)
+                        or not actual_columns.issubset(set(columns) | operational_columns)
+                    ):
+                        raise ValueError(
+                            f"Unsupported {table} schema; update the workspace export version"
+                        )
+                elif actual_columns != set(columns):
                     raise ValueError(
                         f"Unsupported {table} schema; update the workspace export version"
                     )
@@ -1013,6 +1022,12 @@ class KnowledgeStore:
                             f'PRAGMA table_info("{table}")'
                         ).fetchall()
                     ]
+                    if table == "agent_runs":
+                        columns = [
+                            column
+                            for column in columns
+                            if column not in {"worker_id", "lease_expires_at"}
+                        ]
                     if not columns:
                         raise ValueError(f"Workspace schema is missing table: {table}")
                     placeholders = ", ".join("?" for _ in columns)
