@@ -52,7 +52,7 @@ A future provider switch must be explicit and visible. No provider may be silent
 - There is no production model provider adapter.
 - There is no streaming response API.
 - There is no model selection UI or per-workspace provider configuration.
-- A retrieval-only `/v1/answers/context` endpoint now prepares bounded source manifests, but it does not invoke the model gateway, synthesize answers, or verify citations in generated output.
+- `/v1/answers/context` remains retrieval-only and never invokes the gateway. The separate `/v1/answers` route can synthesize an answer through an explicitly injected provider after per-request consent, and checks citation-label resolution; it does not prove semantic entailment.
 - Token usage is provider-reported and cannot be independently verified by the gateway.
 - The timeout bounds the awaited provider call; adapter implementations must also enforce transport-level connection and read timeouts.
 
