@@ -485,3 +485,56 @@ def test_agent_api_returns_conflict_when_run_lease_is_lost(tmp_path):
 
     assert response.status_code == 409
     assert response.json()["detail"] == "Agent run lease was lost; the result was not accepted"
+
+
+
+def test_curator_memory_proposal_event_identifies_agent_actor(tmp_path):
+    app, client = _client(tmp_path)
+    response = client.post(
+        "/v1/agents/curator/invoke",
+        json={
+            "tool_name": "memory.propose",
+            "arguments": {
+                "title": "Attributed proposal",
+                "content": "The actor must be the curator.",
+                "rationale": "Audit provenance regression.",
+            },
+        },
+    )
+    assert response.status_code == 201
+    proposal_id = response.json()["result"]["proposal_id"]
+    events = app.state.agent_runtime.memory.list_events(proposal_id=proposal_id)
+    assert len(events) == 1
+    assert events[0]["event_type"] == "proposal_created"
+    assert events[0]["actor"] == "curator"
+
+
+def test_curator_does_not_create_proposal_after_lease_expiry(tmp_path):
+    app, _ = _client(tmp_path)
+    runtime = app.state.agent_runtime
+    runtime.store.lease_duration_seconds = 0.01
+    runtime.store.heartbeat_interval_seconds = 60
+    original_start_run = runtime.store.start_run
+
+    def start_expired_run(agent_id, tool_name, input_digest, *, now=None):
+        return original_start_run(
+            agent_id,
+            tool_name,
+            input_digest,
+            now=datetime.now(UTC) - timedelta(seconds=2),
+        )
+
+    runtime.store.start_run = start_expired_run
+
+    with pytest.raises(AgentRunLeaseLost, match="lease"):
+        runtime.invoke(
+            "curator",
+            "memory.propose",
+            {
+                "title": "Must not persist",
+                "content": "Lease already expired.",
+                "rationale": "Side-effect fencing regression.",
+            },
+        )
+
+    assert runtime.memory.list_proposals() == []
