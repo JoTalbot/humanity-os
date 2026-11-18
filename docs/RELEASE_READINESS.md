@@ -41,3 +41,13 @@ The successful CI run recorded above belongs to the earlier candidate HEAD state
 - Added a regression test proving that a later human review is the one surfaced in a new reasoning run.
 - Added `docs/REASONING_ENGINE.md` defining the contract and epistemic limits.
 - Tests/workflows have not been run for this increment. The Reasoning Engine regression suite remains pending targeted validation.
+
+## Reasoning-to-Answer integration — 2026-11-18
+
+- `POST /v1/answers` can now accept an optional root claim and bounded traversal controls, create an immutable reasoning run, and provide a compact representation of claims, typed relations, claim assessments, evidence provenance, and latest evidence assessments to the provider.
+- The graph is explicitly marked as untrusted explanatory context. Factual answer claims still require `[S#]` citations to local document passages; semantic entailment remains unverified.
+- Explicit provider consent is checked before the reasoning run is created when a root claim is supplied. No provider or external integration was added.
+- Reasoning context is size-bounded before transmission; response metadata links to the reasoning run and reports prompt-context truncation.
+- Exact post-generation source verification now fetches each chunk by document/chunk ID rather than relying on its position in a bounded search result. Full-chunk verification works when the prompt excerpt is truncated.
+- Added integration regression coverage for reasoning context, latest reviewed evidence, and truncated source excerpts.
+- Tests/workflows have not been run for this increment. Targeted Answer Engine and Reasoning Engine validation remains outstanding.
