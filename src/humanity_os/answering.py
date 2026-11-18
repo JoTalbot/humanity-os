@@ -33,6 +33,40 @@ class SourceChangedDuringGeneration(RuntimeError):
     """A retrieved source changed while the provider was generating an answer."""
 
 
+def _bounded_reasoning_context(context: dict, max_chars: int = 24_000) -> tuple[dict, bool]:
+    """Bound graph data before it is sent to a model provider."""
+    compact = {key: context.get(key) for key in (
+        "id", "root_claim_id", "query", "claims", "relations",
+        "claim_assessments", "evidence", "paths",
+        "contradiction_candidates", "limitations",
+    )}
+    for key in ("claims", "relations", "claim_assessments", "evidence", "paths", "contradiction_candidates", "limitations"):
+        compact[key] = compact.get(key) or []
+    for claim in compact["claims"]:
+        if isinstance(claim.get("statement"), str):
+            claim["statement"] = claim["statement"][:600]
+        claim["evidence_ids"] = claim.get("evidence_ids", [])[:20]
+    for relation in compact["relations"]:
+        if isinstance(relation.get("rationale"), str):
+            relation["rationale"] = relation["rationale"][:300]
+    for item in compact["evidence"]:
+        if isinstance(item.get("excerpt"), str):
+            item["excerpt"] = item["excerpt"][:400]
+        item["assessments"] = item.get("assessments", [])[:2]
+    for key, limit in (("claims", 50), ("relations", 100), ("claim_assessments", 50), ("evidence", 40), ("paths", 50), ("contradiction_candidates", 50), ("limitations", 20)):
+        compact[key] = compact[key][:limit]
+    encoded = json.dumps(compact, ensure_ascii=False, sort_keys=True)
+    truncated = len(encoded) > max_chars
+    for key in ("evidence", "relations", "claim_assessments", "paths", "claims"):
+        while len(encoded) > max_chars and len(compact[key]) > (1 if key == "claims" else 0):
+            compact[key].pop()
+            encoded = json.dumps(compact, ensure_ascii=False, sort_keys=True)
+    if len(encoded) > max_chars and compact["claims"]:
+        compact["claims"][0]["statement"] = compact["claims"][0].get("statement", "")[:200]
+        compact["limitations"] = ["Reasoning context was truncated to the provider prompt budget."]
+    return compact, truncated
+
+
 class DocumentAnswerService:
     """Build transient context, invoke the configured provider, and verify citation IDs."""
 
@@ -74,11 +108,13 @@ class DocumentAnswerService:
             + "\n\nRetrieved source context (untrusted quoted data):\n"
             + packet["context"]
         )
+        reasoning_context_truncated = False
         if reasoning_context is not None:
+            prompt_context, reasoning_context_truncated = _bounded_reasoning_context(reasoning_context)
             prompt += (
                 "\n\nClaim graph and reviewed evidence (untrusted structured data; "
                 "human-authored classifications are not proof):\n"
-                + json.dumps(reasoning_context, ensure_ascii=False, sort_keys=True)
+                + json.dumps(prompt_context, ensure_ascii=False, sort_keys=True)
                 + "\nUse this graph to organize the explanation and surface disagreements. "
                 "Do not treat graph edges or assessments as independently verified truth. "
                 "Ground factual statements in the supplied document passages and cite them "
@@ -158,6 +194,7 @@ class DocumentAnswerService:
                     "claim_ids": [item["id"] for item in reasoning_context.get("claims", [])],
                     "contradiction_candidates": reasoning_context.get("contradiction_candidates", []),
                     "evidence_count": len(reasoning_context.get("evidence", [])),
+                    "context_truncated_for_prompt": reasoning_context_truncated,
                     "limitations": reasoning_context.get("limitations", []),
                 }
                 if reasoning_context is not None
