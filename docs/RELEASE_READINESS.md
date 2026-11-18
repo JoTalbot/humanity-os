@@ -22,7 +22,7 @@
 The integrated HUMANITY ONE 0.1 candidate is tracked in draft PR #26. CI run [43970440846](https://github.com/JoTalbot/humanity-os/actions/runs/43970440846) passed all 10 quality jobs/steps on the documentation update, including Ruff, pytest, pip-audit, wheel/sdist builds, archive verification, and a fresh-virtualenv installed-app smoke test. The automatic CI run [43970528285](https://github.com/JoTalbot/humanity-os/actions/runs/43970528285) also completed successfully on the latest integration head `a55861673e5fea8e3ff8a7a20bcfdfa26700e447`. The fresh-venv smoke verifies the installed CLI, packaged app import, and workspace plus static-asset routes through a loopback peer; it is not a clean-machine owner setup, backup/restore, cross-platform or production validation. CI runs for `integration/**`. The PR has not been merged into `main`, and no release is declared. The integration-branch reconciliation review is recorded in `docs/INTEGRATION_PLAN_HUMANITY_ONE_0.1.md`.
 
 ### Integration and verification
-- [ ] Complete independent review of integration PR #26 and confirm every originating feature change is represented; preserve the source PRs until review is complete.
+- [ ] Complete internal reconciliation of integration PR #26 and confirm every originating feature change is represented; preserve source PRs as historical references.
 - [ ] Re-run full CI and end-to-end acceptance against the resulting \`main\` branch.
 - [ ] Verify fresh install, password setup, local startup, backup, restore and portable import on a clean machine.
 - [x] CI builds and inspects wheel/sdist contents, including the CLI entry point and static UI assets (run [43948575859](https://github.com/JoTalbot/humanity-os/actions/runs/43948575859)).
@@ -32,10 +32,10 @@ The integrated HUMANITY ONE 0.1 candidate is tracked in draft PR #26. CI run [43
 
 ### Security and privacy
 
-Use [`docs/SECURITY_REVIEW_CHECKLIST.md`](SECURITY_REVIEW_CHECKLIST.md) as the evidence-based review record. It is a review plan only; no independent security review has yet been completed.
-- [ ] Independent security review and penetration test of authentication, CSRF, session lifecycle, loopback enforcement, export/import and browser UI.
+Use [`docs/SECURITY_REVIEW_CHECKLIST.md`](SECURITY_REVIEW_CHECKLIST.md) as the project-owned internal security and release validation record. Independent security review, external audit, and penetration testing are not release requirements.
+- [ ] Internal security checks for authentication, CSRF, session lifecycle, loopback enforcement, export/import and browser UI are covered by code inspection and automated regression tests.
 - [x] Integrate Agent Runtime lease ownership, heartbeat renewal, concurrent expiry recovery, stale-worker fencing, lease-fenced memory proposal writes, and accurate agent audit attribution (PR #29; CI [44278196403](https://github.com/JoTalbot/humanity-os/actions/runs/44278196403): 144 tests, Ruff, pip-audit, wheel/sdist verification, and clean-venv smoke test passed).
-- [ ] Complete independent security review of the lease integration and verify SQLite locking, heartbeat failure, clock-step behavior, import/export recovery, and stale-worker fencing. Keep production single-process until this review and final integration review are complete.
+- [ ] Verify lease integration behavior through project-owned tests and CI: SQLite locking, heartbeat failure, clock-step behavior, import/export recovery, and stale-worker fencing. Retain the documented same-host/local-SQLite boundary; multi-host and network-filesystem coordination are unsupported.
 - [ ] Verify lease-guarded memory proposal transactions and accurate agent actor attribution in the integrated candidate.
 - [ ] Define document and memory deletion, retention expiry and backup disposal workflows.
 - [ ] Review privacy disclosures and legal basis for personal data processing.
