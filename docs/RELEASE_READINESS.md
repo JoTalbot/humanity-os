@@ -75,3 +75,12 @@ The successful CI run recorded above belongs to the earlier candidate HEAD state
 - Detection is deterministic and narrow; it does not perform semantic entailment, infer negation from prose, or create graph edges.
 - Answer Engine receives bounded potential-contradiction context.
 - Added regression coverage for normalized structured matches and propagation into the Answer Engine prompt. Tests/workflows have not been run.
+
+## Temporal consistency and dependency paths — 2026-11-18
+
+- Added `temporal_claim_differences` for matching structured propositions with distinct non-empty time labels; preserves both claims and same/opposite polarity.
+- Opposite-polarity claims with distinct time labels are not automatically reported as direct contradiction candidates.
+- No date parsing, interval overlap, chronological ordering or change-over-time inference is performed.
+- Added `declared_dependency_paths`, containing only traversals made entirely of explicit `depends_on` relations, with exact claim and relation IDs.
+- Dependency edges are not described as proven causality. Answer Engine receives bounded temporal and dependency context with explicit caveats.
+- Added regression tests for temporal variants, dependency chains and prompt propagation. Tests/workflows have not been run.
