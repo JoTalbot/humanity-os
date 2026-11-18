@@ -18,7 +18,7 @@ Personal data, credentials, keys, private knowledge, agent permissions, federati
 - Federation spoofing: signed node identity, key rotation and revocation.
 - Malicious update: reproducible builds, signed releases, provenance and review.
 - Audit tampering: append-only design, external checkpoints and access separation.
-- Data loss/ransomware: encrypted backups and tested restore.
+- Data loss/ransomware: SQLite backup creation and integrity verification are implemented; restore is covered by automated tests. Application-level backup encryption is not implemented, so backup files require host/storage-layer access controls and encryption where appropriate.
 - Incomplete export: the full workspace export uses an explicit allowlist covering domain records, provenance, immutable history, reasoning and security audit metadata; credential/session material and live secrets are excluded.
 - Destructive deletion: full workspace deletion is offline-only, requires explicit confirmation and a separate verified pre-deletion backup, and removes the active SQLite database plus WAL/SHM sidecars. Retained backups, snapshots and external copies remain outside the deletion boundary.
 - Hallucinations: evidence references, uncertainty labels and independent verification.
@@ -28,9 +28,9 @@ Personal data, credentials, keys, private knowledge, agent permissions, federati
 Private by default; no self-escalation; external side effects authorised and audited; secrets excluded from prompts/logs by default; federation opt-in and revocable; security failure stops the affected operation.
 
 ## Release gates
-The owner identity and session implementation is single-user local functionality, not a complete identity platform. Password recovery, MFA, session inspection/revocation UI, multi-user isolation, general API rate limits, origin policy, TLS/edge configuration, audit events, dependency/secret scanning and independent review remain incomplete. The API must remain loopback-only, and protected routes must remain authenticated by default. Do not expose it to a LAN or public internet.
+The owner identity and session implementation is single-user local functionality, not a complete identity platform. Password recovery, MFA, session inspection/revocation UI, multi-user isolation, general API rate limits, origin policy, TLS/edge configuration, and comprehensive secret-scanning controls remain incomplete. Dependency vulnerability auditing is part of the configured CI workflow. Independent security review is not required or planned as a release gate. The API must remain loopback-only, and protected routes must remain authenticated by default. Do not expose it to a LAN or public internet.
 
-Before broad public deployment: independent security review, restore demonstration, export/deletion verification, incident response plan, privacy/legal review and public residual-risk register. Workspace deletion is not a claim of cryptographic erasure; retained safety backups and external copies require separate retention and disposal controls.
+Before broad public deployment: complete the configured automated RC validation, export/deletion verification, incident response planning, privacy/legal decisions and a public residual-risk register. Manual operator acceptance, including a clean-machine restore walkthrough, is deferred by owner and is not a current development gate. Workspace deletion is not a claim of cryptographic erasure; retained safety backups and external copies require separate retention and disposal controls.
 
 ## Document ingestion risks
 
@@ -49,4 +49,4 @@ Citation validation checks that cited source excerpts match the current local ma
 
 ## Constrained agent runtime
 
-Agent tools are statically allowlisted and one tool is invoked per explicit authenticated request. Tool inputs and outputs are bounded; run history stores digests and metadata rather than raw content. Memory proposals remain pending until a separate owner approval request. This is not an OS sandbox: startup recovery assumes one active application process, and multi-worker deployment requires leases or heartbeats. No shell, arbitrary code, filesystem write, network fetch, credential access, or provider activation tool is exposed.
+Agent tools are statically allowlisted and one tool is invoked per explicit authenticated request. Tool inputs and outputs are bounded; run history stores digests and metadata rather than raw content. Memory proposals remain pending until a separate owner approval request. Each run is owned by a process-specific worker ID and a bounded UTC lease. Conditional lease renewal, expiry recovery and terminal transitions are serialized with SQLite write transactions; stale workers cannot finish a recovered run. Same-host multi-process coordination is supported only when workers share one local SQLite database on a filesystem with reliable locking. Multi-host, network-filesystem and mixed-version rolling-upgrade deployments are unsupported. Leases use the shared host's UTC wall clock without skew compensation, so clock steps can cause early expiry or delayed recovery. This is not an OS sandbox. No shell, arbitrary code, filesystem write, network fetch, credential access, or provider activation tool is exposed.
