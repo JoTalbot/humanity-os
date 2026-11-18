@@ -64,34 +64,25 @@ Use [`docs/SECURITY_REVIEW_CHECKLIST.md`](SECURITY_REVIEW_CHECKLIST.md) as the p
 Do not tag, publish, deploy, expose to a LAN/public network, activate a remote provider, or merge stacked PRs solely because feature-branch CI passes. The active candidate is PR #29; PR #28 is an original implementation/reference branch and must not be merged independently. Each release action requires explicit owner authorization and a reconciled history against `main`.
 
 
-## Reconciliation status — 2026-11-18 (latest)
+## Reconciliation status — 2026-11-18 (current)
 
-- Active candidate: PR #29, open Draft, head `5ec2f46da157655dcf2b3ad6f6b147f5e46a5201`, based on `integration/humanity-one-0.1`.
-- Latest comparison: 36 commits ahead / 0 behind the integration base; 447 ahead / 1 behind `main`. The histories remain divergent and no merge or history rewrite has been performed.
-- The single main-only commit (`ac46e16728382c0af800421978f0bf7df6943de9`) adds `tests/test_memory.py`. The integration candidate contains the same path with an expanded, independently implemented set of 10 lifecycle and portability tests versus 7 on `main`. Treat this as likely content supersession only; preserve the source commit and do not claim Git-history reconciliation is complete.
+- Active candidate: PR #29, open Draft, head `fe5cca73ac068a4a86ed8e9c4d74c321fd15e373`, based on `integration/humanity-one-0.1`.
+- Live comparison: 40 commits ahead / 0 behind the integration base; 451 ahead / 1 behind `main`. Histories remain divergent; merge base is `de57a48d8d57c023d02ee1c337e29bb557451a9a`. No merge or history rewrite has been performed.
+- Latest automatic CI run for this exact head is [44281745359](https://github.com/JoTalbot/humanity-os/actions/runs/44281745359), in progress at the time of this snapshot. The preceding head's [44281451823](https://github.com/JoTalbot/humanity-os/actions/runs/44281451823) passed all 10 quality steps but does not validate the current head.
+- The single main-only commit (`ac46e16728382c0af800421978f0bf7df6943de9`) adds `tests/test_memory.py`; the integration candidate contains an expanded 10-test implementation versus 7 tests on `main`. This is a content-level supersession assessment only, not completed Git-history reconciliation.
 - PR #28 remains a historical source/reference, not a separate merge candidate. PR #26 remains the integration-foundation reference.
-- The latest inspected CI run [44280523557](https://github.com/JoTalbot/humanity-os/actions/runs/44280523557) passed all 10 quality steps. It does not replace clean-machine or cross-platform operator acceptance.
-- Independent security review, external audit and penetration testing are canceled/not required. Continue only project-owned checks and regression coverage.
+- Independent security review, external audit and penetration testing are canceled/not required. Project-owned regression, authorization, dependency and operational checks remain in scope.
 - No merge, release, deployment, external integration or production operation was performed.
 
 ### Remaining release blockers, ordered
 
-1. Reconcile the full stacked history and trace every included feature to its source PR without losing or duplicating contracts.
-2. Perform clean-machine owner setup, startup, backup, restore and portable import acceptance on supported operating systems.
-3. Decide deletion, retention expiry and backup disposal workflows; encryption-at-rest/export and key recovery; privacy disclosures and legal basis.
-4. Decide release versioning, artifact provenance/signing, vulnerability disclosure and security update process.
-5. Ratify license, governance, contribution/ownership representation and open constitutional decisions.
-6. Complete accessibility evaluation and supported desktop/mobile workflow acceptance.
+1. **Stacked history:** settle the 451/1 divergence and preserve source PR provenance and the main-only commit; no blind merge or ref rewrite.
+2. **Authentication boundary (issue #2):** project-owned regression coverage for no owner/no token, configured owner/token, direct ASGI startup and unsupported network exposure; explicit safe first-run owner setup.
+3. **Portability and deletion (issue #4):** versioned complete workspace export, secret exclusion, owner-confirmed full deletion, retention/backup disposal rules and verifiable round-trip/deletion behavior.
+4. **Operator acceptance:** clean-machine setup, startup, backup, restore and portable import on supported operating systems.
+5. **Privacy and recovery:** encryption-at-rest/export decision, key recovery, privacy disclosures/legal basis, retention expiry and backup disposal.
+6. **Release engineering:** versioning, artifact provenance/signing, vulnerability disclosure and security update process.
+7. **Governance:** license, contribution rules, ownership/representation and open constitutional decisions.
+8. **Product quality:** accessibility evaluation and desktop/mobile workflow acceptance.
 
 The above do not add an independent security review or external audit as a gate. Do not merge, tag, publish, deploy, expose to LAN/public network or activate a remote provider without separate explicit owner authorization.
-
-
-
-
-## Evidence refresh — 2026-11-18
-
-- Current active candidate is PR #29, Draft, head `02908bc68c0f5d04994f4ca14ecc5cc7066a5854`, base `integration/humanity-one-0.1`.
-- Latest live comparison: 38 commits ahead / 0 behind the integration base; 449 ahead / 1 behind `main` (diverged). Merge base: `de57a48d8d57c023d02ee1c337e29bb557451a9a`.
-- Latest completed CI on that head: [44281451823](https://github.com/JoTalbot/humanity-os/actions/runs/44281451823), all 10 quality steps passed. Later documentation commits will trigger another automatic run.
-- The main-only memory-test commit is still treated as content-level superseded by the expanded integration test file, not as a reconciled Git commit.
-- Independent security review, external audit and penetration testing remain canceled/not required. No merge, release, deployment, external integration or production operation was performed.
