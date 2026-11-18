@@ -157,4 +157,12 @@ This section supersedes the earlier 2026-11-18 topology counts and CI-head refer
 5. Prepare the HUMANITY ONE 0.1 release-candidate evidence package. Do not merge, tag, publish, deploy, expose a network listener or activate a provider without separate explicit authorization.
 
 
-Topology refresh after the documentation batch: PR #29 head is now `5ec2f46da157655dcf2b3ad6f6b147f5e46a5201`; comparison is 36 commits ahead / 0 behind `integration/humanity-one-0.1`, and 447 ahead / 1 behind `main` (diverged). CI for the updated documentation commits was automatically triggered and is pending at the time of this note.
+
+
+## Evidence refresh — 2026-11-18
+
+- Current active candidate is PR #29, Draft, head `02908bc68c0f5d04994f4ca14ecc5cc7066a5854`, base `integration/humanity-one-0.1`.
+- Latest live comparison: 38 commits ahead / 0 behind the integration base; 449 ahead / 1 behind `main` (diverged). Merge base: `de57a48d8d57c023d02ee1c337e29bb557451a9a`.
+- Latest completed CI on that head: [44281451823](https://github.com/JoTalbot/humanity-os/actions/runs/44281451823), all 10 quality steps passed. Later documentation commits will trigger another automatic run.
+- The main-only memory-test commit is still treated as content-level superseded by the expanded integration test file, not as a reconciled Git commit.
+- Independent security review, external audit and penetration testing remain canceled/not required. No merge, release, deployment, external integration or production operation was performed.
