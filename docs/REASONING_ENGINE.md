@@ -74,3 +74,12 @@ This is deliberately label-level only. The engine does not parse arbitrary date 
 ## Declared dependency paths
 
 Reasoning runs expose `declared_dependency_paths`, containing only paths whose every traversed edge is an explicit `depends_on` relation. Each path preserves the ordered claim IDs and relation IDs, so an explanation can be traced to the exact graph records. These edges represent declared dependency, not experimentally established causation. Other relation types remain in the general graph paths and are not promoted into dependency chains.
+
+
+## Comparative structured-claim coverage gaps
+
+`POST /v1/reasoning/compare` now reports `claim_coverage_gaps` for structured propositions present in one or more alternative traversals but not represented in another alternative's bounded traversal. A proposition is matched by normalized non-empty subject, predicate and object plus exact normalized scope, modality and temporal label. Polarity is intentionally excluded from proposition identity, so opposite polarity is treated as disagreement about the same proposition rather than a coverage gap.
+
+Each gap identifies the target hypothesis, the normalized proposition and the peer hypothesis claim IDs where it is represented. Only structured claims are compared; free-text statements without all three structured terms are omitted. The result is capped at 500 gaps and each peer reference is bounded by the traversal limits.
+
+A coverage gap means only that the proposition is not present in the selected graph snapshot for that alternative. It does not mean evidence is missing in reality, that the proposition is relevant or decision-discriminating, or that the target hypothesis is false. It is a prompt for human review and for deciding whether additional data requirements should be formalized.
