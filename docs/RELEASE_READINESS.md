@@ -219,3 +219,11 @@ This measurement is tied to the exact SHA above. The documentation commit that f
 - Model generation requests now reject non-finite temperature values (NaN and positive/negative infinity) while retaining the documented inclusive 0.0–1.0 range.
 - Added regression coverage for non-finite values and valid boundary values.
 - Updated the public request contract. Tests and CI remain unrun for this increment.
+
+
+### Citation parsing and reasoning-prompt budget hardening — 2026-11-18
+- Citation provenance validation now accepts only the exact lowercase `[src-<24 hex>]` marker format. Malformed source markers are surfaced as explicit unverified checks instead of being silently ignored.
+- Added regression coverage for malformed markers.
+- Reasoning-to-Answer context preparation now has a last-resort compact fallback when unusually large scalar metadata still exceeds the serialized prompt budget. The fallback drops graph payload rather than sending an oversized context.
+- Added regression coverage using pathological oversized metadata and asserting the serialized context stays within 24,000 characters.
+- Tests and CI were not run for this increment; the new regression cases remain pending targeted validation.
