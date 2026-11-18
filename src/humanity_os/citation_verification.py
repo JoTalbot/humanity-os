@@ -23,7 +23,7 @@ class CitationCheck(BaseModel):
     model_config = ConfigDict(extra="forbid")
     citation_id: str
     status: Literal["verified", "unverified"]
-    reason: Literal["not_in_manifest", "source_mismatch", "manifest_invalid"] | None = None
+    reason: Literal["not_in_manifest", "source_mismatch", "manifest_invalid", "invalid_format"] | None = None
 
 
 class CitationValidationResponse(BaseModel):
@@ -35,13 +35,14 @@ class CitationValidationResponse(BaseModel):
     manifest_valid: bool
     citation_count: int
     checks: list[CitationCheck]
-    reasons: list[Literal["no_citations", "manifest_digest_mismatch", "duplicate_manifest_id"]]
+    reasons: list[Literal["no_citations", "manifest_digest_mismatch", "duplicate_manifest_id", "malformed_citation"]]
 
 
 class CitationValidator:
     """Checks citation identity and source integrity, never semantic entailment."""
 
-    _citation_pattern = re.compile(r"\[(src-[^\]\s]+)\]")
+    _citation_pattern = re.compile(r"\[(src-[a-f0-9]{24})\]")
+    _source_marker_pattern = re.compile(r"\[(src-[^\]]*)\]")
 
     def __init__(self, documents: DocumentStore) -> None:
         self.documents = documents
@@ -56,6 +57,8 @@ class CitationValidator:
 
     def validate(self, request: CitationValidationRequest) -> CitationValidationResponse:
         citation_ids = list(dict.fromkeys(self._citation_pattern.findall(request.answer)))
+        source_markers = self._source_marker_pattern.findall(request.answer)
+        malformed_markers = list(dict.fromkeys(marker for marker in source_markers if not re.fullmatch(r"src-[a-f0-9]{24}", marker)))
         source_by_id: dict[str, AnswerContextSource] = {}
         duplicate_manifest_ids = False
         for source in request.sources:
@@ -65,13 +68,15 @@ class CitationValidator:
         digest_valid = self._manifest_digest(request.sources) == request.manifest_sha256
         manifest_valid = digest_valid and not duplicate_manifest_ids
         reasons: list[str] = []
-        if not citation_ids:
+        if not citation_ids and not malformed_markers:
             reasons.append("no_citations")
+        if malformed_markers:
+            reasons.append("malformed_citation")
         if not digest_valid:
             reasons.append("manifest_digest_mismatch")
         if duplicate_manifest_ids:
             reasons.append("duplicate_manifest_id")
-        checks = []
+        checks = [CitationCheck(citation_id=marker, status="unverified", reason="invalid_format") for marker in malformed_markers]
         for citation_id in citation_ids:
             source = source_by_id.get(citation_id)
             if not manifest_valid:
