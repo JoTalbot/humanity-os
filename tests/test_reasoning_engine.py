@@ -240,3 +240,46 @@ def test_reasoning_run_carries_latest_human_evidence_assessment(tmp_path):
     assert evidence[0]["assessments"] == [second.json()]
     assert evidence[0]["assessments"][0]["stance"] == "refutes"
     assert evidence[0]["assessments"][0]["status"] == "assessed"
+
+
+def test_reasoning_run_includes_bounded_source_independence_report(tmp_path):
+    client = TestClient(create_app(str(tmp_path / "reasoning-independence.sqlite3")))
+    record = client.post("/v1/knowledge", json={
+        "kind": "claim",
+        "title": "Dependent publications",
+        "content": "Two publications repeat the same upstream source.",
+        "sources": [
+            {"id": "primary", "uri": "https://example.org/original", "source_type": "primary"},
+            {"id": "copy-a", "uri": "https://example.net/reprint-a", "derived_from_source_ids": ["primary"]},
+            {"id": "copy-b", "uri": "https://example.com/reprint-b", "derived_from_source_ids": ["primary"]},
+        ],
+        "evidence": [
+            {"id": "evidence-a", "source_id": "copy-a", "relation": "supports", "excerpt": "Repeated text A"},
+            {"id": "evidence-b", "source_id": "copy-b", "relation": "supports", "excerpt": "Repeated text B"},
+        ],
+    })
+    assert record.status_code == 201
+    claim = client.post("/v1/claims", json={
+        "knowledge_id": record.json()["id"],
+        "statement": "The publications share an upstream source.",
+        "evidence_ids": ["evidence-a", "evidence-b"],
+    })
+    assert claim.status_code == 201
+
+    result = client.post("/v1/reasoning/runs", json={
+        "query": "Inspect evidence dependence",
+        "root_claim_id": claim.json()["id"],
+    })
+
+    assert result.status_code == 201
+    report = result.json()["evidence_independence"]
+    assert report["knowledge_ids"] == [record.json()["id"]]
+    assert len(report["dependent_clusters"]) == 1
+    assert report["dependent_clusters"][0]["root_source_ids"] == ["primary"]
+    assert set(report["dependent_clusters"][0]["member_source_ids"]) == {
+        "primary", "copy-a", "copy-b"
+    }
+    statuses = {item["source_id"]: item["independence_status"] for item in report["sources"]}
+    assert statuses["copy-a"] == "derived_dependency"
+    assert statuses["copy-b"] == "derived_dependency"
+    assert statuses["primary"] == "unknown"
