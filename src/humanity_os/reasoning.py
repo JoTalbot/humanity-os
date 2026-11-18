@@ -384,7 +384,25 @@ class ReasoningEngine:
             statuses: dict[str, int] = {}
             assessed_links = 0
             review_required_links = 0
-            for item in run.evidence:
+            unique_evidence = {
+                (item.knowledge_id, item.evidence_id): item
+                for item in run.evidence
+            }
+            unique_sources = {
+                (item.knowledge_id, item.source_id): item
+                for item in unique_evidence.values()
+            }
+            dependency_edges = {
+                (item.knowledge_id, item.source_id, parent_id)
+                for item in unique_sources.values()
+                for parent_id in item.derived_from_source_ids
+            }
+            unknown_sources = {
+                (item.knowledge_id, item.source_id)
+                for item in unique_sources.values()
+                if not item.independence_group_id and not item.derived_from_source_ids
+            }
+            for item in unique_evidence.values():
                 specific = next(
                     (entry for entry in item.assessments if entry.evidence_id is not None),
                     None,
@@ -403,27 +421,22 @@ class ReasoningEngine:
                 root_claim_id=run.root_claim_id,
                 claim_count=len(run.claims),
                 claim_classifications=classifications,
-                evidence_link_count=len(run.evidence),
+                evidence_link_count=len(unique_evidence),
                 evidence_stance_counts=stances,
                 evidence_review_status_counts=statuses,
                 assessed_evidence_link_count=assessed_links,
                 review_required_evidence_link_count=review_required_links,
                 unassessed_evidence_link_count=(
-                    len(run.evidence) - assessed_links - review_required_links
+                    len(unique_evidence) - assessed_links - review_required_links
                 ),
-                distinct_source_count=len({item.source_id for item in run.evidence}),
+                distinct_source_count=len(unique_sources),
                 declared_independence_group_count=len({
-                    item.independence_group_id
-                    for item in run.evidence
+                    (item.knowledge_id, item.independence_group_id)
+                    for item in unique_sources.values()
                     if item.independence_group_id
                 }),
-                dependent_source_edge_count=sum(
-                    len(item.derived_from_source_ids) for item in run.evidence
-                ),
-                unknown_lineage_source_count=sum(
-                    1 for item in run.evidence
-                    if not item.independence_group_id and not item.derived_from_source_ids
-                ),
+                dependent_source_edge_count=len(dependency_edges),
+                unknown_lineage_source_count=len(unknown_sources),
             )
         dependent_edges = sorted({
             f"{item.knowledge_id}:{item.source_id}<-{parent_id}"
