@@ -242,7 +242,9 @@ def create_app(
             raise HTTPException(status_code=422, detail=str(exc)) from exc
 
     @app.post("/v1/answers")
-    async def generate_source_grounded_answer(payload: DocumentAnswerRequest, request: Request) -> dict:
+    async def generate_source_grounded_answer(
+        payload: DocumentAnswerRequest, request: Request
+    ) -> dict:
         reasoning_context = None
         if payload.root_claim_id is not None:
             if not payload.allow_provider_processing:
