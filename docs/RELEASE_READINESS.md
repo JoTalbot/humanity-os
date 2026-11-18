@@ -1,84 +1,91 @@
-# HUMANITY OS Release Readiness
+# HUMANITY ONE 0.1 — Release Readiness
 
-## Current state
+## Release decision
 
-**Not release-ready.** The project has a useful local HUMANITY ONE prototype, but its stacked implementation PRs have not been merged into \`main\`. Passing CI on feature branches is not the same as an integrated release.
+**Status: NOT READY FOR PUBLIC RELEASE.**
 
-## Implemented prototype capabilities
+The current product is a single-owner, local-first prototype. PR #29 is the integrated candidate. A green feature-branch CI run is not a release: the Git history has not been reconciled with `main`, and clean-machine operator acceptance has not yet been executed.
 
-- Fail-closed authentication boundary and loopback-only ASGI peer enforcement.
-- Local SQLite personal knowledge records, evidence/decision structures and portable export/import.
-- Portable workspace schema 1.3.0 with document, explicit memory, and agent audit records; imports from schemas 1.0.0–1.2.0 remain supported.
-- Local UTF-8 TXT/Markdown ingestion, source-preserving chunks, lexical search and bounded source-cited context packets.
-- Explicit memory proposal, owner approval/rejection, archive/restore and append-only lifecycle events.
-- Responsive local browser interface for notes, documents, memory review, and manually invoked allowlisted agent tools.
-- Provider-neutral model gateway and source-grounded answer orchestration with per-request provider-processing consent.
-- Citation validation verifies provenance only; it does not establish semantic support or factual truth.
-- Constrained Agent Runtime with static allowlists, one-tool owner invocation, bounded inputs/outputs, minimal append-only audit, and pending-review-only memory proposals.
-- No model provider, network integration or production deployment is enabled by default.
+## Implemented
 
-## Required before a public 0.1 release
+- Local SQLite workspace with knowledge, evidence, claims, decisions, revisions and provenance.
+- Fail-closed owner authentication, Argon2id password hashing, opaque expiring sessions, CSRF protection, login throttling and loopback-only ASGI enforcement.
+- Local UTF-8 text/Markdown ingestion, chunk-level provenance, lexical search and bounded source-grounded context.
+- Citation validation against the local source manifest. This verifies provenance, not semantic support or factual truth.
+- Explicit memory lifecycle: pending proposals, owner approval/rejection, archive/restore and append-only lifecycle events.
+- Provider-neutral Model Gateway contract. No provider is enabled by default; provider processing requires explicit per-request consent.
+- Constrained Agent Runtime: static allowlist, bounded inputs/outputs, one tool per owner invocation, lease fencing, append-only minimal audit and pending-review-only memory proposals.
+- Versioned portable workspace export/import schema 1.3.0, SHA-256 integrity metadata, secret exclusion, staged validation and pre-import safety backup.
+- SQLite backup verification and restore with pre-restore safety backup.
+- Offline confirmed workspace deletion with verified pre-deletion backup and WAL/SHM handling. This is not cryptographic erasure.
+- Packaged wheel/sdist checks and clean-virtual-environment installed-app HTTP smoke test.
+- Operator acceptance runbook and evidence template: [OPERATOR_ACCEPTANCE.md](OPERATOR_ACCEPTANCE.md).
 
-The integrated HUMANITY ONE 0.1 candidate is tracked in Draft PR #29, based on `integration/humanity-one-0.1`; PR #26 is the integration-foundation reference and PR #28 is the original lease implementation/reference. Latest inspected CI run [44280523557](https://github.com/JoTalbot/humanity-os/actions/runs/44280523557) completed successfully with all 10 quality steps: Ruff, pytest, pip-audit, wheel/sdist builds, distribution-content verification, and clean-virtualenv installed-app/HTTP smoke checks. New CLI regression tests cover backup creation, backup verification, restore, and preservation of the pre-restore safety snapshot. The smoke verifies the installed CLI, packaged app import, and workspace plus static-asset routes through a loopback peer; it is not clean-machine owner setup, backup/restore, cross-platform or production validation. One existing Starlette TestClient deprecation warning remains. PR #29 has not been merged into `main`, and no release is declared. Current branch topology and stack-reconciliation notes are recorded in `docs/INTEGRATION_PLAN_HUMANITY_ONE_0.1.md`. As of 2026-11-18, PR #29 is 36 commits ahead / 0 behind its integration base and 447 ahead / 1 behind `main`; the histories are divergent. The sole main-only commit adds a memory-test file whose path is already present in the integration candidate with a different expanded 10-test implementation (versus 7 tests on `main`). This is a content-level equivalence assessment, not a completed history reconciliation.
+## Latest automated validation
 
-### Integration and verification
-- [ ] Complete internal reconciliation of integration PR #26 and confirm every originating feature change is represented; preserve source PRs as historical references.
-- [ ] Re-run full CI and end-to-end acceptance against the resulting \`main\` branch.
-- [ ] Verify fresh install, password setup, local startup, backup, restore and portable import on a clean machine.
-- [x] Automated CLI regression coverage for backup creation/verification and restore with a verified pre-restore safety backup (CI [44279992873](https://github.com/JoTalbot/humanity-os/actions/runs/44279992873)); this does not replace clean-machine operator acceptance.
-- [x] CI builds and inspects wheel/sdist contents, including the CLI entry point and static UI assets (run [43948575859](https://github.com/JoTalbot/humanity-os/actions/runs/43948575859)).
-- [x] CI installs the built wheel and declared runtime dependencies into a fresh virtual environment, exercises the installed CLI, imports the packaged app, and verifies workspace plus static-asset HTTP routes over loopback (run [43970440846](https://github.com/JoTalbot/humanity-os/actions/runs/43970440846)).
-- [ ] Validate owner-password setup, service startup, backup, restore and portable import on a clean machine and supported operating systems; current CI coverage is automated CLI-level regression, not cross-platform operational acceptance.
-- [ ] Select a versioning and release artifact/signing policy.
+- CI run [44283534176](https://github.com/JoTalbot/humanity-os/actions/runs/44283534176) passed all 10 quality steps on candidate head `4fdf0ff42b4c87f765493dba1ef6d3305a483839`.
+- 147 pytest tests passed.
+- Ruff lint passed.
+- Dependency vulnerability audit passed.
+- Wheel and source distribution built and distribution contents verified.
+- Built wheel installed into a clean virtual environment; packaged CLI, application import, workspace route and static asset route smoke checks passed.
+- One Starlette TestClient deprecation warning remains.
+- These checks do not prove clean-machine owner setup, supported-OS operation, backup/restore/import acceptance, accessibility, or production readiness.
 
-### Security and privacy
+## Current candidate and history
 
-Use [`docs/SECURITY_REVIEW_CHECKLIST.md`](SECURITY_REVIEW_CHECKLIST.md) as the project-owned internal security and release validation record. Independent security review, external audit, and penetration testing are not release requirements.
-- [ ] Internal security checks for authentication, CSRF, session lifecycle, loopback enforcement, export/import and browser UI are covered by code inspection and automated regression tests.
-- [x] Integrate Agent Runtime lease ownership, heartbeat renewal, concurrent expiry recovery, stale-worker fencing, lease-fenced memory proposal writes, and accurate agent audit attribution (PR #29; CI [44278196403](https://github.com/JoTalbot/humanity-os/actions/runs/44278196403): 144 tests, Ruff, pip-audit, wheel/sdist verification, and clean-venv smoke test passed).
-- [x] Verify lease integration behavior through project-owned regression tests and CI: SQLite locking, heartbeat/lease renewal, expiry recovery, imported-run recovery, and stale-worker fencing. CI run [44279234278](https://github.com/JoTalbot/humanity-os/actions/runs/44279234278) passed 144 tests. Clock-step behavior remains a documented operational limitation, not a simulated guarantee. Retain the same-host/local-SQLite boundary; multi-host and network-filesystem coordination are unsupported.
-- [x] Verify lease-guarded memory proposal transactions and accurate agent actor attribution in the integrated candidate; covered by PR #29 regression tests and CI run [44279234278](https://github.com/JoTalbot/humanity-os/actions/runs/44279234278).
-- [ ] Define document and memory deletion, retention expiry and backup disposal workflows.
-- [ ] Review privacy disclosures and legal basis for personal data processing.
-- [ ] Decide encryption-at-rest, encrypted export and key recovery policy.
-- [ ] Review dependency and supply-chain policy, SBOM and release provenance.
-- [ ] Decide incident response, vulnerability disclosure and security update process.
+- Active candidate: [PR #29](https://github.com/JoTalbot/humanity-os/pull/29), open Draft, branch `fix/agent-lease-side-effects-audit`, base `integration/humanity-one-0.1`.
+- PR #26 and #28 remain source/provenance references; PR #29 is the single integrated candidate.
+- The candidate is ahead of its integration base and its history diverges from `main`.
+- `main` contains one earlier memory-test commit not present in the integration ancestry. The relevant test intent has been carried into the candidate's expanded suite, including append-only deletion protection and archived-memory export/import lifecycle coverage. This is content-level reconciliation, not Git-history reconciliation.
+- Do not merge, rebase, cherry-pick, force-push, rewrite refs, tag, publish or deploy as part of this readiness checklist. Any such action requires separate owner authorization.
 
-### Product quality and governance
-- [ ] Formal accessibility audit against a selected WCAG target; current UI is not certified.
-- [ ] Validate core workflows manually on supported desktop and mobile browsers.
-- [ ] Decide license, governance, contribution rules and ownership/representation model.
-- [ ] Resolve open constitutional, identity, federation, retention, funding and agent-policy decisions.
-- [ ] Add user-facing data export, deletion and recovery guidance.
+See [INTEGRATION_PLAN_HUMANITY_ONE_0.1.md](INTEGRATION_PLAN_HUMANITY_ONE_0.1.md) for implementation and branch-provenance notes.
 
-### Deferred capabilities
-- [ ] PDF/DOCX parsers, OCR, parser isolation and malformed-file testing.
-- [ ] Semantic retrieval and answer-quality/semantic-entailment evaluation.
-- [ ] Provider-specific adapters with provider locality/data residency disclosure and separate approval.
-- [ ] Agent Runtime expansion, OS-level sandboxing and human approval for consequential actions; current runtime is constrained and one-tool-per-owner-request, not OS-sandboxed.
-- [ ] Multi-user access, federation and collaboration.
-- [ ] Full responsive workspace, account/session management and memory correction UX.
+## Release blockers
+
+### 1. Git integration
+- [ ] Choose and execute a history-reconciliation strategy that preserves the main-only memory test intent and source PR provenance.
+- [ ] Review the resulting diff against `main`.
+- [ ] Run the full CI suite on the reconciled candidate and, after separately authorized integration, on the resulting target branch.
+
+### 2. Operator acceptance
+- [ ] Execute [OPERATOR_ACCEPTANCE.md](OPERATOR_ACCEPTANCE.md) on a genuinely clean supported machine.
+- [ ] Verify owner-password setup, login/logout and loopback-only access.
+- [ ] Verify knowledge/document ingestion and source provenance.
+- [ ] Verify memory approval, archive state and lifecycle history.
+- [ ] Verify SQLite backup, integrity check, restore and retained pre-restore backup.
+- [ ] Verify portable export/import into a second isolated workspace, including new owner-password setup.
+- [ ] Record OS, architecture, Python version, artifact hash, results, recovery observations and evidence location.
+- [ ] Repeat on every operating system/browser combination that will be claimed as supported.
+
+### 3. Privacy, retention and recovery
+- [ ] Decide encryption-at-rest and encrypted-export policy, including key recovery and loss scenarios.
+- [ ] Approve privacy disclosures, jurisdiction and legal basis for intended deployments.
+- [ ] Define retention periods, backup inventory, disposal workflow and operator responsibilities.
+- [ ] Document incident response, vulnerability reporting and security update process.
+- [ ] Decide release SBOM, artifact provenance and signing policy.
+
+### 4. Product and governance
+- [ ] Select code and documentation licenses after IP review; public repository visibility does not grant reuse rights. See [LICENSE-DECISION.md](../LICENSE-DECISION.md).
+- [ ] Finalize governance, contribution, decision-making and dispute-resolution rules. See [GOVERNANCE_MODEL_DRAFT.md](../governance/GOVERNANCE_MODEL_DRAFT.md).
+- [ ] Select an accessibility target and evaluate the UI against it.
+- [ ] Complete supported desktop and mobile browser acceptance.
+- [ ] Complete user-facing installation, upgrade, rollback, export, restore and deletion documentation.
+- [ ] Resolve the ownership/stewardship legal structure; “owned by humanity” remains a mission and governance objective, not a legal status.
+
+## Explicit 0.1 limitations
+
+- Single local owner; no multi-user isolation, federation or collaboration.
+- Local SQLite coordination only. Agent leases are supported for same-host processes sharing a reliable-locking local SQLite filesystem; multi-host and network filesystems are unsupported.
+- No remote access, LAN exposure, public hosting or external provider is enabled by default.
+- Document ingestion is bounded to UTF-8 text and Markdown; PDF/DOCX/OCR and parser isolation are deferred.
+- Lexical retrieval is implemented; semantic retrieval and rigorous answer-quality evaluation are deferred.
+- Citation checks establish source provenance only, not whether a source semantically entails a claim.
+- Memory archive is not erasure. The prototype does not provide full memory deletion or automatic retention expiry.
+- Workspace deletion removes the active database and SQLite sidecars after a verified safety backup; exports, backups, snapshots, host logs and storage-media remnants remain outside that boundary.
+- The current Agent Runtime is constrained but is not an OS-level sandbox.
 
 ## Release rule
 
-Do not tag, publish, deploy, expose to a LAN/public network, activate a remote provider, or merge stacked PRs solely because feature-branch CI passes. The active candidate is PR #29; PR #28 is an original implementation/reference branch and must not be merged independently. Each release action requires explicit owner authorization and a reconciled history against `main`.
-
-
-## Current release status — 2026-11-18
-
-- Active candidate: PR #29, open Draft, head `03d34e577f52ee55eeeda3a72f29bf9c88819d95`.
-- CI [44281853101](https://github.com/JoTalbot/humanity-os/actions/runs/44281853101) passed all 10 quality steps on this exact head.
-- Branch comparison: 44 ahead / 0 behind `integration/humanity-one-0.1`; 455 ahead / 1 behind `main`. Histories diverge; merge base `de57a48d8d57c023d02ee1c337e29bb557451a9a`.
-- Authentication and workspace portability/deletion implementations and regression coverage are present. Relevant docs: `LOCAL_DEVELOPMENT.md`, `PRIVACY_MODEL.md`, `DATA_RETENTION.md`.
-- PR #26/#28 remain historical provenance references. PR #29 is the sole integrated feature candidate.
-- No merge, release, deployment or production operation was performed.
-
-### Remaining release blockers
-
-1. Reconcile the stacked Git history without losing the main-only memory-test change or source PR provenance.
-2. Complete clean-machine owner setup, startup, backup, restore and portable import acceptance.
-3. Decide encryption/key recovery, privacy/legal disclosures, retention expiry and backup disposal.
-4. Finalize release provenance/signing, license, governance and contribution rules.
-5. Complete accessibility evaluation and supported desktop/mobile acceptance.
-
-Do not merge, tag, publish or deploy until the history and operator acceptance gates are resolved and the owner explicitly authorizes the action.
+Do not call HUMANITY ONE 0.1 release-ready until all mandatory blockers have evidence and are reviewed. Do not merge, tag, publish, deploy, expose the service beyond loopback, or activate a remote provider without separate explicit owner authorization.
