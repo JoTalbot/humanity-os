@@ -186,7 +186,7 @@ def test_memory_export_import_round_trip_and_secret_exclusion(tmp_path):
     assert exported["schema_version"] == "1.3.0"
     assert len(exported["tables"]["memory_proposals"]) == 1
     assert len(exported["tables"]["memory_items"]) == 1
-    assert len(exported["tables"]["memory_events"]) == 2
+    assert len(exported["tables"]["memory_events"]) == 3
     assert all("password_hash" not in row for rows in exported["tables"].values() for row in rows)
 
     export_path = tmp_path / "workspace.json"
