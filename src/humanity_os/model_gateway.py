@@ -22,6 +22,13 @@ class ModelGenerationRequest(BaseModel):
     max_output_tokens: int = Field(default=512, ge=1, le=4_096)
     temperature: float = Field(default=0.2, ge=0.0, le=1.0)
 
+    @field_validator("temperature")
+    @classmethod
+    def require_finite_temperature(cls, value: float) -> float:
+        if not math.isfinite(value):
+            raise ValueError("Temperature must be a finite number between 0 and 1")
+        return value
+
 
 class ModelUsage(BaseModel):
     model_config = ConfigDict(extra="forbid")
