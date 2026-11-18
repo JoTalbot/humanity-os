@@ -65,6 +65,22 @@ class PotentialContradiction(BaseModel):
     )
 
 
+class TemporalClaimDifference(BaseModel):
+    left_claim_id: str
+    right_claim_id: str
+    matched_subject: str
+    matched_predicate: str
+    matched_object: str
+    scope: str | None = None
+    modality: str
+    left_temporal_scope: str
+    right_temporal_scope: str
+    polarity_relation: Literal["same", "opposite"]
+    basis: Literal["same_structured_proposition_distinct_time_labels"] = (
+        "same_structured_proposition_distinct_time_labels"
+    )
+
+
 class ReasoningRun(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid4()))
     query: str
@@ -81,6 +97,7 @@ class ReasoningRun(BaseModel):
     evidence_independence: EvidenceIndependenceReport | None = None
     contradiction_candidates: list[str]
     potential_contradictions: list[PotentialContradiction] = Field(default_factory=list)
+    temporal_claim_differences: list[TemporalClaimDifference] = Field(default_factory=list)
     limitations: list[str]
     actor: Literal["owner", "system"]
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
@@ -282,6 +299,7 @@ class ReasoningEngine:
             and edge.target_claim_id in selected
         )
         potential_contradictions: list[PotentialContradiction] = []
+        temporal_claim_differences: list[TemporalClaimDifference] = []
         selected_claims = list(selected.values())
         for index, left in enumerate(selected_claims):
             if left.polarity not in {"affirmed", "negated"}:
@@ -294,9 +312,7 @@ class ReasoningEngine:
                     continue
                 if right.polarity not in {"affirmed", "negated"}:
                     continue
-                if (left.scope, left.temporal_scope, left.modality) != (
-                    right.scope, right.temporal_scope, right.modality
-                ):
+                if left.scope != right.scope or left.modality != right.modality:
                     continue
                 right_terms = (right.subject, right.predicate, right.object)
                 if any(not value or not value.strip() for value in right_terms):
@@ -308,6 +324,24 @@ class ReasoningEngine:
                     " ".join(value.casefold().split()) for value in right_terms
                 )
                 if normalized_left != normalized_right:
+                    continue
+                if left.temporal_scope and right.temporal_scope and (
+                    left.temporal_scope != right.temporal_scope
+                ):
+                    temporal_claim_differences.append(TemporalClaimDifference(
+                        left_claim_id=left.id,
+                        right_claim_id=right.id,
+                        matched_subject=left.subject or "",
+                        matched_predicate=left.predicate or "",
+                        matched_object=left.object or "",
+                        scope=left.scope,
+                        modality=left.modality,
+                        left_temporal_scope=left.temporal_scope,
+                        right_temporal_scope=right.temporal_scope,
+                        polarity_relation=(
+                            "same" if left.polarity == right.polarity else "opposite"
+                        ),
+                    ))
                     continue
                 potential_contradictions.append(PotentialContradiction(
                     left_claim_id=left.id,
@@ -340,6 +374,7 @@ class ReasoningEngine:
             "Epistemic classifications are human assessments; absence of a classification is not an unknown verdict.",
             "Only declared evidence links are shown; external sources are not fetched or authenticated.",
             "Potential contradictions are exact structured-field matches with opposite polarity, not semantic contradiction judgments.",
+            "Temporal claim differences only report distinct non-empty time labels; interval overlap and chronological ordering are not inferred.",
             "Scope and temporal filters use exact string matching, not interval or ontology reasoning.",
             "The graph snapshot is bounded to at most 100 claims and 100 relations.",
         ]
@@ -368,6 +403,7 @@ class ReasoningEngine:
             evidence_independence=independence_report,
             contradiction_candidates=contradictions,
             potential_contradictions=potential_contradictions,
+            temporal_claim_differences=temporal_claim_differences,
             limitations=limitations,
             actor=actor,
         )
