@@ -33,6 +33,23 @@ class FailingProvider:
         raise RuntimeError("private prompt must not leak")
 
 
+
+class MalformedProvider:
+    provider_id = "test-provider"
+    model_id = "malformed-v1"
+
+    async def generate(self, request):
+        return {"output": "not a validated ProviderGeneration"}
+
+
+class InvalidMetadataProvider:
+    provider_id = "x" * 65
+    model_id = "invalid-metadata-v1"
+
+    async def generate(self, request):
+        return ProviderGeneration(output="private output")
+
+
 class SlowProvider:
     provider_id = "test-provider"
     model_id = "slow-v1"
@@ -131,3 +148,23 @@ def test_model_endpoint_remains_authenticated_by_default(tmp_path):
     )
 
     assert response.status_code == 401
+
+
+def test_malformed_provider_response_is_sanitized():
+    gateway = ModelGateway(MalformedProvider())
+
+    with pytest.raises(Exception) as error:
+        asyncio.run(gateway.generate(ModelGenerationRequest(prompt="private prompt")))
+
+    assert str(error.value) == "Model provider request failed"
+    assert "private prompt" not in str(error.value)
+
+
+def test_invalid_provider_metadata_is_sanitized():
+    gateway = ModelGateway(InvalidMetadataProvider())
+
+    with pytest.raises(Exception) as error:
+        asyncio.run(gateway.generate(ModelGenerationRequest(prompt="private prompt")))
+
+    assert str(error.value) == "Model provider request failed"
+    assert "private prompt" not in str(error.value)
