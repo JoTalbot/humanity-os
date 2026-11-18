@@ -23,3 +23,11 @@ The successful CI run recorded above belongs to the earlier candidate HEAD state
 - Generated output must cite one or more supplied `[S#]` labels unless it returns the documented insufficient-evidence response. Unknown/missing citation labels are rejected.
 - Response includes source document/chunk provenance and explicitly reports that semantic entailment is not verified. Prompts, completions and answers are not persisted by this route.
 - Added focused API tests for consent, success/provenance, missing citations, default authentication and absent provider. Tests have not yet been run.
+
+
+## Evidence integrity follow-up — 2026-11-18
+
+- The source-grounded answer service now re-fetches and verifies every full source chunk after the provider returns, checking current document/chunk hashes and provenance before any answer is returned.
+- If a cited source was edited, deleted or otherwise no longer matches the retrieved evidence during generation, the answer is discarded and `POST /v1/answers` returns HTTP 409 for a fresh-context retry.
+- Added a focused regression test that mutates a source during the provider call and expects fail-closed behavior.
+- Tests and workflows have not been run for this increment. The targeted Agent Runtime and Answer Engine checks remain queued for the next validation milestone; no CI-green claim is made for the current HEAD.
