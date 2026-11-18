@@ -106,6 +106,10 @@ class AgentRuntimeStore:
         self.lease_duration_seconds = float(lease_duration_seconds)
         self.heartbeat_interval_seconds = max(0.01, self.lease_duration_seconds / 3)
         with self._connect() as connection:
+            # Serialize first-start and legacy-schema migration across workers.
+            # Without a write lock, two processes can both observe missing
+            # columns and race the same ALTER TABLE statements.
+            connection.execute("BEGIN IMMEDIATE")
             connection.execute(
                 """CREATE TABLE IF NOT EXISTS agent_runs (
                     id TEXT PRIMARY KEY,
