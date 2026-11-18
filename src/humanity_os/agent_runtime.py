@@ -327,49 +327,76 @@ class AgentRuntimeStore:
         result_digest: str | None = None,
         error_code: str | None = None,
         now: datetime | None = None,
+        connection: sqlite3.Connection | None = None,
+    ) -> None:
+        if connection is not None:
+            self._finish_run(
+                connection,
+                run_id,
+                result_digest=result_digest,
+                error_code=error_code,
+                now=now,
+            )
+            return
+        with self._connect() as active_connection:
+            self._finish_run(
+                active_connection,
+                run_id,
+                result_digest=result_digest,
+                error_code=error_code,
+                now=now,
+            )
+
+    def _finish_run(
+        self,
+        connection: sqlite3.Connection,
+        run_id: str,
+        *,
+        result_digest: str | None = None,
+        error_code: str | None = None,
+        now: datetime | None = None,
     ) -> None:
         finished_at = self._timestamp(now).isoformat()
         status = "failed" if error_code else "completed"
-        with self._connect() as connection:
-            cursor = connection.execute(
-                """UPDATE agent_runs SET status = ?, finished_at = ?,
-                   result_digest = ?, error_code = ?
-                   WHERE id = ? AND status = 'running' AND worker_id = ?
-                   AND lease_expires_at > ?""",
-                (
-                    status,
-                    finished_at,
-                    result_digest,
-                    error_code,
-                    run_id,
-                    self.worker_id,
-                    finished_at,
-                ),
-            )
-            if cursor.rowcount != 1:
-                row = connection.execute(
-                    "SELECT status, worker_id, lease_expires_at, error_code "
-                    "FROM agent_runs WHERE id = ?",
-                    (run_id,),
-                ).fetchone()
-                if row is None:
-                    raise ValueError("Agent run is missing or already finished")
-                if row["status"] != "running":
-                    if row["status"] == "failed" and row["error_code"] == "interrupted":
-                        raise AgentRunLeaseLost(
-                            "Agent run lease expired and the run was recovered"
-                        )
-                    raise ValueError("Agent run is missing or already finished")
-                raise AgentRunLeaseLost(
-                    "Agent run lease is expired or owned by another worker"
-                )
-            self._append_event(
-                connection,
-                run_id,
-                "tool_invocation_failed" if error_code else "tool_invocation_completed",
+        cursor = connection.execute(
+            """UPDATE agent_runs SET status = ?, finished_at = ?,
+               result_digest = ?, error_code = ?
+               WHERE id = ? AND status = 'running' AND worker_id = ?
+               AND lease_expires_at > ?""",
+            (
+                status,
                 finished_at,
-                {"status": status, "error_code": error_code},
+                result_digest,
+                error_code,
+                run_id,
+                self.worker_id,
+                finished_at,
+            ),
+        )
+        if cursor.rowcount != 1:
+            row = connection.execute(
+                "SELECT status, worker_id, lease_expires_at, error_code "
+                "FROM agent_runs WHERE id = ?",
+                (run_id,),
+            ).fetchone()
+            if row is None:
+                raise ValueError("Agent run is missing or already finished")
+            if row["status"] != "running":
+                if row["status"] == "failed" and row["error_code"] == "interrupted":
+                    raise AgentRunLeaseLost(
+                        "Agent run lease expired and the run was recovered"
+                    )
+                raise ValueError("Agent run is missing or already finished")
+            raise AgentRunLeaseLost(
+                "Agent run lease is expired or owned by another worker"
             )
+        self._append_event(
+            connection,
+            run_id,
+            "tool_invocation_failed" if error_code else "tool_invocation_completed",
+            finished_at,
+            {"status": status, "error_code": error_code},
+        )
 
     def list_runs(
         self, limit: int = 50, *, now: datetime | None = None
@@ -473,6 +500,7 @@ class AgentRuntime:
             heartbeat_stop.set()
             heartbeat.join()
 
+        run_finished = False
         try:
             if tool_name == "knowledge.search":
                 payload = SearchToolInput.model_validate(arguments)
@@ -500,18 +528,39 @@ class AgentRuntime:
                 )
             elif tool_name == "memory.propose":
                 payload = MemoryProposalToolInput.model_validate(arguments)
+                stop_heartbeat()
+                if heartbeat_lost.is_set():
+                    raise AgentRunLeaseLost(
+                        "Agent run lease was lost before the memory proposal could be written"
+                    )
                 with self.store.owned_lease_transaction(run_id) as connection:
                     proposal = self.memory.create_proposal(
                         **payload.model_dump(),
                         actor=agent_id,
                         connection=connection,
                     )
-                result = {
-                    "proposal_id": proposal["id"],
-                    "title": proposal["title"],
-                    "status": proposal["status"],
-                    "requires_owner_approval": True,
-                }
+                    result = {
+                        "proposal_id": proposal["id"],
+                        "title": proposal["title"],
+                        "status": proposal["status"],
+                        "requires_owner_approval": True,
+                    }
+                    result_bytes = json.dumps(
+                        result,
+                        ensure_ascii=False,
+                        sort_keys=True,
+                        separators=(",", ":"),
+                        default=str,
+                    ).encode("utf-8")
+                    if len(result_bytes) > 20_000:
+                        raise ValueError("Agent tool result exceeds the 20,000-byte limit")
+                    result_digest = hashlib.sha256(result_bytes).hexdigest()
+                    self.store.finish_run(
+                        run_id,
+                        result_digest=result_digest,
+                        connection=connection,
+                    )
+                run_finished = True
             else:
                 raise PermissionError("Tool is not registered")
             result_bytes = json.dumps(
@@ -525,7 +574,8 @@ class AgentRuntime:
                 raise AgentRunLeaseLost(
                     "Agent run lease was lost before the tool result could be committed"
                 )
-            self.store.finish_run(run_id, result_digest=result_digest)
+            if not run_finished:
+                self.store.finish_run(run_id, result_digest=result_digest)
             return {
                 "run_id": run_id,
                 "agent_id": agent_id,
