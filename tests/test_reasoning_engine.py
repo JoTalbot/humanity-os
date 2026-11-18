@@ -361,3 +361,53 @@ def test_reasoning_comparison_profiles_evidence_without_truth_ranking(tmp_path):
     assert profile_b["evidence_stance_counts"] == {"refutes": 1, "supports": 1}
     assert "ranking" in body["limitations"][0]
     assert "correctness" in body["limitations"][1]
+
+
+def test_reasoning_detects_structured_opposite_polarity_candidates(tmp_path):
+    client = TestClient(create_app(str(tmp_path / "reasoning-structured-contradictions.sqlite3")))
+    record_a = _record(client, "Affirmed structured claim")
+    record_b = _record(client, "Negated structured claim")
+    first = client.post("/v1/claims", json={
+        "knowledge_id": record_a["id"],
+        "statement": "The service is available.",
+        "subject": "Service",
+        "predicate": "available",
+        "object": "region A",
+        "polarity": "affirmed",
+        "scope": "region A",
+        "temporal_scope": "2026-Q4",
+        "evidence_ids": ["evidence-1"],
+    })
+    second = client.post("/v1/claims", json={
+        "knowledge_id": record_b["id"],
+        "statement": "The service is not available.",
+        "subject": " service ",
+        "predicate": "AVAILABLE",
+        "object": "REGION A",
+        "polarity": "negated",
+        "scope": "region A",
+        "temporal_scope": "2026-Q4",
+        "evidence_ids": ["evidence-1"],
+    })
+    assert first.status_code == second.status_code == 201
+    edge = client.post("/v1/claim-relations", json={
+        "source_claim_id": first.json()["id"],
+        "target_claim_id": second.json()["id"],
+        "relation": "supports",
+        "rationale": "Connect both propositions for comparison.",
+    })
+    assert edge.status_code == 201
+
+    result = client.post("/v1/reasoning/runs", json={
+        "query": "Inspect structured polarity",
+        "root_claim_id": first.json()["id"],
+        "max_depth": 1,
+    })
+
+    assert result.status_code == 201
+    candidates = result.json()["potential_contradictions"]
+    assert len(candidates) == 1
+    assert candidates[0]["left_claim_id"] == first.json()["id"]
+    assert candidates[0]["right_claim_id"] == second.json()["id"]
+    assert candidates[0]["basis"] == "exact_structured_match_opposite_polarity"
+    assert result.json()["contradiction_candidates"] == []
