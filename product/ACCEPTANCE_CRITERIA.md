@@ -1,7 +1,13 @@
+## Owner decision — manual operator acceptance deferred (2026-11-18)
+
+- [ ] Clean local deployment and manual operator acceptance: **DEFERRED by owner**; do not schedule or execute during the current development phase. The runbook remains reference documentation, not a current gate.
+- [ ] Manual clean-machine restore/import/crash-recovery acceptance: **DEFERRED by owner**; status remains unvalidated, not passed.
+- Automated regression and packaging checks remain governed by [Development Cadence](../docs/DEVELOPMENT_CADENCE.md). Reintroducing manual operator acceptance requires a separate owner decision.
+
 # HUMANITY ONE 0.1 — Acceptance Criteria
 
 ## Installation
-- [ ] Clean local deployment is executed and evidenced using the [operator acceptance runbook](../docs/OPERATOR_ACCEPTANCE.md).
+- [ ] Clean local deployment is executed and evidenced using the [operator acceptance runbook](../docs/OPERATOR_ACCEPTANCE.md). **DEFERRED by owner; not a current gate.**
 - [ ] Secret scanning is enabled and passes; CI dependency audit does not replace secret scanning.
 - [ ] Upgrade, rollback and migration procedure is documented and exercised.
 
@@ -28,7 +34,7 @@
 - [x] Restore validates the source, creates a pre-restore safety snapshot, stages a replacement, and swaps atomically.
 - [ ] Automated restore testing on supported operating systems and crash-recovery testing.
 - [x] Versioned portable workspace JSON export/import is implemented with integrity validation, staged replacement, pre-import safety backup, and owner credential exclusion (schema 1.3.0; legacy 1.0.0–1.2.0 imports supported).
-- [ ] Clean-machine restore, import and crash-recovery validation across supported operating systems.
+- [ ] Clean-machine restore, import and crash-recovery validation across supported operating systems. **DEFERRED by owner; remains unvalidated.**
 
 ## AI provider and agents
 - [x] Provider-neutral model gateway contract with no provider enabled by default and per-request provider-processing consent boundary.
