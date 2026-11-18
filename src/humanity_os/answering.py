@@ -1,4 +1,5 @@
 """Source-grounded document answer orchestration with explicit provider consent."""
+import hashlib
 import re
 
 from humanity_os.documents import DocumentStore
@@ -78,23 +79,35 @@ class DocumentAnswerService:
             temperature=0.1,
         )
         response = await self.gateway.generate(request)
-        # Re-check exact chunks after the provider call: documents may be
-        # edited or deleted while generation is in flight.
+        # Re-fetch exact chunks after the provider call: documents may be
+        # edited or deleted while generation is in flight. Use full stored
+        # chunk metadata so bounded/truncated context excerpts still verify.
+        current_by_chunk = {
+            item["chunk_id"]: item for item in self.documents.search(query, limit=50)
+        }
         for passage in packet["passages"]:
-            verification_source = dict(passage)
+            current = current_by_chunk.get(passage["chunk_id"])
+            if current is None:
+                raise SourceChangedDuringGeneration(
+                    "A source document changed while the answer was being generated"
+                )
             canonical_fields = (
                 "document_id", "chunk_id", "document_hash", "chunk_hash",
                 "start_offset", "end_offset",
             )
-            canonical_id = ":".join(str(passage[key]) for key in canonical_fields)
-            import hashlib
-            verification_source["citation_id"] = "src-" + hashlib.sha256(
+            canonical_id = ":".join(str(current[key]) for key in canonical_fields)
+            current["citation_id"] = "src-" + hashlib.sha256(
                 canonical_id.encode("utf-8")
             ).hexdigest()[:24]
-            if not self.documents.verify_source(verification_source):
+            if any(current[key] != passage[key] for key in canonical_fields):
                 raise SourceChangedDuringGeneration(
                     "A source document changed while the answer was being generated"
                 )
+            if not self.documents.verify_source(current):
+                raise SourceChangedDuringGeneration(
+                    "A source document changed while the answer was being generated"
+                )
+
         labels = {item["citation_id"] for item in packet["passages"]}
         cited_labels = list(dict.fromkeys(re.findall(r"\[(S\d+)\]", response.output)))
         unknown = sorted(set(cited_labels) - labels)
