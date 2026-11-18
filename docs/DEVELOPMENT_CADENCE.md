@@ -1,3 +1,7 @@
+## Current owner direction — manual operator acceptance deferred (2026-11-18)
+
+The owner has cancelled manual operator acceptance for the current development phase. Do not schedule or execute the clean-machine runbook, backup/restore/import walkthrough, or its evidence collection. Keep those operational scenarios marked deferred/unvalidated; they are not current development milestone gates. The runbook remains reference material and may be reactivated only by a separate owner decision.
+
 # Development cadence
 
 ## Goal
@@ -11,7 +15,7 @@ Optimize for implementation throughput while preserving confidence in critical d
 | Documentation, comments, formatting | No test run | Review rendered diff |
 | Isolated UI or non-critical logic | No automatic full suite | Targeted smoke check when the block is complete |
 | Feature implementation across modules | One focused test selection after the feature batch | Regression suite at the next integration milestone |
-| Storage, migrations, backup/restore, import/export | Targeted tests for changed invariants | Full regression + recovery acceptance before RC |
+| Storage, migrations, backup/restore, import/export | Targeted automated tests for changed invariants | Full automated regression before RC; manual operator acceptance deferred by owner |
 | Authentication, authorization, sessions, CSRF, network boundary | Targeted tests for every changed security invariant | Full suite before RC |
 | Dependency, packaging, runtime, or workflow changes | Validate the changed build/configuration path | Full CI before RC |
 
@@ -33,4 +37,4 @@ Optimize for implementation throughput while preserving confidence in critical d
 
 ## Release gate
 
-Before HUMANITY ONE 0.1 RC, run the complete configured CI workflow once against the exact candidate HEAD and record its run URL and commit SHA. Complete the separate operator acceptance steps in OPERATOR_ACCEPTANCE.md. Reduced development-time test frequency does not waive release validation.
+Before HUMANITY ONE 0.1 RC, run the complete configured CI workflow once against the exact candidate HEAD and record its run URL and commit SHA. Manual operator acceptance in OPERATOR_ACCEPTANCE.md is deferred by owner and is not part of the current gate. Reduced development-time test frequency does not waive automated release validation.
