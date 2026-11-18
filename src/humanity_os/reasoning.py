@@ -85,6 +85,21 @@ class ReasoningComparisonQuery(BaseModel):
         return self
 
 
+class HypothesisEvidenceProfile(BaseModel):
+    root_claim_id: str
+    claim_count: int
+    claim_classifications: dict[str, int]
+    evidence_link_count: int
+    evidence_stance_counts: dict[str, int]
+    evidence_review_status_counts: dict[str, int]
+    assessed_evidence_link_count: int
+    unassessed_evidence_link_count: int
+    distinct_source_count: int
+    declared_independence_group_count: int
+    dependent_source_edge_count: int
+    unknown_lineage_source_count: int
+
+
 class ReasoningComparison(BaseModel):
     query: str
     runs: list[ReasoningRun]
@@ -94,6 +109,9 @@ class ReasoningComparison(BaseModel):
     unique_source_uris: dict[str, list[str]]
     shared_independence_groups: list[str] = Field(default_factory=list)
     unique_independence_groups: dict[str, list[str]] = Field(default_factory=dict)
+    evidence_profiles: dict[str, HypothesisEvidenceProfile] = Field(default_factory=dict)
+    shared_evidence_ids: list[str] = Field(default_factory=list)
+    unique_evidence_ids: dict[str, list[str]] = Field(default_factory=dict)
     dependent_source_edges: list[str] = Field(default_factory=list)
     unknown_lineage_sources: list[str] = Field(default_factory=list)
     limitations: list[str]
@@ -347,6 +365,58 @@ class ReasoningEngine:
             }
             for run in runs
         }
+        evidence_sets = {
+            run.root_claim_id: {
+                f"{item.knowledge_id}:{item.evidence_id}"
+                for item in run.evidence
+            }
+            for run in runs
+        }
+        profiles: dict[str, HypothesisEvidenceProfile] = {}
+        for run in runs:
+            classifications: dict[str, int] = {}
+            for assessment in run.claim_assessments:
+                classifications[assessment.classification] = (
+                    classifications.get(assessment.classification, 0) + 1
+                )
+            stances: dict[str, int] = {}
+            statuses: dict[str, int] = {}
+            assessed_links = 0
+            for item in run.evidence:
+                specific = next(
+                    (entry for entry in item.assessments if entry.evidence_id is not None),
+                    None,
+                )
+                assessment = specific or (item.assessments[0] if item.assessments else None)
+                if assessment is None:
+                    statuses["unassessed"] = statuses.get("unassessed", 0) + 1
+                    continue
+                assessed_links += 1
+                stances[assessment.stance] = stances.get(assessment.stance, 0) + 1
+                statuses[assessment.status] = statuses.get(assessment.status, 0) + 1
+            profiles[run.root_claim_id] = HypothesisEvidenceProfile(
+                root_claim_id=run.root_claim_id,
+                claim_count=len(run.claims),
+                claim_classifications=classifications,
+                evidence_link_count=len(run.evidence),
+                evidence_stance_counts=stances,
+                evidence_review_status_counts=statuses,
+                assessed_evidence_link_count=assessed_links,
+                unassessed_evidence_link_count=len(run.evidence) - assessed_links,
+                distinct_source_count=len({item.source_id for item in run.evidence}),
+                declared_independence_group_count=len({
+                    item.independence_group_id
+                    for item in run.evidence
+                    if item.independence_group_id
+                }),
+                dependent_source_edge_count=sum(
+                    len(item.derived_from_source_ids) for item in run.evidence
+                ),
+                unknown_lineage_source_count=sum(
+                    1 for item in run.evidence
+                    if not item.independence_group_id and not item.derived_from_source_ids
+                ),
+            )
         dependent_edges = sorted({
             f"{item.knowledge_id}:{item.source_id}<-{parent_id}"
             for run in runs
@@ -362,6 +432,7 @@ class ReasoningEngine:
         shared_claims = set.intersection(*claim_sets.values())
         shared_sources = set.intersection(*source_sets.values())
         shared_groups = set.intersection(*group_sets.values())
+        shared_evidence = set.intersection(*evidence_sets.values())
         return ReasoningComparison(
             query=request.query,
             runs=runs,
@@ -379,6 +450,12 @@ class ReasoningEngine:
             unique_independence_groups={
                 root_id: sorted(values - shared_groups)
                 for root_id, values in group_sets.items()
+            },
+            evidence_profiles=profiles,
+            shared_evidence_ids=sorted(shared_evidence),
+            unique_evidence_ids={
+                root_id: sorted(values - shared_evidence)
+                for root_id, values in evidence_sets.items()
             },
             dependent_source_edges=dependent_edges,
             unknown_lineage_sources=unknown_lineage,
