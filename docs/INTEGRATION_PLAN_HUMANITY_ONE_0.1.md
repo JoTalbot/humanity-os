@@ -1,5 +1,21 @@
 # HUMANITY ONE 0.1 Integration Plan
 
+## Authoritative current status — 2026-11-18
+
+PR #29 is the sole integrated Draft candidate. The latest measured pre-documentation HEAD was `a8c9a256933c9363c0f177c93edfb1141ae09307`: 173 commits ahead / 0 behind `integration/humanity-one-0.1`, and 584 ahead / 1 behind `main` (diverged; merge base `de57a48d8d57c023d02ee1c337e29bb557451a9a`). No status checks are attached to that HEAD. The CI workflow is intentionally not triggered by feature-branch pushes; historical runs do not validate the current candidate.
+
+Manual operator acceptance is DEFERRED by owner for the current development phase. Do not execute or schedule clean-machine setup or manual backup/restore/import walkthroughs. Keep those scenarios marked unvalidated, not passed; they are not current development gates. The runbook remains reference documentation. Independent security review is not required and is not a release gate.
+
+Current work priorities:
+1. Continue implementation and ordinary focused engineering review; do not launch broad tests during routine development.
+2. Preserve source history while preparing an explicit reconciliation plan for the one main-only commit and the stacked PR history. Do not blindly merge, rebase, cherry-pick, force-push, or rewrite refs.
+3. Keep automated milestone checks for changed critical invariants and reserve full CI for the exact release-candidate HEAD.
+4. Resolve remaining owner policy decisions (privacy/key recovery, retention, licensing/governance, accessibility and supported-platform scope) before claiming public-release readiness.
+5. Keep PR #29 Draft; no merge, release, publication or deployment is authorized by this plan.
+
+Historical integration sequence and dated snapshots below are retained for provenance. Where they conflict with this authoritative status, this section and the latest owner decisions prevail.
+
+---
 Status: integrated HUMANITY ONE 0.1 Draft candidate in PR #29, based on `integration/humanity-one-0.1`; PR #26 remains the integration-foundation reference. PR #28 is the original Agent Runtime lease implementation/reference and must not be merged independently.
 Base: `humanity-one/source-grounded-context` at `ba742e019dcdde2a51bd0bda41fc5ed85cd567ae`
 Related work: PR #11, #13, #15, #17, #19, #21, #23, #25.
@@ -37,13 +53,12 @@ Use `humanity-one/source-grounded-context` (PR #23 head) as the working baseline
 - Constrained Agent Runtime from #21: static researcher/curator allowlists, one tool per explicit request, bounded inputs/outputs, pending-review-only memory proposals, append-only minimal audit, and schema 1.3.0 export/import support.
 - Agent audit event listing is bounded to 100 records, and run completion is guarded to allow one terminal transition.
 
-## Remaining integration and release gates
+## Historical integration milestone (completed work; retained for traceability)
 
-- Ported the complete owner-journey acceptance test from #19 and updated its workspace export expectation to schema 1.3.0.
-- Review all shared docs and API contracts after the combined UI/context/agent changes.
-- Review the current diff for any upstream changes not yet represented; preserve original PRs until review is complete.
-- Automatic GitHub Actions CI for PR head `5d077980032ec6b9e82605ab7b8e62a76d28059c` completed successfully in run `43891172000`: lint, test, and dependency vulnerability audit all passed. No test suite or workflow was manually launched.
-- Prepare a release-candidate PR only after review and test evidence.
+- Ported the owner-journey acceptance test from #19 and updated its workspace export expectation to schema 1.3.0.
+- Combined UI/context/agent contracts and preserved the original PRs as provenance references.
+- The CI run recorded here belongs to historical head `5d077980032ec6b9e82605ab7b8e62a76d28059c`; it is not evidence for the current candidate.
+- PR #29 is already the integrated Draft candidate; do not create a duplicate release-candidate PR.
 
 ## Required integration sequence
 
@@ -131,7 +146,7 @@ PR #29 is the active integrated Draft candidate, based on `integration/humanity-
 - No PR was merged, no release was tagged, no deployment was performed, and no production operation was authorized.
 
 
-- CI update after the 2026-11-18 documentation and backup/restore test batch: [run 44279992873](https://github.com/JoTalbot/humanity-os/actions/runs/44279992873) passed all quality steps on head `bd63fe951377be1c3b82b8bb4087609f7bb89737`; 146 tests passed, one Starlette TestClient deprecation warning. The branch is 31 commits ahead and zero behind `integration/humanity-one-0.1`, and 442 commits ahead / one behind `main` (diverged). The new tests exercise CLI backup, backup verification, restore, and preservation of the pre-restore state in a safety backup. Clean-machine, cross-platform owner setup and operational recovery still require separate acceptance.
+- CI update after the 2026-11-18 documentation and backup/restore test batch: [run 44279992873](https://github.com/JoTalbot/humanity-os/actions/runs/44279992873) passed all quality steps on head `bd63fe951377be1c3b82b8bb4087609f7bb89737`; 146 tests passed, one Starlette TestClient deprecation warning. The branch is 31 commits ahead and zero behind `integration/humanity-one-0.1`, and 442 commits ahead / one behind `main` (diverged). The new tests exercise CLI backup, backup verification, restore, and preservation of the pre-restore state in a safety backup. Clean-machine, cross-platform owner setup and operational recovery remain unvalidated; manual acceptance is deferred by the owner and is not a current gate.
 
 
 ## Current integration snapshot — 2026-11-18
@@ -146,14 +161,15 @@ PR #29 is the active integrated Draft candidate, based on `integration/humanity-
 - PR #26 and #28 remain provenance references; #29 is the single integrated candidate.
 - No merge, release or deployment was performed.
 
-## Remaining gates
+## Remaining gates (current)
 
-1. Choose the final history integration route that preserves the one main-only test commit and source PR provenance.
-2. Complete clean-machine owner setup, startup, backup, restore and import acceptance.
-3. Decide encryption/key recovery, privacy/legal disclosures, retention and backup disposal.
-4. Finalize license, governance, contribution rules and release provenance.
-5. Complete accessibility and supported desktop/mobile acceptance.
-6. Assemble HUMANITY ONE 0.1 RC evidence.
+1. Prepare a provenance-preserving history reconciliation plan for the one main-only test commit and stacked PR history; no history operation is authorized yet.
+2. Resolve encryption/key recovery, privacy/legal disclosures, retention and backup-disposal policy decisions.
+3. Finalize license, governance, contribution rules and release provenance.
+4. Define accessibility and supported desktop/mobile scope.
+5. Assemble automated HUMANITY ONE 0.1 RC evidence against the exact candidate HEAD.
+
+Manual operator acceptance and clean-machine backup/restore/import walkthroughs are deferred by owner and are not current gates. Their status remains unvalidated, not passed.
 
 
 ## Current candidate update — 2026-11-18 (latest verified)
@@ -172,7 +188,7 @@ PR #29 is the active integrated Draft candidate, based on `integration/humanity-
 - Code candidate head before this documentation synchronization: `139793dbbaa5ed0000d29108e60a4c428516d6e1` on PR #29.
 - GitHub Actions run [44284176087](https://github.com/JoTalbot/humanity-os/actions/runs/44284176087) completed successfully on that code head. PR #29 records 10/10 quality steps passing, including 147 pytest tests, Ruff, dependency audit, wheel/sdist build, distribution verification and clean-virtualenv packaged-app HTTP smoke checks.
 - The release-readiness document was synchronized to this latest CI evidence. A documentation-only commit follows the verified code head; any automatic CI triggered by that push is separate evidence and must be checked before claiming the updated PR head is green.
-- Operator acceptance remains unexecuted on a genuinely clean machine. Git-history reconciliation, privacy/key-recovery decisions, governance/license, accessibility and supported-platform acceptance remain open.
+- Manual operator acceptance is deferred by owner. Git-history reconciliation, privacy/key-recovery decisions, governance/license, accessibility and supported-platform scope remain open.
 - PR #29 remains Draft. PR #26 and #28 remain provenance references; PR #28 must not be merged independently. No merge, release, deployment, tag, or history rewrite was performed.
 
 
@@ -184,13 +200,13 @@ PR #29 is the active integrated Draft candidate, based on `integration/humanity-
 - The release-readiness register has been consolidated and synchronized to that CI result. This documentation commit is newer than the verified head; its automatically triggered CI must pass before claiming the new HEAD is green.
 - The branch remains divergent from `main` (latest comparison before this documentation batch: 470 ahead / 1 behind). The candidate's integration-base comparison before this documentation batch was 59 ahead / 0 behind. These are topology facts, not merge-readiness approval.
 - The main-only memory-test intent is covered in the candidate's expanded test suite; Git ancestry itself is not reconciled. Do not blindly merge, rebase or cherry-pick the stacked branch chain.
-- Clean-machine operator acceptance has not been executed. Legal/privacy/key-recovery, retention, license, governance, accessibility and supported-platform decisions remain open. They require owner/operator or qualified external evidence and must not be marked complete by documentation alone.
+- Manual operator acceptance is deferred by owner and remains unvalidated. Legal/privacy/key-recovery, retention, license, governance, accessibility and supported-platform decisions remain open.
 - PR #26 remains the integration-foundation reference. PR #28 remains the original lease implementation/reference and must not be merged independently. PR #29 is the sole integrated candidate.
 - No merge, rebase, cherry-pick, force-push, ref rewrite, tag, publication, deployment or production operation was performed.
 
 ## Completion boundary
 
-The software candidate and automated validation are in a reviewable state. HUMANITY ONE 0.1 cannot honestly be called a completed public release until the mandatory gates in [RELEASE_READINESS.md](RELEASE_READINESS.md) have evidence and the owner separately authorizes integration/publication. The remaining clean-machine procedure is ready to execute; it is not an automated CI task.
+The software candidate remains a Draft and is not a completed public release. Public release readiness depends on the current gates in [RELEASE_READINESS.md](RELEASE_READINESS.md), automated validation of the exact RC HEAD, and separate owner authorization for integration/publication. Manual clean-machine operator acceptance is deferred and must not be scheduled or represented as completed.
 
 
 ## Live topology and CI correction — 2026-11-18 (supersedes prior numeric snapshots)
@@ -203,7 +219,7 @@ A fresh GitHub check after the previous documentation batch found the following 
 - Live compare with `main`: 473 ahead / 1 behind; status `diverged`; merge base `de57a48d8d57c023d02ee1c337e29bb557451a9a`.
 - Earlier numeric snapshots in this file and `docs/RELEASE_READINESS.md` are historical and must not be treated as current.
 - The release-readiness file has been synchronized to this state. Its follow-up documentation commit will require its own CI result before the updated HEAD is called green.
-- Clean-machine operator acceptance and the owner/external decisions listed in the release-readiness register remain outstanding. Automated CI does not replace them.
+- Historical note: clean-machine operator acceptance was previously listed as outstanding. The later owner decision defers that manual procedure; it is not a current gate. The remaining owner/external policy decisions remain open.
 - PR #29 remains the sole integrated candidate. PR #26 and #28 remain provenance references. No merge, history rewrite, tag, publication or deployment was performed.
 
 
