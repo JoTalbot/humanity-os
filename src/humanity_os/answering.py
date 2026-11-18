@@ -153,8 +153,8 @@ class DocumentAnswerService:
             # A context excerpt may be truncated to fit the prompt budget.
             # Compare immutable chunk identity and verify the full current chunk.
             identity_fields = (
-                "document_id", "chunk_id", "document_hash", "chunk_hash",
-                "start_offset",
+                "document_id", "filename", "media_type", "chunk_id",
+                "document_hash", "chunk_hash", "ordinal", "start_offset",
             )
             if any(current[key] != passage[key] for key in identity_fields):
                 raise SourceChangedDuringGeneration(
