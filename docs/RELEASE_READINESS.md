@@ -207,3 +207,9 @@ This measurement is tied to the exact SHA above. The documentation commit that f
 - Added parameterized regression coverage for zero, negative, NaN, positive/negative infinity and boolean values.
 - Updated the Agent Runtime contract and threat model.
 - Tests and CI were not run for this increment; the new cases remain pending targeted validation.
+
+
+### Model Gateway timeout configuration validation — 2026-11-18
+- Gateway constructor now accepts only numeric, finite timeout values in the documented 0.1–120 second range; booleans, strings, NaN and infinities are rejected with a stable ValueError.
+- Added parameterized regression coverage for invalid timeout configuration.
+- Updated the gateway contract documentation. Tests and CI remain unrun for this increment.
