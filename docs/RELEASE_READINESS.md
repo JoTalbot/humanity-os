@@ -13,7 +13,7 @@ The successful CI run recorded above belongs to the earlier candidate HEAD state
 - Added a focused regression test for two concurrent initializers migrating the same legacy database.
 - Updated `docs/AGENT_RUNTIME.md` with the startup/migration guarantee.
 - No tests or workflows were run for this small implementation batch, in accordance with the milestone-based validation cadence. The new regression test is pending the next focused Agent Runtime validation batch.
-- Latest candidate HEAD at this note: `e41fb1546ec7b77575990ad2ff65fc1c71400145`. The previously recorded successful CI runs apply only to their exact historical commit SHAs, not this HEAD.
+- The candidate HEAD recorded when this note was first added is historical; it is not the current branch HEAD. Previously recorded successful CI runs apply only to their exact historical commit SHAs.
 
 
 ## Source-grounded answer integration — 2026-11-18
