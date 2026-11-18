@@ -120,9 +120,28 @@ def _bounded_reasoning_context(context: dict, max_chars: int = 24_000) -> tuple[
         while len(encoded) > max_chars and len(compact[key]) > (1 if key == "claims" else 0):
             compact[key].pop()
             encoded = json.dumps(compact, ensure_ascii=False, sort_keys=True)
-    if len(encoded) > max_chars and compact["claims"]:
-        compact["claims"][0]["statement"] = compact["claims"][0].get("statement", "")[:200]
-        compact["limitations"] = ["Reasoning context was truncated to the provider prompt budget."]
+    if len(encoded) > max_chars:
+        # Last-resort fail-closed bound: unusually large scalar metadata or a
+        # pathological graph must not bypass the provider-context character cap.
+        compact = {
+            "id": str(compact.get("id") or "")[:128],
+            "root_claim_id": str(compact.get("root_claim_id") or "")[:128],
+            "query": str(compact.get("query") or "")[:256],
+            "claims": [],
+            "relations": [],
+            "claim_assessments": [],
+            "evidence": [],
+            "evidence_independence": None,
+            "paths": [],
+            "declared_dependency_paths": [],
+            "contradiction_candidates": [],
+            "potential_contradictions": [],
+            "temporal_claim_differences": [],
+            "limitations": ["Reasoning context was reduced to fit the provider prompt budget."],
+        }
+        encoded = json.dumps(compact, ensure_ascii=False, sort_keys=True)
+        if len(encoded) > max_chars:
+            compact = {"limitations": ["Reasoning context omitted: prompt budget exceeded."]}
     return compact, truncated
 
 
