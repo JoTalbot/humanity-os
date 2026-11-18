@@ -104,3 +104,15 @@ Fresh GitHub comparison after the documentation-alignment batch:
 - The one main-only commit and the full stacked history still require an explicit, provenance-preserving integration decision. Do not attempt a blind merge, rebase, cherry-pick, force-push, or ref rewrite.
 
 This snapshot supersedes all earlier numeric ahead/behind counts in this file and the integration plan. Re-run the comparison before any future integration decision; branch counts are time-sensitive.
+
+## Live branch topology snapshot — 2026-11-18 (governance/roadmap alignment)
+
+- Current PR #29 head: `6f4da5feb8d43e9d8e18c8af1a123837f3c26cb4`.
+- Candidate vs `integration/humanity-one-0.1`: **164 commits ahead, 0 behind**.
+- Candidate vs `main`: **575 commits ahead, 1 behind**, status `diverged`; merge base remains `de57a48d8d57c023d02ee1c337e29bb557451a9a`.
+- The PR is open and Draft. GitHub's mergeable flag is metadata only and does not resolve the divergent `main` history.
+- Governance and roadmap drafts now distinguish ordinary focused engineering review from a separate independent security review; the latter is not part of the 0.1 delivery plan.
+- No tests or workflows were run for these documentation-only updates. The current HEAD has no confirmed CI validation.
+- The operator acceptance runbook remains unexecuted; legal stewardship, licensing, identity recovery/MFA, encryption/key recovery, retention guarantees, accessibility target and provider-specific controls remain open decisions.
+
+This snapshot supersedes the previous topology snapshot above.
