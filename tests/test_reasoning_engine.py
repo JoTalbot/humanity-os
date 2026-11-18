@@ -283,3 +283,68 @@ def test_reasoning_run_includes_bounded_source_independence_report(tmp_path):
     assert statuses["copy-a"] == "derived_dependency"
     assert statuses["copy-b"] == "derived_dependency"
     assert statuses["primary"] == "unknown"
+
+
+def test_reasoning_comparison_profiles_evidence_without_truth_ranking(tmp_path):
+    client = TestClient(create_app(str(tmp_path / "reasoning-comparison-profiles.sqlite3")))
+    record = client.post("/v1/knowledge", json={
+        "kind": "claim",
+        "title": "Competing hypotheses evidence",
+        "content": "Two hypotheses reference overlapping evidence.",
+        "sources": [
+            {"id": "source-1", "uri": "https://example.org/shared", "title": "Shared source"},
+            {"id": "source-2", "uri": "https://example.net/unique", "title": "Additional source"},
+        ],
+        "evidence": [
+            {"id": "evidence-1", "source_id": "source-1", "relation": "supports", "excerpt": "Shared evidence"},
+            {"id": "evidence-2", "source_id": "source-2", "relation": "supports", "excerpt": "Additional evidence"},
+        ],
+    })
+    assert record.status_code == 201
+    first = client.post("/v1/claims", json={
+        "knowledge_id": record.json()["id"],
+        "statement": "Hypothesis A",
+        "evidence_ids": ["evidence-1"],
+    })
+    second = client.post("/v1/claims", json={
+        "knowledge_id": record.json()["id"],
+        "statement": "Hypothesis B",
+        "evidence_ids": ["evidence-1", "evidence-2"],
+    })
+    assert first.status_code == second.status_code == 201
+    for evidence_id, source_id, stance, status in [
+        ("evidence-1", "source-1", "supports", "assessed"),
+        ("evidence-2", "source-2", "refutes", "review_required"),
+    ]:
+        response = client.post("/v1/evidence-assessments", json={
+            "knowledge_id": record.json()["id"],
+            "source_id": source_id,
+            "evidence_id": evidence_id,
+            "stance": stance,
+            "status": status,
+            "method": "manual" if status == "assessed" else "automated_triage",
+            "notes": "Recorded evidence review state for comparison.",
+        })
+        assert response.status_code == 201
+
+    comparison = client.post("/v1/reasoning/compare", json={
+        "query": "Compare the competing hypotheses",
+        "root_claim_ids": [first.json()["id"], second.json()["id"]],
+    })
+
+    assert comparison.status_code == 201
+    body = comparison.json()
+    shared = record.json()["id"] + ":evidence-1"
+    unique = record.json()["id"] + ":evidence-2"
+    assert body["shared_evidence_ids"] == [shared]
+    assert body["unique_evidence_ids"][first.json()["id"]] == []
+    assert body["unique_evidence_ids"][second.json()["id"]] == [unique]
+    profile_a = body["evidence_profiles"][first.json()["id"]]
+    profile_b = body["evidence_profiles"][second.json()["id"]]
+    assert profile_a["assessed_evidence_link_count"] == 1
+    assert profile_a["review_required_evidence_link_count"] == 0
+    assert profile_b["assessed_evidence_link_count"] == 1
+    assert profile_b["review_required_evidence_link_count"] == 1
+    assert profile_b["evidence_stance_counts"] == {"refutes": 1, "supports": 1}
+    assert "ranking" in body["limitations"][0]
+    assert "truth" in body["limitations"][1]
