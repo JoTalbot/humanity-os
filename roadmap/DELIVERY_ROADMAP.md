@@ -12,8 +12,8 @@ Implement provider-neutral model gateway, document ingestion, source-aware searc
 ## 3 — Agent Runtime
 Implement bounded lifecycle, capabilities, approvals, tool adapters, quotas, cancellation and audit. Exit: tests prove agents cannot exceed permissions.
 
-## 4 — Independent review
-Threat, privacy, accessibility, dependency, security and documentation reviews. Exit: no unresolved critical issue.
+## 4 — Release hardening
+Complete focused engineering review, privacy and accessibility evaluation, dependency/build validation, documentation review, and the milestone-based RC test campaign. Exit: documented limitations, no unresolved release-blocking defect, and reproducible operator acceptance. A separate independent security review is not part of this delivery plan.
 
 ## 5 — Public 0.1
 Publish source, specs, reproducible build, deployment/operator guides, known limitations and contribution process. Exit: an independent developer can install, operate and extend the system.
@@ -22,4 +22,4 @@ Publish source, specs, reproducible build, deployment/operator guides, known lim
 0.2 multi-agent collaboration; 0.3 institutional workspaces; 0.4 opt-in federation prototype; 0.5 education/research workflows; 1.0 after independent implementations and security/governance maturity.
 
 ## Delivery discipline
-Work in coherent milestone batches. Run targeted checks during development and full integration, migration, recovery and security checks before release. Never claim a test passed unless executed and recorded.
+Work in coherent milestone batches. Run targeted checks during development and the configured integration, migration, recovery and security-related engineering checks at the release-candidate milestone. Never claim a test passed unless executed and recorded.
