@@ -165,3 +165,12 @@ PR #29 is the active integrated Draft candidate, based on `integration/humanity-
 - Rewrote `docs/RELEASE_READINESS.md` so it reflects the current implementation, latest CI evidence, actual 0.1 limitations and explicit release blockers.
 - Main-only memory test intent is represented in the candidate: archived state and lifecycle events survive portable export/import; append-only event deletion is rejected. Git ancestry itself remains divergent.
 - No rebase, cherry-pick, force-push, ref rewrite, merge, tag, publication, deployment or production operation was performed.
+
+
+## Candidate verification update — 2026-11-18
+
+- Code candidate head before this documentation synchronization: `139793dbbaa5ed0000d29108e60a4c428516d6e1` on PR #29.
+- GitHub Actions run [44284176087](https://github.com/JoTalbot/humanity-os/actions/runs/44284176087) completed successfully on that code head. PR #29 records 10/10 quality steps passing, including 147 pytest tests, Ruff, dependency audit, wheel/sdist build, distribution verification and clean-virtualenv packaged-app HTTP smoke checks.
+- The release-readiness document was synchronized to this latest CI evidence. A documentation-only commit follows the verified code head; any automatic CI triggered by that push is separate evidence and must be checked before claiming the updated PR head is green.
+- Operator acceptance remains unexecuted on a genuinely clean machine. Git-history reconciliation, privacy/key-recovery decisions, governance/license, accessibility and supported-platform acceptance remain open.
+- PR #29 remains Draft. PR #26 and #28 remain provenance references; PR #28 must not be merged independently. No merge, release, deployment, tag, or history rewrite was performed.
