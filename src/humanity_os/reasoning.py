@@ -13,6 +13,11 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from humanity_os.claim_assessments import ClaimAssessmentStore
 from humanity_os.claim_graph import ClaimGraphStore
 from humanity_os.evidence import EvidenceAssessmentStore
+from humanity_os.independence import (
+    EvidenceIndependenceEngine,
+    EvidenceIndependenceReport,
+    IndependenceQuery,
+)
 from humanity_os.models import ClaimAssessment, ClaimNode, ClaimRelation, EvidenceAssessment
 from humanity_os.store import KnowledgeStore
 
@@ -57,6 +62,7 @@ class ReasoningRun(BaseModel):
     claim_assessments: list[ClaimAssessment]
     paths: list[list[str]]
     evidence: list[EvidenceReference]
+    evidence_independence: EvidenceIndependenceReport | None = None
     contradiction_candidates: list[str]
     limitations: list[str]
     actor: Literal["owner", "system"]
@@ -110,6 +116,7 @@ class ReasoningEngine:
         self.graph = graph
         self.assessments = ClaimAssessmentStore(self.database_path)
         self.evidence_assessments = evidence_assessments or EvidenceAssessmentStore(self.database_path)
+        self.independence = EvidenceIndependenceEngine(knowledge)
         with self._connect() as connection:
             connection.execute(
                 """CREATE TABLE IF NOT EXISTS reasoning_runs (
@@ -250,6 +257,23 @@ class ReasoningEngine:
             limitations.append("The requested node limit was reached; additional connected claims may exist.")
         if len(all_claims) >= 100 or len(all_relations) >= 100:
             limitations.append("The stored graph exceeds the traversal snapshot cap; results may be incomplete.")
+        if independence_limit_hit:
+            limitations.append(
+                "Source-lineage analysis exceeded its 500-source bound; independence remains unassessed."
+            )
+
+        knowledge_ids = sorted({claim.knowledge_id for claim in selected.values()})
+        independence_report = None
+        independence_limit_hit = False
+        if knowledge_ids:
+            try:
+                independence_report = self.independence.analyze(
+                    IndependenceQuery(knowledge_ids=knowledge_ids, max_sources=500)
+                )
+            except ValueError:
+                # Keep the reasoning result available, but never silently imply
+                # source independence when the bounded lineage analysis is incomplete.
+                independence_limit_hit = True
 
         result = ReasoningRun(
             query=request.query,
@@ -263,6 +287,7 @@ class ReasoningEngine:
             claim_assessments=self.assessments.latest_for_claims(list(selected)),
             paths=paths,
             evidence=evidence,
+            evidence_independence=independence_report,
             contradiction_candidates=contradictions,
             limitations=limitations,
             actor=actor,
