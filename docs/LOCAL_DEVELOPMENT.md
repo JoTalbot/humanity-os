@@ -67,11 +67,11 @@ Restore validates the source, creates a non-overwriting safety snapshot, stages 
 
 ## Security and dependency maintenance
 
-CI runs Ruff, pytest and `pip-audit`. Dependabot checks Python dependencies and GitHub Actions weekly. These checks do not replace code review or independent security assessment.
+CI runs Ruff, pytest and `pip-audit`. Dependabot checks Python dependencies and GitHub Actions weekly. These project-owned checks are the planned security validation for this prototype. Independent security review, external audit, and penetration testing are not required or planned as release gates.
 
 ## Security boundary
 
-This is a local, single-owner prototype. It has no multi-tenant isolation, password recovery, MFA, session UI, remote deployment hardening, general API rate limiting, or independent security review. Both the CLI and ASGI middleware enforce loopback-only access. Direct ASGI/Uvicorn startup does not bypass the restriction. Do not expose it through a reverse proxy or to a LAN. Export and backup files contain personal data.
+This is a local, single-owner prototype. It has no multi-tenant isolation, password recovery, MFA, session UI, remote deployment hardening, or general API rate limiting. Independent security review, external audit, and penetration testing are not release gates; project-owned CI, regression tests, dependency auditing, and operational checks remain required. Both the CLI and ASGI middleware enforce loopback-only access. Direct ASGI/Uvicorn startup does not bypass the restriction. Do not expose it through a reverse proxy or to a LAN. Export and backup files contain personal data.
 
 ## Local checks
 
