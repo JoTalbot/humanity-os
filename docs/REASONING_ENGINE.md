@@ -37,3 +37,12 @@ Evidence assessments are append-only human-review events. The Reasoning Engine e
 ## Validation
 
 The focused Reasoning Engine regression suite covers bounded graph traversal, exact scope filtering, contradiction candidates, append-only run persistence, backup/restore, and inclusion of the latest evidence assessment. These checks must be executed at the next targeted validation milestone; unexecuted tests are not validation evidence.
+
+
+## Integration with Answer Engine
+
+`POST /v1/answers` can accept a `root_claim_id` and bounded traversal controls. The API creates an immutable reasoning run and supplies a compact representation of the selected claims, typed relations, claim assessments, evidence provenance, and latest evidence assessments to the answer provider, but only after explicit per-request provider consent.
+
+The graph is untrusted explanatory context. It helps organize an answer and surface disagreement; it does not replace local document evidence or establish truth. Factual answer statements must still cite retrieved document passages with `[S#]` labels. The response links back to the immutable reasoning run and reports graph limitations and prompt-context truncation.
+
+Reasoning context is size-bounded before provider transmission. Exact source chunks are re-fetched by document/chunk ID after generation, and full chunk integrity is verified even when the prompt excerpt was truncated.
