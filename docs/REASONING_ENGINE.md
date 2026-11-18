@@ -46,3 +46,9 @@ The focused Reasoning Engine regression suite covers bounded graph traversal, ex
 The graph is untrusted explanatory context. It helps organize an answer and surface disagreement; it does not replace local document evidence or establish truth. Factual answer statements must still cite retrieved document passages with `[S#]` labels. The response links back to the immutable reasoning run and reports graph limitations and prompt-context truncation.
 
 Reasoning context is size-bounded before provider transmission. Exact source chunks are re-fetched by document/chunk ID after generation, and full chunk integrity is verified even when the prompt excerpt was truncated.
+
+## Source independence inside reasoning snapshots
+
+Every reasoning run now includes a bounded source-lineage report for the selected claims' parent knowledge records. It exposes explicitly declared independence groups, shared upstream derivation clusters, source lineage status, and unknown lineage. This is the same deterministic metadata analysis exposed by the standalone Evidence Independence API, reused by the Reasoning Engine rather than reimplemented.
+
+The report is limited to 500 declared sources across the selected knowledge records. If that bound is exceeded, the reasoning run remains available but records an explicit limitation and leaves independence unassessed. It does not infer independence from different URLs, publishers, or hashes, and it does not score corroboration or truth. Answer Engine receives a compact, bounded summary of this report when reasoning context is enabled.
