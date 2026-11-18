@@ -1,9 +1,9 @@
 # HUMANITY ONE 0.1 — Acceptance Criteria
 
 ## Installation
-- [ ] Clean local deployment works from documented instructions.
-- [ ] No committed secrets.
-- [ ] Upgrade and rollback are documented.
+- [ ] Clean local deployment is executed and evidenced using the [operator acceptance runbook](../docs/OPERATOR_ACCEPTANCE.md).
+- [ ] Secret scanning is enabled and passes; CI dependency audit does not replace secret scanning.
+- [ ] Upgrade, rollback and migration procedure is documented and exercised.
 
 ## Identity and privacy
 - [x] One local owner password can be set interactively without exposing it in process arguments.
@@ -11,14 +11,16 @@
 - [x] Opaque sessions are stored as token digests and expire after 12 hours.
 - [x] Logout revokes the current session; password rotation revokes all sessions.
 - [x] Cookie-authenticated state-changing requests require a CSRF token.
-- [x] Persistent login throttling (five failed attempts per owner/source-IP bucket in 15 minutes trigger a 15-minute lockout).\n- [ ] Password recovery, MFA, session inspection UI, and multi-user workspace isolation.
-- [ ] Private data is excluded from sharing by default.
+- [x] Persistent login throttling (five failed attempts per owner/source-IP bucket in 15 minutes trigger a 15-minute lockout).
+- [ ] Password recovery, MFA, session inspection UI, and multi-user workspace isolation.
+- [x] Workspace data remains local by default; export is explicit and includes plaintext content, with secrets excluded.
 
 ## Knowledge
-- [ ] Search results identify source objects.
-- [ ] Answers cite workspace sources when used.
-- [ ] Conflicting sources coexist.
-- [ ] Unknown facts are not silently invented.
+- [x] Local lexical document search preserves document and chunk provenance.
+- [x] Bounded answer context carries source identifiers and citation validation checks provenance against the local source manifest.
+- [ ] Semantic support and factual correctness evaluation.
+- [x] Conflicting knowledge records can coexist with explicit conflict decisions.
+- [x] Source-grounded context is bounded and citation validation rejects unknown or mismatched source references; it does not guarantee factual truth.
 
 ## Memory and portability
 - [x] Consistent SQLite snapshots are created without overwriting existing files.
@@ -29,16 +31,20 @@
 - [ ] Clean-machine restore, import and crash-recovery validation across supported operating systems.
 
 ## AI provider and agents
-- [ ] Replaceable provider adapter and sensitive-data controls.
-- [ ] Explicit scoped agent permissions; no self-escalation.
-- [ ] External side effects require approval and are auditable.
+- [x] Provider-neutral model gateway contract with no provider enabled by default and per-request provider-processing consent boundary.
+- [ ] Provider-specific adapters and sensitive-data controls.
+- [x] Static tool allowlist, bounded arguments/results, one tool per owner invocation and no self-escalation.
+- [ ] OS-level sandboxing and broader approval workflows.
+- [x] Current runtime does not expose arbitrary shell, filesystem or network tools; agent memory writes remain pending-review proposals and run audit is append-only.
+- [ ] Future external side effects require explicit approval and audit.
 
 ## Quality and release
 - [x] CI runs lint, tests, Python dependency vulnerability audit, wheel/sdist builds, archive-content checks, and an installed-wheel HTTP smoke test.
 - [ ] Secret scanning is enabled and passes.
 - [ ] Production backup scheduling, encryption-at-rest policy, retention, and off-device recovery.
-- [ ] Accessibility review and independent security review.
-- [x] Operator acceptance runbook and evidence template documented ([Operator Acceptance](../docs/OPERATOR_ACCEPTANCE.md)).\n- [ ] Full user documentation complete.
+- [ ] Accessibility evaluation against a selected WCAG target.
+- [x] Operator acceptance runbook and evidence template documented ([Operator Acceptance](../docs/OPERATOR_ACCEPTANCE.md)).
+- [ ] Full user documentation complete.
 
 A checkbox without evidence is not acceptance. CI evidence is recorded in GitHub Actions.
 
