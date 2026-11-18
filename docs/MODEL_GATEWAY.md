@@ -18,7 +18,7 @@ Request schema version: `1.0`
 
 Response includes schema version, provider ID, model ID, output, optional token usage, finish reason and generation timestamp. Provider credentials, endpoint URLs and internal exception details are never returned.
 
-The gateway uses an asynchronous provider protocol and a bounded request timeout (30 seconds by default, configurable in the gateway constructor between 0.1 and 120 seconds). Provider errors are mapped to sanitized HTTP responses: unavailable provider 503, timeout 504, provider failure 502. Input validation errors remain 422.
+The gateway uses an asynchronous provider protocol and a bounded request timeout (30 seconds by default, configurable in the gateway constructor between 0.1 and 120 seconds). Provider errors and malformed provider results, including invalid provider/model metadata or output contracts, are mapped to sanitized HTTP responses: unavailable provider 503, timeout 504, provider failure 502. Input validation errors remain 422.
 
 ## Default safety behavior
 
