@@ -316,11 +316,12 @@ def test_reasoning_comparison_profiles_evidence_without_truth_ranking(tmp_path):
         (first.json(), "assumption"),
         (second.json(), "hypothesis"),
     ]:
-        assessment = client.post("/v1/claim-assessments", json={
-            "claim_id": claim["id"],
-            "classification": classification,
-            "rationale": "Owner classification for the comparison fixture.",
-        })
+        assessment = client.post(
+            "/v1/claims/" + claim["id"] + "/assessments",
+            json={"classification": classification,
+                "rationale": "Owner classification for the comparison fixture.",
+            },
+        )
         assert assessment.status_code == 201
     for evidence_id, source_id, stance, status in [
         ("evidence-1", "source-1", "supports", "assessed"),
