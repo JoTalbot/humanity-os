@@ -277,3 +277,24 @@ def test_cli_restore_creates_verified_pre_restore_backup_and_replaces_database(
     output = capsys.readouterr().out
     assert "Restore completed: 1 knowledge records" in output
     assert "Pre-restore safety backup:" in output
+
+
+
+def test_restore_rejects_corrupt_backup_without_touching_active_database(tmp_path):
+    database = tmp_path / "active.sqlite3"
+    app = create_app(str(database), allow_unauthenticated_local=True)
+    client = TestClient(app, client=("127.0.0.1", 50000))
+    assert client.post(
+        "/v1/knowledge",
+        json={"kind": "observation", "title": "Keep active", "content": "Do not replace"},
+    ).status_code == 201
+
+    corrupt_backup = tmp_path / "corrupt.sqlite3"
+    corrupt_backup.write_bytes(b"not a SQLite database")
+    safety_backup = tmp_path / "pre-restore.sqlite3"
+
+    with pytest.raises(sqlite3.DatabaseError):
+        KnowledgeStore(database).restore(corrupt_backup, safety_backup)
+
+    assert [record.title for record in KnowledgeStore(database).list()] == ["Keep active"]
+    assert not safety_backup.exists()
