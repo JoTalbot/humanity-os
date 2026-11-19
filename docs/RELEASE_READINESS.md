@@ -265,3 +265,11 @@ This measurement is tied to the exact SHA above. The documentation commit that f
 - No tests were executed; this correction is source-inspected only.
 - Corrected implementation/test HEAD: `68fb246e56b8625d330c667808870f6860ad9a17`.
 - No workflow run or commit status is attached to this HEAD.
+
+
+## SQLite rollback-journal cleanup — 2026-11-19
+
+- Workspace deletion now removes the SQLite rollback-journal (`-journal`) sidecar as well as the main database, WAL and SHM files after the verified safety backup and checkpoint.
+- Safety-backup destination checks for both deletion and portable import reject the rollback-journal path, matching the existing database/WAL/SHM protections.
+- Portable import removes a stale rollback journal before replacing the active database.
+- Updated the workspace-portability regression to exercise the rollback-journal destination guard. Tests and CI were not run for this focused change; the regression remains pending execution.
