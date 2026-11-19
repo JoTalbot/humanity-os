@@ -257,3 +257,11 @@ This measurement is tied to the exact SHA above. The documentation commit that f
 - At that HEAD: 220 commits ahead / 0 behind `integration/humanity-one-0.1`; 631 ahead / 1 behind `main`, divergent at `de57a48d8d57c023d02ee1c337e29bb557451a9a`.
 - No workflow run or combined commit status is attached to the measured HEAD. The new regression has not been executed.
 - PR #29 remains open Draft. No merge, history rewrite, release, publication or deployment was performed.
+
+
+### Consent regression fixture correction — 2026-11-19
+- Restored the `_add_source` test helper assertion after inserting strict-consent cases; the test file structure was re-read from GitHub after the correction.
+- New consent tests cover string and numeric values rejected by strict request validation.
+- No tests were executed; this correction is source-inspected only.
+- Corrected implementation/test HEAD: `68fb246e56b8625d330c667808870f6860ad9a17`.
+- No workflow run or commit status is attached to this HEAD.
