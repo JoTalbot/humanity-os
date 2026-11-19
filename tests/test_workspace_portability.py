@@ -319,3 +319,19 @@ def test_restore_rejects_safety_backup_on_active_database_or_sidecar(
 
     assert KnowledgeStore(database).list()[0].title == "Preserve"
     assert not Path(str(database) + suffix).exists()
+
+
+@pytest.mark.parametrize("suffix", ["", "-wal", "-shm", "-journal"])
+def test_backup_rejects_destination_on_active_database_or_sidecar(tmp_path, suffix):
+    database = tmp_path / "active.sqlite3"
+    store = KnowledgeStore(database)
+    store.create(
+        __import__("humanity_os.models", fromlist=["KnowledgeRecord"]).KnowledgeRecord(
+            kind="concept", title="Protect active database", content="Do not overwrite"
+        )
+    )
+
+    with pytest.raises(ValueError, match="active database and SQLite sidecars"):
+        store.backup(str(database) + suffix)
+
+    assert store.list()[0].title == "Protect active database"
