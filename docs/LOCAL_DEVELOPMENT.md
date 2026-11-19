@@ -63,7 +63,7 @@ humanity-os --restore-from "$HOME/humanity-backups/known-good.sqlite3" \
   --confirm-restore
 ```
 
-Restore validates the source, creates a non-overwriting safety snapshot, stages and verifies the replacement, then atomically replaces the active database. It is a local CLI operation, not a network endpoint.
+Restore validates a regular-file source, rejects safety-backup paths that alias the active database or any SQLite sidecar, creates a non-overwriting safety snapshot, stages and verifies the replacement, checkpoints the active database, removes stale WAL/SHM/rollback-journal sidecars, then atomically replaces the database. Backup destinations are also rejected if they alias the active database or one of its sidecars. These are local CLI operations, not network endpoints.
 
 ## Security and dependency maintenance
 
