@@ -8,7 +8,12 @@ import pytest
 from fastapi.testclient import TestClient
 
 from humanity_os.app import create_app
-from humanity_os.answering import _bounded_reasoning_context
+from humanity_os.answering import (
+    _REASONING_PROMPT_HEADER,
+    _REASONING_PROMPT_INSTRUCTIONS,
+    _bounded_reasoning_context,
+    _reasoning_context_budget,
+)
 from humanity_os.model_gateway import ModelUsage, ProviderGeneration
 
 
@@ -291,3 +296,36 @@ def test_reasoning_context_has_a_hard_serialized_character_ceiling():
     assert len(json.dumps(bounded, ensure_ascii=False, sort_keys=True)) <= 24_000
     assert bounded["claims"] == []
     assert bounded["limitations"]
+
+
+
+def test_reasoning_context_budget_reserves_space_for_the_complete_model_prompt():
+    base_prompt = "retrieved source context " + ("x" * 17_000)
+    budget = _reasoning_context_budget(base_prompt)
+    context = {
+        "id": "run-1",
+        "root_claim_id": "claim-1",
+        "query": "question",
+        "claims": [{"id": "claim-1", "statement": "A bounded claim"}],
+        "relations": [],
+        "claim_assessments": [],
+        "evidence": [],
+        "evidence_independence": None,
+        "paths": [],
+        "declared_dependency_paths": [],
+        "contradiction_candidates": [],
+        "potential_contradictions": [],
+        "temporal_claim_differences": [],
+        "limitations": [],
+    }
+
+    bounded, _ = _bounded_reasoning_context(context, max_chars=budget)
+    complete_prompt = (
+        base_prompt
+        + _REASONING_PROMPT_HEADER
+        + json.dumps(bounded, ensure_ascii=False, sort_keys=True)
+        + _REASONING_PROMPT_INSTRUCTIONS
+    )
+
+    assert 0 < budget <= 24_000
+    assert len(complete_prompt) <= 20_000
