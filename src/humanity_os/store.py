@@ -711,6 +711,7 @@ class KnowledgeStore:
             database.resolve(),
             Path(str(database) + "-wal").resolve(),
             Path(str(database) + "-shm").resolve(),
+            Path(str(database) + "-journal").resolve(),
         }
         if source.resolve() in protected_paths:
             raise ValueError("Workspace export must differ from the active database and SQLite sidecars")
@@ -1048,7 +1049,7 @@ class KnowledgeStore:
             record_count = self.verify_backup(temporary)
             self.backup(safety)
             self.checkpoint_database(database)
-            for suffix in ("-wal", "-shm"):
+            for suffix in ("-wal", "-shm", "-journal"):
                 Path(str(database) + suffix).unlink(missing_ok=True)
             os.replace(temporary, database)
             return record_count
