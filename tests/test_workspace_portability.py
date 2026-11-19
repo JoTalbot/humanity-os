@@ -298,3 +298,24 @@ def test_restore_rejects_corrupt_backup_without_touching_active_database(tmp_pat
 
     assert [record.title for record in KnowledgeStore(database).list()] == ["Keep active"]
     assert not safety_backup.exists()
+
+
+@pytest.mark.parametrize("suffix", ["", "-wal", "-shm", "-journal"])
+def test_restore_rejects_safety_backup_on_active_database_or_sidecar(
+    tmp_path, suffix
+):
+    database = tmp_path / "active.sqlite3"
+    app = create_app(str(database), allow_unauthenticated_local=True)
+    client = TestClient(app, client=("127.0.0.1", 50000))
+    assert client.post(
+        "/v1/knowledge",
+        json={"kind": "concept", "title": "Preserve", "content": "Active state"},
+    ).status_code == 201
+    source = tmp_path / "restore-source.sqlite3"
+    KnowledgeStore(database).backup(source)
+
+    with pytest.raises(ValueError, match="active database and SQLite sidecars"):
+        KnowledgeStore(database).restore(source, str(database) + suffix)
+
+    assert KnowledgeStore(database).list()[0].title == "Preserve"
+    assert not Path(str(database) + suffix).exists()
