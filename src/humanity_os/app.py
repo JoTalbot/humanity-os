@@ -14,13 +14,18 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field
 
 from humanity_os import __version__
-from humanity_os.agent_runtime import AgentRuntime
+from humanity_os.agent_runtime import AgentRunLeaseLost, AgentRuntime
 from humanity_os.answer_context import (
     AnswerContextBuilder,
     AnswerContextRequest,
     AnswerContextResponse,
 )
-from humanity_os.answering import DocumentAnswerService, InvalidSourceCitation, NoSourceContext
+from humanity_os.answering import (
+    DocumentAnswerService,
+    InvalidSourceCitation,
+    NoSourceContext,
+    SourceChangedDuringGeneration,
+)
 from humanity_os.auth import AuthStore
 from humanity_os.citation_verification import (
     CitationValidationRequest,
@@ -111,10 +116,15 @@ class DocumentContextRequest(BaseModel):
 class DocumentAnswerRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     query: str = Field(min_length=2, max_length=200)
-    allow_provider_processing: bool = False
+    allow_provider_processing: bool = Field(default=False, strict=True)
     passage_limit: int = Field(default=5, ge=1, le=10)
     max_context_chars: int = Field(default=8_000, ge=512, le=16_000)
     max_output_tokens: int = Field(default=768, ge=1, le=1_024)
+    root_claim_id: str | None = Field(default=None, min_length=1, max_length=128)
+    reasoning_max_depth: int = Field(default=3, ge=0, le=5)
+    reasoning_max_nodes: int = Field(default=30, ge=1, le=50)
+    reasoning_scope: str | None = Field(default=None, max_length=2_000)
+    reasoning_temporal_scope: str | None = Field(default=None, max_length=500)
 
 
 class AgentInvokeRequest(BaseModel):
@@ -145,7 +155,7 @@ def create_app(
     evidence_assessments = EvidenceAssessmentStore(store.database_path)
     claim_graph = ClaimGraphStore(store.database_path)
     claim_assessments = ClaimAssessmentStore(store.database_path)
-    reasoning = ReasoningEngine(store.database_path, store, claim_graph)
+    reasoning = ReasoningEngine(store.database_path, store, claim_graph, evidence_assessments)
     independence = EvidenceIndependenceEngine(store)
     model_gateway = ModelGateway(model_provider)
     answer_service = DocumentAnswerService(documents, model_gateway)
@@ -230,6 +240,63 @@ def create_app(
             return answer_context.build(payload)
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    @app.post("/v1/answers")
+    async def generate_source_grounded_answer(
+        payload: DocumentAnswerRequest, request: Request
+    ) -> dict:
+        reasoning_context = None
+        if payload.root_claim_id is not None:
+            if not payload.allow_provider_processing:
+                raise HTTPException(
+                    status_code=403,
+                    detail="Explicit consent for configured provider processing is required",
+                )
+            if not answer_service.capabilities()["provider_configured"]:
+                raise HTTPException(status_code=503, detail="No model provider is configured")
+            try:
+                reasoning_run = reasoning.run(
+                    ReasoningQuery(
+                        query=payload.query,
+                        root_claim_id=payload.root_claim_id,
+                        max_depth=payload.reasoning_max_depth,
+                        max_nodes=payload.reasoning_max_nodes,
+                        scope=payload.reasoning_scope,
+                        temporal_scope=payload.reasoning_temporal_scope,
+                    ),
+                    actor="owner" if request.state.auth_session_token else "system",
+                )
+                reasoning_context = reasoning_run.model_dump(mode="json")
+            except LookupError as exc:
+                raise HTTPException(status_code=404, detail=str(exc)) from exc
+            except ValueError as exc:
+                raise HTTPException(status_code=422, detail=str(exc)) from exc
+        try:
+            return await answer_service.answer(
+                payload.query,
+                allow_provider_processing=payload.allow_provider_processing,
+                passage_limit=payload.passage_limit,
+                max_context_chars=payload.max_context_chars,
+                max_output_tokens=payload.max_output_tokens,
+                reasoning_context=reasoning_context,
+            )
+        except PermissionError as exc:
+            raise HTTPException(status_code=403, detail=str(exc)) from exc
+        except NoSourceContext as exc:
+            raise HTTPException(status_code=404, detail="No matching source passages were found") from exc
+        except ModelProviderUnavailable as exc:
+            raise HTTPException(status_code=503, detail="No model provider is configured") from exc
+        except ModelProviderTimeout as exc:
+            raise HTTPException(status_code=504, detail="Model provider timed out") from exc
+        except ModelProviderFailure as exc:
+            raise HTTPException(status_code=502, detail="Model provider request failed") from exc
+        except InvalidSourceCitation as exc:
+            raise HTTPException(status_code=502, detail="Model response failed citation validation") from exc
+        except SourceChangedDuringGeneration as exc:
+            raise HTTPException(
+                status_code=409,
+                detail="A source changed during answer generation; retry with fresh context",
+            ) from exc
 
     @app.post("/v1/models/generate", response_model=ModelGenerationResponse)
     async def generate_model_output(
@@ -695,6 +762,11 @@ def create_app(
     def invoke_agent_tool(agent_id: str, payload: AgentInvokeRequest) -> dict:
         try:
             return agents.invoke(agent_id, payload.tool_name, payload.arguments)
+        except AgentRunLeaseLost as exc:
+            raise HTTPException(
+                status_code=409,
+                detail="Agent run lease was lost; the result was not accepted",
+            ) from exc
         except LookupError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
         except PermissionError as exc:

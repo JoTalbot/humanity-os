@@ -63,15 +63,15 @@ humanity-os --restore-from "$HOME/humanity-backups/known-good.sqlite3" \
   --confirm-restore
 ```
 
-Restore validates the source, creates a non-overwriting safety snapshot, stages and verifies the replacement, then atomically replaces the active database. It is a local CLI operation, not a network endpoint.
+Restore validates a regular-file source, rejects safety-backup paths that alias the active database or any SQLite sidecar, creates a non-overwriting safety snapshot, stages and verifies the replacement, checkpoints the active database, removes stale WAL/SHM/rollback-journal sidecars, then atomically replaces the database. Backup destinations are also rejected if they alias the active database or one of its sidecars. These are local CLI operations, not network endpoints.
 
 ## Security and dependency maintenance
 
-CI runs Ruff, pytest and `pip-audit`. Dependabot checks Python dependencies and GitHub Actions weekly. These checks do not replace code review or independent security assessment.
+The full CI workflow runs Ruff, pytest and `pip-audit` when invoked. Dependabot checks Python dependencies and GitHub Actions weekly. These project-owned checks are the planned security validation for this prototype. Independent security review, external audit, and penetration testing are not required or planned as release gates.
 
 ## Security boundary
 
-This is a local, single-owner prototype. It has no multi-tenant isolation, password recovery, MFA, session UI, remote deployment hardening, general API rate limiting, or independent security review. Both the CLI and ASGI middleware enforce loopback-only access. Direct ASGI/Uvicorn startup does not bypass the restriction. Do not expose it through a reverse proxy or to a LAN. Export and backup files contain personal data.
+This is a local, single-owner prototype. It has no multi-tenant isolation, password recovery, MFA, session UI, remote deployment hardening, or general API rate limiting. Independent security review, external audit, and penetration testing are not release gates; project-owned CI, regression tests, dependency auditing, and operational checks remain required. Both the CLI and ASGI middleware enforce loopback-only access. Direct ASGI/Uvicorn startup does not bypass the restriction. Do not expose it through a reverse proxy or to a LAN. Export and backup files contain personal data.
 
 ## Local checks
 
@@ -111,4 +111,10 @@ humanity-os --delete-workspace \
   --confirm-delete
 ```
 
-The command creates and verifies a separate non-overwriting SQLite safety backup before deleting the active database and its `-wal` and `-shm` sidecars. It refuses symlinked database paths. There is no HTTP deletion endpoint. The retained safety backup is a deliberate recovery copy, so deletion is not complete erasure while that backup exists. Other copies, filesystem snapshots, host-level backups, exports and storage-provider retention are outside this command's control and must be managed separately. Store backups encrypted, restrict access, and follow [the data retention policy](DATA_RETENTION.md). The command cannot guarantee cryptographic erasure from SSDs, snapshots or external backup systems.
+The command creates and verifies a separate non-overwriting SQLite safety backup before deleting the active database and its `-wal`, `-shm`, and rollback-journal (`-journal`) sidecars. It refuses symlinked database paths. There is no HTTP deletion endpoint. The retained safety backup is a deliberate recovery copy, so deletion is not complete erasure while that backup exists. Other copies, filesystem snapshots, host-level backups, exports and storage-provider retention are outside this command's control and must be managed separately. Store backups encrypted, restrict access, and follow [the data retention policy](DATA_RETENTION.md). The command cannot guarantee cryptographic erasure from SSDs, snapshots or external backup systems.
+
+## Development-time validation cadence
+
+Full CI is intentionally not run after every feature-branch push. The complete workflow runs on pushes to `main` or on an explicit manual dispatch. During feature work, prefer a focused test selection only when a feature batch is complete or a critical invariant changes. Documentation-only changes do not require pytest.
+
+The full workflow still includes Ruff, pytest, `pip-audit`, wheel/sdist packaging checks and a clean-virtual-environment application smoke test. Run it at substantial integration milestones and against the exact HUMANITY ONE 0.1 RC candidate. See [DEVELOPMENT_CADENCE.md](DEVELOPMENT_CADENCE.md) for the policy and test-selection matrix.

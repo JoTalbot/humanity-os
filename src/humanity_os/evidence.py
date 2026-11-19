@@ -77,3 +77,25 @@ class EvidenceAssessmentStore:
     def verify_rows(rows: list[tuple[str]]) -> None:
         for (payload,) in rows:
             EvidenceAssessment.model_validate_json(payload)
+
+
+    def latest_for_knowledge(self, knowledge_id: str, limit: int = 500) -> list[EvidenceAssessment]:
+        """Return the latest assessment event per source/evidence pair."""
+        if not 1 <= limit <= 500:
+            raise ValueError("Assessment limit must be between 1 and 500")
+        with self._connect() as connection:
+            rows = connection.execute(
+                """SELECT payload FROM (
+                       SELECT payload, assessed_at,
+                              ROW_NUMBER() OVER (
+                                  PARTITION BY source_id,
+                                      COALESCE(json_extract(payload, '$.evidence_id'), '')
+                                  ORDER BY assessed_at DESC, id DESC
+                              ) AS position
+                       FROM evidence_assessments
+                       WHERE knowledge_id = ?
+                   ) WHERE position = 1
+                   ORDER BY assessed_at DESC LIMIT ?""",
+                (knowledge_id, limit),
+            ).fetchall()
+        return [EvidenceAssessment.model_validate_json(row["payload"]) for row in rows]

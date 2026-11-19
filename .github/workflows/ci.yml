@@ -1,10 +1,10 @@
 name: CI
 
 on:
-  pull_request:
-    branches: [main, "foundation/**", "security/**", "personal-core/**", "humanity-one/**", "integration/**"]
+  # Keep feature-branch iteration fast. Full CI is run deliberately at
+  # milestone boundaries and before release, not on every development push.
   push:
-    branches: [main, "foundation/**", "security/**", "personal-core/**", "humanity-one/**", "integration/**"]
+    branches: [main]
   workflow_dispatch:
 
 permissions:

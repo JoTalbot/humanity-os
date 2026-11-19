@@ -1,4 +1,4 @@
-"""Command-line entry point; intentionally loopback-only until security review."""
+"""Command-line entry point for the local-only HUMANITY OS prototype."""
 import argparse
 import getpass
 import json
@@ -91,6 +91,7 @@ def main() -> None:
             database.resolve(),
             Path(str(database) + "-wal").resolve(),
             Path(str(database) + "-shm").resolve(),
+            Path(str(database) + "-journal").resolve(),
         }
         if Path(args.safety_backup).expanduser().resolve() in protected_paths:
             parser.error("Safety backup must differ from the active database and SQLite sidecars")
@@ -98,7 +99,7 @@ def main() -> None:
         backup = KnowledgeStore(database_path).backup(args.safety_backup)
         KnowledgeStore.verify_backup(backup)
         KnowledgeStore.checkpoint_database(database)
-        for suffix in ("", "-wal", "-shm"):
+        for suffix in ("", "-wal", "-shm", "-journal"):
             Path(str(database) + suffix).unlink(missing_ok=True)
         print(f"Workspace database and SQLite sidecars deleted: {database}")
         print(f"Verified safety backup retained at: {backup}")

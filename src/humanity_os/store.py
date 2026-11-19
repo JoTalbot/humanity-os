@@ -210,11 +210,18 @@ class KnowledgeStore:
         """Create a consistent SQLite snapshot without overwriting an existing file."""
         target_path = Path(destination).expanduser()
         target_path.parent.mkdir(parents=True, exist_ok=True)
-        if (
-            self.database_path != ":memory:"
-            and target_path.resolve() == Path(self.database_path).resolve()
-        ):
-            raise ValueError("Backup destination must differ from the active database")
+        if self.database_path != ":memory:":
+            database = Path(self.database_path).expanduser()
+            protected_paths = {
+                database.resolve(),
+                Path(str(database) + "-wal").resolve(),
+                Path(str(database) + "-shm").resolve(),
+                Path(str(database) + "-journal").resolve(),
+            }
+            if target_path.resolve() in protected_paths:
+                raise ValueError(
+                    "Backup destination must differ from the active database and SQLite sidecars"
+                )
 
         # O_EXCL prevents clobbering existing files and symlinks; 0600 protects personal data.
         descriptor = os.open(target_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
@@ -351,9 +358,19 @@ class KnowledgeStore:
             raise ValueError("Refusing to replace a database symlink")
         source = Path(backup_path).expanduser()
         safety = Path(safety_backup_path).expanduser()
-        if source.resolve() == database.resolve():
-            raise ValueError("Restore source must differ from the active database")
-        if safety.resolve() in {database.resolve(), source.resolve()}:
+        if source.is_symlink() or not source.is_file():
+            raise ValueError("Restore source must be a regular file, not a symlink")
+        protected_paths = {
+            database.resolve(),
+            Path(str(database) + "-wal").resolve(),
+            Path(str(database) + "-shm").resolve(),
+            Path(str(database) + "-journal").resolve(),
+        }
+        if source.resolve() in protected_paths:
+            raise ValueError("Restore source must differ from the active database and SQLite sidecars")
+        if safety.resolve() in protected_paths:
+            raise ValueError("Safety backup must differ from the active database and SQLite sidecars")
+        if safety.resolve() == source.resolve():
             raise ValueError("Safety backup must be a separate file")
         record_count = self.verify_backup(source)
 
@@ -375,6 +392,9 @@ class KnowledgeStore:
             staged_count = self.verify_backup(temporary)
             if staged_count != record_count:
                 raise sqlite3.DatabaseError("Staged restore record count changed")
+            self.checkpoint_database(database)
+            for suffix in ("-wal", "-shm", "-journal"):
+                Path(str(database) + suffix).unlink(missing_ok=True)
             os.replace(temporary, database)
             self._initialise()
             from humanity_os.claim_graph import ClaimGraphStore
@@ -639,7 +659,16 @@ class KnowledgeStore:
                     row["name"]
                     for row in connection.execute(f'PRAGMA table_info("{table}")').fetchall()
                 }
-                if actual_columns != set(columns):
+                if table == "agent_runs":
+                    operational_columns = {"worker_id", "lease_expires_at"}
+                    if (
+                        not set(columns).issubset(actual_columns)
+                        or not actual_columns.issubset(set(columns) | operational_columns)
+                    ):
+                        raise ValueError(
+                            f"Unsupported {table} schema; update the workspace export version"
+                        )
+                elif actual_columns != set(columns):
                     raise ValueError(
                         f"Unsupported {table} schema; update the workspace export version"
                     )
@@ -702,6 +731,7 @@ class KnowledgeStore:
             database.resolve(),
             Path(str(database) + "-wal").resolve(),
             Path(str(database) + "-shm").resolve(),
+            Path(str(database) + "-journal").resolve(),
         }
         if source.resolve() in protected_paths:
             raise ValueError("Workspace export must differ from the active database and SQLite sidecars")
@@ -1013,6 +1043,12 @@ class KnowledgeStore:
                             f'PRAGMA table_info("{table}")'
                         ).fetchall()
                     ]
+                    if table == "agent_runs":
+                        columns = [
+                            column
+                            for column in columns
+                            if column not in {"worker_id", "lease_expires_at"}
+                        ]
                     if not columns:
                         raise ValueError(f"Workspace schema is missing table: {table}")
                     placeholders = ", ".join("?" for _ in columns)
@@ -1033,7 +1069,7 @@ class KnowledgeStore:
             record_count = self.verify_backup(temporary)
             self.backup(safety)
             self.checkpoint_database(database)
-            for suffix in ("-wal", "-shm"):
+            for suffix in ("-wal", "-shm", "-journal"):
                 Path(str(database) + suffix).unlink(missing_ok=True)
             os.replace(temporary, database)
             return record_count

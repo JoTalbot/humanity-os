@@ -1,10 +1,10 @@
-# HUMANITY OS Independent Security Review Checklist
+# HUMANITY OS Internal Security and Release Validation Checklist
 
-Status: **review not yet performed**. This document defines evidence required for an independent review; it is not a security attestation or a substitute for testing.
+Status: **internal validation record**. This checklist is used by the project maintainer to track code-level controls, automated tests, operational evidence, and release decisions. No independent security review, external audit, or penetration test is required or planned as a release gate. This record is not a security attestation.
 
 ## Review record
 
-- Reviewer:
+- Maintainer / operator:
 - Review date:
 - Reviewed integration commit:
 - Reviewed Agent Runtime PR #28 head:
@@ -13,7 +13,7 @@ Status: **review not yet performed**. This document defines evidence required fo
 - Overall result: Not assessed / Pass / Pass with conditions / Fail
 - Findings and tracking references:
 
-For each item record **Pass**, **Fail**, **Not assessed**, or **Not applicable**, with evidence. A checked box without reproducible evidence is not a pass.
+For each applicable item record **Pass**, **Fail**, **Not assessed**, or **Not applicable**, with evidence. A checked box without reproducible evidence is not a pass. Evidence may come from source inspection, project-owned regression tests, CI, and documented operational checks.
 
 ## 1. Authentication, sessions and request boundaries
 
@@ -120,13 +120,13 @@ For each item record **Pass**, **Fail**, **Not assessed**, or **Not applicable**
 
 ## 10. Release decision
 
-- [ ] Independent security reviewer has completed the review and findings are resolved or accepted by the authorized owner.
+- [ ] Internal security checklist items are assessed; critical/high findings are fixed and retested or explicitly accepted by the owner.
 - [ ] All critical/high findings are fixed and retested; medium/low findings have owners and due dates.
 - [ ] PR #26 complete stacked history and originating feature contracts have been reconciled.
-- [ ] PR #28 base/head divergence has been safely reconciled and its final diff independently reviewed.
+- [ ] PR #28 base/head divergence has been safely reconciled and its final diff checked against the integration plan.
 - [ ] Full CI and acceptance checks pass on the final candidate commit.
 - [ ] Clean-machine install, password setup, backup, restore, and supported-platform checks pass.
 - [ ] Privacy, accessibility, governance, versioning, and release artifact decisions are approved.
 - [ ] Production topology and operational limits are explicitly approved.
 
-Until these gates are satisfied, keep the candidate in Draft, keep production single-process, and do not tag, publish, deploy, expose it to a LAN/public network, or enable external providers. A green feature-branch CI run alone is not release authorization.
+Until the remaining release gates are satisfied, keep the candidate in Draft and do not tag, publish, deploy, expose it to a LAN/public network, or enable external providers. A green feature-branch CI run alone is not release authorization. No independent review or penetration test is part of this process; the project owner decides release authorization from the recorded internal evidence and accepted limitations.

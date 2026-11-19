@@ -32,10 +32,22 @@ The response includes `manifest_sha256`, a deterministic SHA-256 digest over the
 - No claim that retrieved material is true or independent.
 - No generated answer is returned by this endpoint.
 
-The current lexical retriever scans local chunks and requires every extracted query term to occur in a chunk. Semantic retrieval, reranking, answer synthesis, citation verification, PDF/DOCX/OCR and a user interface remain future work.
+The current lexical retriever scans local chunks and requires every extracted query term to occur in a chunk. Semantic retrieval/reranking, semantic citation-support assessment, PDF/DOCX/OCR and broader document-format support remain future work. Provider-backed answer synthesis and provenance-only citation-label verification are implemented by the separate `/v1/answers` flow.
 
 ## Citation provenance validation
 
-`POST /v1/answers/validate` accepts answer text, the exact source manifest and its digest. It extracts `[src-<24 hex>]` markers, checks the manifest digest, rejects duplicate manifest IDs, and compares every cited excerpt with the current local document and chunk records, including content hashes, chunk ordinal, offsets, filename and media type.
+`POST /v1/answers/validate` accepts answer text, the exact source manifest and its digest. It extracts only exact lowercase `[src-<24 hex>]` markers. Malformed `src-` markers are returned as explicit `invalid_format` checks and make the result unverified, even if other citations are valid. The validator checks the manifest digest, rejects duplicate manifest IDs, and compares every cited excerpt with the current local document and chunk records, including content hashes, chunk ordinal, offsets, filename and media type.
 
 A `verified` result means only that each cited excerpt is present in the supplied manifest and matches the current local source record. It does **not** prove that the excerpt logically supports the answer, that the source is accurate, or that the answer is true. Semantic support assessment remains a separate future capability.
+
+
+## Consent input type
+The `allow_provider_processing` field must be a JSON boolean. String and numeric lookalikes are rejected by request validation; they are not coerced into consent. Omitted consent remains false.
+
+
+## Combined provider prompt budget
+
+The complete Answer Engine prompt is limited by the Model Gateway request contract to 20,000 characters. When a reasoning graph is included, its serialized context budget is calculated from the remaining space after the retrieved-document prompt and the graph's explanatory wrapper are accounted for. The 24,000-character reasoning-context ceiling is an upper bound only; it is not an additional allowance on top of the model request limit. If no space remains, or the remaining space cannot fit the smallest serialized fallback notice, graph context is omitted from the provider prompt and marked truncated rather than allowing request validation to fail.
+
+When the remaining prompt space is smaller than the serialized minimum fallback notice, the graph is omitted entirely and the response marks reasoning context as truncated. This avoids exceeding the Model Gateway limit even when only a few characters remain.
+

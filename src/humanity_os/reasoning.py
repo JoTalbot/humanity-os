@@ -12,7 +12,13 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from humanity_os.claim_assessments import ClaimAssessmentStore
 from humanity_os.claim_graph import ClaimGraphStore
-from humanity_os.models import ClaimAssessment, ClaimNode, ClaimRelation
+from humanity_os.evidence import EvidenceAssessmentStore
+from humanity_os.independence import (
+    EvidenceIndependenceEngine,
+    EvidenceIndependenceReport,
+    IndependenceQuery,
+)
+from humanity_os.models import ClaimAssessment, ClaimNode, ClaimRelation, EvidenceAssessment
 from humanity_os.store import KnowledgeStore
 
 
@@ -38,8 +44,47 @@ class EvidenceReference(BaseModel):
     source_type: str = "unknown"
     independence_group_id: str | None = None
     derived_from_source_ids: list[str] = Field(default_factory=list)
+    assessments: list[EvidenceAssessment] = Field(default_factory=list)
     excerpt: str | None = None
     locator: str | None = None
+
+
+class PotentialContradiction(BaseModel):
+    left_claim_id: str
+    right_claim_id: str
+    matched_subject: str
+    matched_predicate: str
+    matched_object: str
+    scope: str | None = None
+    temporal_scope: str | None = None
+    modality: str
+    left_polarity: Literal["affirmed", "negated"]
+    right_polarity: Literal["affirmed", "negated"]
+    basis: Literal["exact_structured_match_opposite_polarity"] = (
+        "exact_structured_match_opposite_polarity"
+    )
+
+
+class TemporalClaimDifference(BaseModel):
+    left_claim_id: str
+    right_claim_id: str
+    matched_subject: str
+    matched_predicate: str
+    matched_object: str
+    scope: str | None = None
+    modality: str
+    left_temporal_scope: str
+    right_temporal_scope: str
+    polarity_relation: Literal["same", "opposite"]
+    basis: Literal["same_structured_proposition_distinct_time_labels"] = (
+        "same_structured_proposition_distinct_time_labels"
+    )
+
+
+class DeclaredDependencyPath(BaseModel):
+    claim_ids: list[str]
+    relation_ids: list[str]
+    basis: Literal["explicit_depends_on_edges"] = "explicit_depends_on_edges"
 
 
 class ReasoningRun(BaseModel):
@@ -54,8 +99,12 @@ class ReasoningRun(BaseModel):
     relations: list[ClaimRelation]
     claim_assessments: list[ClaimAssessment]
     paths: list[list[str]]
+    declared_dependency_paths: list[DeclaredDependencyPath] = Field(default_factory=list)
     evidence: list[EvidenceReference]
+    evidence_independence: EvidenceIndependenceReport | None = None
     contradiction_candidates: list[str]
+    potential_contradictions: list[PotentialContradiction] = Field(default_factory=list)
+    temporal_claim_differences: list[TemporalClaimDifference] = Field(default_factory=list)
     limitations: list[str]
     actor: Literal["owner", "system"]
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
@@ -77,6 +126,43 @@ class ReasoningComparisonQuery(BaseModel):
         return self
 
 
+class HypothesisEvidenceProfile(BaseModel):
+    root_claim_id: str
+    claim_count: int
+    claim_classifications: dict[str, int]
+    evidence_link_count: int
+    evidence_stance_counts: dict[str, int]
+    evidence_review_status_counts: dict[str, int]
+    assessed_evidence_link_count: int
+    review_required_evidence_link_count: int
+    unassessed_evidence_link_count: int
+    distinct_source_count: int
+    declared_independence_group_count: int
+    dependent_source_edge_count: int
+    unknown_lineage_source_count: int
+
+
+class HypothesisClaimCoverageReference(BaseModel):
+    root_claim_id: str
+    claim_ids: list[str] = Field(default_factory=list, max_length=50)
+
+
+class HypothesisClaimCoverageGap(BaseModel):
+    target_root_claim_id: str
+    subject: str
+    predicate: str
+    object: str
+    scope: str | None = None
+    modality: str
+    temporal_scope: str | None = None
+    represented_in: list[HypothesisClaimCoverageReference] = Field(
+        default_factory=list, max_length=9
+    )
+    basis: Literal[
+        "peer_hypothesis_structured_claim_not_present_in_target_bounded_traversal"
+    ] = "peer_hypothesis_structured_claim_not_present_in_target_bounded_traversal"
+
+
 class ReasoningComparison(BaseModel):
     query: str
     runs: list[ReasoningRun]
@@ -86,6 +172,10 @@ class ReasoningComparison(BaseModel):
     unique_source_uris: dict[str, list[str]]
     shared_independence_groups: list[str] = Field(default_factory=list)
     unique_independence_groups: dict[str, list[str]] = Field(default_factory=dict)
+    evidence_profiles: dict[str, HypothesisEvidenceProfile] = Field(default_factory=dict)
+    shared_evidence_ids: list[str] = Field(default_factory=list)
+    unique_evidence_ids: dict[str, list[str]] = Field(default_factory=dict)
+    claim_coverage_gaps: list[HypothesisClaimCoverageGap] = Field(default_factory=list, max_length=500)
     dependent_source_edges: list[str] = Field(default_factory=list)
     unknown_lineage_sources: list[str] = Field(default_factory=list)
     limitations: list[str]
@@ -101,11 +191,14 @@ class ReasoningEngine:
         database_path: str | Path,
         knowledge: KnowledgeStore,
         graph: ClaimGraphStore,
+        evidence_assessments: EvidenceAssessmentStore | None = None,
     ) -> None:
         self.database_path = str(database_path)
         self.knowledge = knowledge
         self.graph = graph
         self.assessments = ClaimAssessmentStore(self.database_path)
+        self.evidence_assessments = evidence_assessments or EvidenceAssessmentStore(self.database_path)
+        self.independence = EvidenceIndependenceEngine(knowledge)
         with self._connect() as connection:
             connection.execute(
                 """CREATE TABLE IF NOT EXISTS reasoning_runs (
@@ -148,33 +241,32 @@ class ReasoningEngine:
         if not self._matches(root, request):
             raise ValueError("Root claim does not match the requested scope and temporal filters")
 
-        # Existing list APIs are deliberately bounded; the run never scans an unbounded graph.
-        all_claims = self.graph.list_claims(limit=100)
-        claim_by_id = {claim.id: claim for claim in all_claims}
-        claim_by_id[root.id] = root
-        all_relations = self.graph.list_relations(limit=100)
-        adjacency: dict[str, list[ClaimRelation]] = {}
-        for relation in all_relations:
-            adjacency.setdefault(relation.source_claim_id, []).append(relation)
-            if relation.relation in {"contradicts", "duplicates"}:
-                adjacency.setdefault(relation.target_claim_id, []).append(relation)
-
+        # Fetch only the bounded neighborhood of each visited node. A global
+        # "latest 100" graph slice silently hid older roots and their edges.
         selected: dict[str, ClaimNode] = {root.id: root}
         paths: list[list[str]] = [[root.id]]
         selected_relations: dict[str, ClaimRelation] = {}
+        relation_limit_hit = False
         queue = deque([(root.id, 0, [root.id])])
         while queue and len(selected) < request.max_nodes:
             current_id, depth, path = queue.popleft()
             if depth >= request.max_depth:
                 continue
-            for edge in adjacency.get(current_id, []):
+            edges = self.graph.list_relations(claim_id=current_id, limit=100)
+            relation_limit_hit = relation_limit_hit or len(edges) == 100
+            for edge in edges:
                 if edge.relation in {"contradicts", "duplicates"} and edge.source_claim_id == current_id:
                     next_id = edge.target_claim_id
                 elif edge.relation in {"contradicts", "duplicates"} and edge.target_claim_id == current_id:
                     next_id = edge.source_claim_id
                 else:
                     next_id = edge.target_claim_id
-                candidate = claim_by_id.get(next_id)
+                if next_id == current_id:
+                    selected_relations[edge.id] = edge
+                    continue
+                candidate = selected.get(next_id)
+                if candidate is None:
+                    candidate = self.graph.get_claim(next_id)
                 if candidate is None or not self._matches(candidate, request):
                     continue
                 selected_relations[edge.id] = edge
@@ -188,17 +280,29 @@ class ReasoningEngine:
                     break
 
         evidence: list[EvidenceReference] = []
+        assessment_cache: dict[str, list[EvidenceAssessment]] = {}
         for claim in selected.values():
             record = self.knowledge.get(claim.knowledge_id)
             if record is None:
                 continue
             source_by_id = {source.id: source for source in record.sources}
             evidence_by_id = {item.id: item for item in record.evidence}
+            if record.id not in assessment_cache:
+                assessment_cache[record.id] = self.evidence_assessments.latest_for_knowledge(record.id)
+            assessments_by_key = {
+                (item.source_id, item.evidence_id): item
+                for item in assessment_cache[record.id]
+            }
             for evidence_id in claim.evidence_ids:
                 item = evidence_by_id.get(evidence_id)
                 source = source_by_id.get(item.source_id) if item else None
                 if item is None or source is None:
                     continue
+                linked_assessments = [
+                    assessments_by_key[key]
+                    for key in ((source.id, item.id), (source.id, None))
+                    if key in assessments_by_key
+                ]
                 evidence.append(EvidenceReference(
                     knowledge_id=record.id,
                     evidence_id=item.id,
@@ -211,6 +315,7 @@ class ReasoningEngine:
                     source_type=source.source_type,
                     independence_group_id=source.independence_group_id,
                     derived_from_source_ids=list(source.derived_from_source_ids),
+                    assessments=linked_assessments,
                     excerpt=item.excerpt,
                     locator=item.locator,
                 ))
@@ -221,18 +326,119 @@ class ReasoningEngine:
             and edge.source_claim_id in selected
             and edge.target_claim_id in selected
         )
+        potential_contradictions: list[PotentialContradiction] = []
+        temporal_claim_differences: list[TemporalClaimDifference] = []
+        selected_claims = list(selected.values())
+        for index, left in enumerate(selected_claims):
+            if left.polarity not in {"affirmed", "negated"}:
+                continue
+            left_terms = (left.subject, left.predicate, left.object)
+            if any(not value or not value.strip() for value in left_terms):
+                continue
+            for right in selected_claims[index + 1:]:
+                if right.polarity not in {"affirmed", "negated"}:
+                    continue
+                if left.scope != right.scope or left.modality != right.modality:
+                    continue
+                right_terms = (right.subject, right.predicate, right.object)
+                if any(not value or not value.strip() for value in right_terms):
+                    continue
+                normalized_left = tuple(
+                    " ".join(value.casefold().split()) for value in left_terms
+                )
+                normalized_right = tuple(
+                    " ".join(value.casefold().split()) for value in right_terms
+                )
+                if normalized_left != normalized_right:
+                    continue
+                if left.temporal_scope and right.temporal_scope and (
+                    left.temporal_scope != right.temporal_scope
+                ):
+                    temporal_claim_differences.append(TemporalClaimDifference(
+                        left_claim_id=left.id,
+                        right_claim_id=right.id,
+                        matched_subject=left.subject or "",
+                        matched_predicate=left.predicate or "",
+                        matched_object=left.object or "",
+                        scope=left.scope,
+                        modality=left.modality,
+                        left_temporal_scope=left.temporal_scope,
+                        right_temporal_scope=right.temporal_scope,
+                        polarity_relation=(
+                            "same" if left.polarity == right.polarity else "opposite"
+                        ),
+                    ))
+                    continue
+                if right.polarity == left.polarity:
+                    continue
+                potential_contradictions.append(PotentialContradiction(
+                    left_claim_id=left.id,
+                    right_claim_id=right.id,
+                    matched_subject=left.subject or "",
+                    matched_predicate=left.predicate or "",
+                    matched_object=left.object or "",
+                    scope=left.scope,
+                    temporal_scope=left.temporal_scope,
+                    modality=left.modality,
+                    left_polarity=left.polarity,
+                    right_polarity=right.polarity,
+                ))
+
+        declared_dependency_paths: list[DeclaredDependencyPath] = []
+        for path in paths:
+            relation_ids: list[str] = []
+            for source_id, target_id in zip(path, path[1:]):
+                dependency = next(
+                    (
+                        edge for edge in selected_relations.values()
+                        if edge.relation == "depends_on"
+                        and edge.source_claim_id == source_id
+                        and edge.target_claim_id == target_id
+                    ),
+                    None,
+                )
+                if dependency is None:
+                    break
+                relation_ids.append(dependency.id)
+            else:
+                if relation_ids:
+                    declared_dependency_paths.append(DeclaredDependencyPath(
+                        claim_ids=path,
+                        relation_ids=relation_ids,
+                    ))
+
+        knowledge_ids = sorted({claim.knowledge_id for claim in selected.values()})
+        independence_report = None
+        independence_limit_hit = False
+        if knowledge_ids:
+            try:
+                independence_report = self.independence.analyze(
+                    IndependenceQuery(knowledge_ids=knowledge_ids, max_sources=500)
+                )
+            except ValueError:
+                # Keep the reasoning result available, but never silently imply
+                # source independence when the bounded lineage analysis is incomplete.
+                independence_limit_hit = True
         limitations = [
             "This is a graph explanation, not a proof of truth.",
             "Claim and relation records are human-authored assertions; no truth score is calculated.",
             "Epistemic classifications are human assessments; absence of a classification is not an unknown verdict.",
             "Only declared evidence links are shown; external sources are not fetched or authenticated.",
+            "Potential contradictions are exact structured-field matches with opposite polarity, not semantic contradiction judgments.",
+            "Temporal claim differences only report distinct non-empty time labels; interval overlap and chronological ordering are not inferred.",
+            "Declared dependency paths contain only explicit depends_on edges; they do not establish causation.",
             "Scope and temporal filters use exact string matching, not interval or ontology reasoning.",
-            "The graph snapshot is bounded to at most 100 claims and 100 relations.",
+            "Each visited claim neighborhood is bounded to 100 directly linked relations; traversal also obeys the requested depth and node limits.",
         ]
         if len(selected) >= request.max_nodes:
             limitations.append("The requested node limit was reached; additional connected claims may exist.")
-        if len(all_claims) >= 100 or len(all_relations) >= 100:
-            limitations.append("The stored graph exceeds the traversal snapshot cap; results may be incomplete.")
+        if relation_limit_hit:
+            limitations.append("At least one visited claim has 100 or more directly linked relations; additional edges may be omitted.")
+        if independence_limit_hit:
+            limitations.append(
+                "Source-lineage analysis exceeded its 500-source bound; independence remains unassessed."
+            )
+
 
         result = ReasoningRun(
             query=request.query,
@@ -245,8 +451,12 @@ class ReasoningEngine:
             relations=list(selected_relations.values()),
             claim_assessments=self.assessments.latest_for_claims(list(selected)),
             paths=paths,
+            declared_dependency_paths=declared_dependency_paths,
             evidence=evidence,
+            evidence_independence=independence_report,
             contradiction_candidates=contradictions,
+            potential_contradictions=potential_contradictions,
+            temporal_claim_differences=temporal_claim_differences,
             limitations=limitations,
             actor=actor,
         )
@@ -305,6 +515,131 @@ class ReasoningEngine:
             }
             for run in runs
         }
+        evidence_sets = {
+            run.root_claim_id: {
+                f"{item.knowledge_id}:{item.evidence_id}"
+                for item in run.evidence
+            }
+            for run in runs
+        }
+        profiles: dict[str, HypothesisEvidenceProfile] = {}
+        for run in runs:
+            classifications: dict[str, int] = {}
+            for assessment in run.claim_assessments:
+                classifications[assessment.classification] = (
+                    classifications.get(assessment.classification, 0) + 1
+                )
+            stances: dict[str, int] = {}
+            statuses: dict[str, int] = {}
+            assessed_links = 0
+            review_required_links = 0
+            unique_evidence = {
+                (item.knowledge_id, item.evidence_id): item
+                for item in run.evidence
+            }
+            unique_sources = {
+                (item.knowledge_id, item.source_id): item
+                for item in unique_evidence.values()
+            }
+            dependency_edges = {
+                (item.knowledge_id, item.source_id, parent_id)
+                for item in unique_sources.values()
+                for parent_id in item.derived_from_source_ids
+            }
+            unknown_sources = {
+                (item.knowledge_id, item.source_id)
+                for item in unique_sources.values()
+                if not item.independence_group_id and not item.derived_from_source_ids
+            }
+            for item in unique_evidence.values():
+                specific = next(
+                    (entry for entry in item.assessments if entry.evidence_id is not None),
+                    None,
+                )
+                assessment = specific or (item.assessments[0] if item.assessments else None)
+                if assessment is None:
+                    statuses["unassessed"] = statuses.get("unassessed", 0) + 1
+                    continue
+                if assessment.status == "assessed":
+                    assessed_links += 1
+                else:
+                    review_required_links += 1
+                stances[assessment.stance] = stances.get(assessment.stance, 0) + 1
+                statuses[assessment.status] = statuses.get(assessment.status, 0) + 1
+            profiles[run.root_claim_id] = HypothesisEvidenceProfile(
+                root_claim_id=run.root_claim_id,
+                claim_count=len(run.claims),
+                claim_classifications=classifications,
+                evidence_link_count=len(unique_evidence),
+                evidence_stance_counts=stances,
+                evidence_review_status_counts=statuses,
+                assessed_evidence_link_count=assessed_links,
+                review_required_evidence_link_count=review_required_links,
+                unassessed_evidence_link_count=(
+                    len(unique_evidence) - assessed_links - review_required_links
+                ),
+                distinct_source_count=len(unique_sources),
+                declared_independence_group_count=len({
+                    (item.knowledge_id, item.independence_group_id)
+                    for item in unique_sources.values()
+                    if item.independence_group_id
+                }),
+                dependent_source_edge_count=len(dependency_edges),
+                unknown_lineage_source_count=len(unknown_sources),
+            )
+        # Report only structured-claim coverage differences observed in these
+        # bounded traversals. A gap is not a claim that evidence should exist.
+        structured_claims: dict[str, dict[tuple[str, str, str, str | None, str, str | None], list[ClaimNode]]] = {}
+        for run in runs:
+            by_key: dict[tuple[str, str, str, str | None, str, str | None], list[ClaimNode]] = {}
+            for claim in run.claims:
+                terms = (claim.subject, claim.predicate, claim.object)
+                if any(not value or not value.strip() for value in terms):
+                    continue
+                key = (
+                    " ".join((claim.subject or "").casefold().split()),
+                    " ".join((claim.predicate or "").casefold().split()),
+                    " ".join((claim.object or "").casefold().split()),
+                    " ".join(claim.scope.casefold().split()) if claim.scope else None,
+                    claim.modality,
+                    " ".join(claim.temporal_scope.casefold().split()) if claim.temporal_scope else None,
+                )
+                by_key.setdefault(key, []).append(claim)
+            structured_claims[run.root_claim_id] = by_key
+
+        all_propositions = set().union(
+            *(set(items) for items in structured_claims.values())
+        )
+        coverage_gaps: list[HypothesisClaimCoverageGap] = []
+        for target_root_id in sorted(structured_claims):
+            target_keys = structured_claims[target_root_id]
+            for key in sorted(all_propositions - set(target_keys), key=repr):
+                represented_in = [
+                    HypothesisClaimCoverageReference(
+                        root_claim_id=peer_root_id,
+                        claim_ids=sorted({claim.id for claim in peer_claims[key]}),
+                    )
+                    for peer_root_id, peer_claims in sorted(structured_claims.items())
+                    if peer_root_id != target_root_id and key in peer_claims
+                ]
+                if not represented_in:
+                    continue
+                subject, predicate, object_value, scope, modality, temporal_scope = key
+                coverage_gaps.append(HypothesisClaimCoverageGap(
+                    target_root_claim_id=target_root_id,
+                    subject=subject,
+                    predicate=predicate,
+                    object=object_value,
+                    scope=scope,
+                    modality=modality,
+                    temporal_scope=temporal_scope,
+                    represented_in=represented_in,
+                ))
+                if len(coverage_gaps) >= 500:
+                    break
+            if len(coverage_gaps) >= 500:
+                break
+
         dependent_edges = sorted({
             f"{item.knowledge_id}:{item.source_id}<-{parent_id}"
             for run in runs
@@ -320,6 +655,7 @@ class ReasoningEngine:
         shared_claims = set.intersection(*claim_sets.values())
         shared_sources = set.intersection(*source_sets.values())
         shared_groups = set.intersection(*group_sets.values())
+        shared_evidence = set.intersection(*evidence_sets.values())
         return ReasoningComparison(
             query=request.query,
             runs=runs,
@@ -338,6 +674,13 @@ class ReasoningEngine:
                 root_id: sorted(values - shared_groups)
                 for root_id, values in group_sets.items()
             },
+            evidence_profiles=profiles,
+            shared_evidence_ids=sorted(shared_evidence),
+            unique_evidence_ids={
+                root_id: sorted(values - shared_evidence)
+                for root_id, values in evidence_sets.items()
+            },
+            claim_coverage_gaps=coverage_gaps,
             dependent_source_edges=dependent_edges,
             unknown_lineage_sources=unknown_lineage,
             limitations=[
@@ -346,6 +689,7 @@ class ReasoningEngine:
                 "Independence groups are reviewer-declared and scoped to parent knowledge records; unknown lineage remains unknown.",
                 "Derived-source edges indicate recorded dependency, not verified copying or publisher identity.",
                 "Each alternative is stored as its own immutable reasoning run.",
+                "Claim coverage gaps report structured propositions absent from a bounded traversal; they do not establish missing evidence, relevance, or falsity.",
             ],
             actor=actor,
         )

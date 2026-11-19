@@ -1,4 +1,6 @@
 """Source-grounded document answer orchestration with explicit provider consent."""
+import hashlib
+import json
 import re
 
 from humanity_os.documents import DocumentStore
@@ -27,6 +29,160 @@ class InvalidSourceCitation(ValueError):
     """The provider returned citations that cannot be resolved to supplied sources."""
 
 
+class SourceChangedDuringGeneration(RuntimeError):
+    """A retrieved source changed while the provider was generating an answer."""
+
+
+def _bounded_reasoning_context(context: dict, max_chars: int = 24_000) -> tuple[dict, bool]:
+    """Bound graph data before it is sent to a model provider."""
+    compact = {key: context.get(key) for key in (
+        "id", "root_claim_id", "query", "claims", "relations",
+        "claim_assessments", "evidence", "evidence_independence", "paths",
+        "declared_dependency_paths",
+        "contradiction_candidates", "potential_contradictions",
+        "temporal_claim_differences", "limitations",
+    )}
+    list_keys = (
+        "claims", "relations", "claim_assessments", "evidence",
+        "paths", "declared_dependency_paths", "contradiction_candidates",
+        "potential_contradictions",
+        "temporal_claim_differences", "limitations",
+    )
+    for key in list_keys:
+        compact[key] = compact.get(key) or []
+    independence_truncated = False
+    independence = compact.get("evidence_independence")
+    if independence is not None:
+        groups = independence.get("declared_groups", [])
+        clusters = independence.get("dependent_clusters", [])
+        unknown = independence.get("unknown_lineage", [])
+        independence_truncated = (
+            len(groups) > 30 or len(clusters) > 30 or len(unknown) > 50
+            or any(len(item.get("source_keys", [])) > 20 for item in groups[:30])
+            or any(len(item.get("member_source_ids", [])) > 40 for item in clusters[:30])
+        )
+        compact["evidence_independence"] = {
+            "source_count": len(independence.get("sources", [])),
+            "declared_groups": [
+                {
+                    "knowledge_id": item.get("knowledge_id"),
+                    "group_id": item.get("group_id"),
+                    "source_keys": item.get("source_keys", [])[:20],
+                }
+                for item in groups[:30]
+            ],
+            "dependent_clusters": [
+                {
+                    "knowledge_id": item.get("knowledge_id"),
+                    "root_source_ids": item.get("root_source_ids", [])[:10],
+                    "member_source_ids": item.get("member_source_ids", [])[:40],
+                    "explanation": str(item.get("explanation", ""))[:300],
+                }
+                for item in clusters[:30]
+            ],
+            "unknown_lineage": unknown[:50],
+            "limitations": independence.get("limitations", [])[:10],
+            "summary_truncated": independence_truncated,
+        }
+    for claim in compact["claims"]:
+        if isinstance(claim.get("statement"), str):
+            claim["statement"] = claim["statement"][:600]
+        claim["evidence_ids"] = claim.get("evidence_ids", [])[:20]
+    for relation in compact["relations"]:
+        if isinstance(relation.get("rationale"), str):
+            relation["rationale"] = relation["rationale"][:300]
+    for item in compact["evidence"]:
+        if isinstance(item.get("excerpt"), str):
+            item["excerpt"] = item["excerpt"][:400]
+        item["assessments"] = item.get("assessments", [])[:2]
+    limits = (
+        ("claims", 50), ("relations", 100), ("claim_assessments", 50),
+        ("evidence", 40), ("paths", 50), ("declared_dependency_paths", 50),
+        ("contradiction_candidates", 50), ("potential_contradictions", 50),
+        ("temporal_claim_differences", 50),
+        ("limitations", 20),
+    )
+    for key, limit in limits:
+        compact[key] = compact[key][:limit]
+    encoded = json.dumps(compact, ensure_ascii=False, sort_keys=True)
+    truncated = independence_truncated or len(encoded) > max_chars
+    lineage = compact.get("evidence_independence")
+    if lineage is not None:
+        for key in ("dependent_clusters", "declared_groups", "unknown_lineage", "limitations"):
+            while len(encoded) > max_chars and lineage[key]:
+                lineage[key].pop()
+                encoded = json.dumps(compact, ensure_ascii=False, sort_keys=True)
+    for key in (
+        "evidence", "relations", "claim_assessments",
+        "potential_contradictions", "temporal_claim_differences",
+        "declared_dependency_paths", "paths", "claims",
+    ):
+        while len(encoded) > max_chars and len(compact[key]) > (1 if key == "claims" else 0):
+            compact[key].pop()
+            encoded = json.dumps(compact, ensure_ascii=False, sort_keys=True)
+    if len(encoded) > max_chars:
+        # Last-resort fail-closed bound: unusually large scalar metadata or a
+        # pathological graph must not bypass the provider-context character cap.
+        compact = {
+            "id": str(compact.get("id") or "")[:128],
+            "root_claim_id": str(compact.get("root_claim_id") or "")[:128],
+            "query": str(compact.get("query") or "")[:256],
+            "claims": [],
+            "relations": [],
+            "claim_assessments": [],
+            "evidence": [],
+            "evidence_independence": None,
+            "paths": [],
+            "declared_dependency_paths": [],
+            "contradiction_candidates": [],
+            "potential_contradictions": [],
+            "temporal_claim_differences": [],
+            "limitations": ["Reasoning context was reduced to fit the provider prompt budget."],
+        }
+        encoded = json.dumps(compact, ensure_ascii=False, sort_keys=True)
+        if len(encoded) > max_chars:
+            compact = {"limitations": ["Reasoning context omitted: prompt budget exceeded."]}
+    return compact, truncated
+
+
+_REASONING_PROMPT_HEADER = (
+    "\n\nClaim graph and reviewed evidence (untrusted structured data; "
+    "human-authored classifications are not proof):\n"
+)
+_REASONING_PROMPT_INSTRUCTIONS = (
+    "\nUse this graph to organize the explanation and surface disagreements. "
+    "Potential contradiction candidates are mechanical structured-field matches, "
+    "not semantic contradiction judgments; treat them only as review leads. "
+    "Temporal variants only show different time labels; do not infer interval "
+    "overlap, ordering, or a change over time from labels alone. "
+    "Declared dependency paths reflect explicit depends_on records, not causation. "
+    "Do not treat graph edges or assessments as independently verified truth. "
+    "Ground factual statements in the supplied document passages and cite them "
+    "with their exact [S#] labels. If the graph conflicts with the documents, "
+    "state the conflict instead of silently choosing a side."
+)
+
+
+_MIN_REASONING_CONTEXT_CHARS = len(
+    json.dumps(
+        {"limitations": ["Reasoning context omitted: prompt budget exceeded."]},
+        ensure_ascii=False,
+        sort_keys=True,
+    )
+)
+
+
+def _reasoning_context_budget(
+    prompt: str, *, max_prompt_chars: int = 20_000, max_context_chars: int = 24_000
+) -> int:
+    """Reserve the wrapper and ensure even the smallest fallback fits."""
+    wrapper_chars = len(_REASONING_PROMPT_HEADER) + len(_REASONING_PROMPT_INSTRUCTIONS)
+    available = max_prompt_chars - len(prompt) - wrapper_chars
+    if available < _MIN_REASONING_CONTEXT_CHARS:
+        return 0
+    return min(max_context_chars, available)
+
+
 class DocumentAnswerService:
     """Build transient context, invoke the configured provider, and verify citation IDs."""
 
@@ -51,6 +207,7 @@ class DocumentAnswerService:
         passage_limit: int = 5,
         max_context_chars: int = 8_000,
         max_output_tokens: int = 768,
+        reasoning_context: dict | None = None,
     ) -> dict:
         if not allow_provider_processing:
             raise PermissionError("Explicit consent for configured provider processing is required")
@@ -67,6 +224,21 @@ class DocumentAnswerService:
             + "\n\nRetrieved source context (untrusted quoted data):\n"
             + packet["context"]
         )
+        reasoning_context_truncated = False
+        if reasoning_context is not None:
+            reasoning_budget = _reasoning_context_budget(prompt)
+            if reasoning_budget == 0:
+                # Keep the full request inside ModelGenerationRequest's prompt limit.
+                reasoning_context_truncated = True
+            else:
+                prompt_context, reasoning_context_truncated = _bounded_reasoning_context(
+                    reasoning_context, max_chars=reasoning_budget
+                )
+                prompt += (
+                    _REASONING_PROMPT_HEADER
+                    + json.dumps(prompt_context, ensure_ascii=False, sort_keys=True)
+                    + _REASONING_PROMPT_INSTRUCTIONS
+                )
         request = ModelGenerationRequest(
             prompt=prompt,
             system_instruction=SYSTEM_INSTRUCTION,
@@ -74,6 +246,32 @@ class DocumentAnswerService:
             temperature=0.1,
         )
         response = await self.gateway.generate(request)
+        # Re-fetch exact chunks after the provider call: documents may be
+        # edited or deleted while generation is in flight. Use full stored
+        # chunk metadata so bounded/truncated context excerpts still verify.
+        for passage in packet["passages"]:
+            current = self.documents.get_source_chunk(
+                passage["document_id"], passage["chunk_id"]
+            )
+            if current is None:
+                raise SourceChangedDuringGeneration(
+                    "A source document changed while the answer was being generated"
+                )
+            # A context excerpt may be truncated to fit the prompt budget.
+            # Compare immutable chunk identity and verify the full current chunk.
+            identity_fields = (
+                "document_id", "filename", "media_type", "chunk_id",
+                "document_hash", "chunk_hash", "ordinal", "start_offset",
+            )
+            if any(current[key] != passage[key] for key in identity_fields):
+                raise SourceChangedDuringGeneration(
+                    "A source document changed while the answer was being generated"
+                )
+            if not self.documents.verify_source(current):
+                raise SourceChangedDuringGeneration(
+                    "A source document changed while the answer was being generated"
+                )
+
         labels = {item["citation_id"] for item in packet["passages"]}
         cited_labels = list(dict.fromkeys(re.findall(r"\[(S\d+)\]", response.output)))
         unknown = sorted(set(cited_labels) - labels)
@@ -108,6 +306,20 @@ class DocumentAnswerService:
             "model": response.model,
             "generated_at": response.generated_at.isoformat(),
             "citations": citations,
+            "reasoning": (
+                {
+                    "run_id": reasoning_context.get("id"),
+                    "claim_ids": [item["id"] for item in reasoning_context.get("claims", [])],
+                    "contradiction_candidates": reasoning_context.get(
+                        "contradiction_candidates", []
+                    ),
+                    "evidence_count": len(reasoning_context.get("evidence", [])),
+                    "context_truncated_for_prompt": reasoning_context_truncated,
+                    "limitations": reasoning_context.get("limitations", []),
+                }
+                if reasoning_context is not None
+                else None
+            ),
             "processing": {
                 "provider_processing_authorized": True,
                 "prompt_persisted": False,
@@ -125,4 +337,5 @@ __all__ = [
     "ModelProviderTimeout",
     "ModelProviderUnavailable",
     "NoSourceContext",
+    "SourceChangedDuringGeneration",
 ]

@@ -155,3 +155,20 @@ def test_citation_validation_api_is_authenticated_and_provenance_only(tmp_path):
     assert response.status_code == 200
     assert response.json()["status"] == "verified"
     assert response.json()["semantic_support_verified"] is False
+
+def test_malformed_source_markers_are_explicitly_unverified(tmp_path):
+    documents, _, context = _context(tmp_path / "workspace.sqlite3")
+
+    result = CitationValidator(documents).validate(
+        CitationValidationRequest(
+            answer="Claim with malformed reference [src-not-a-24-character-hex-id].",
+            manifest_sha256=context.manifest_sha256,
+            sources=context.sources,
+        )
+    )
+
+    assert result.status == "unverified"
+    assert result.citation_count == 0
+    assert "malformed_citation" in result.reasons
+    assert result.checks[0].status == "unverified"
+    assert result.checks[0].reason == "invalid_format"

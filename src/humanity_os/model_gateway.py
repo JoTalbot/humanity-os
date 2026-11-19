@@ -5,10 +5,11 @@ No network provider is included. The default application has no configured provi
 from __future__ import annotations
 
 import asyncio
+import math
 from datetime import UTC, datetime
 from typing import Literal, Protocol
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class ModelGenerationRequest(BaseModel):
@@ -20,6 +21,20 @@ class ModelGenerationRequest(BaseModel):
     system_instruction: str | None = Field(default=None, max_length=4_000)
     max_output_tokens: int = Field(default=512, ge=1, le=4_096)
     temperature: float = Field(default=0.2, ge=0.0, le=1.0)
+
+    @field_validator("temperature", mode="before")
+    @classmethod
+    def require_numeric_temperature_input(cls, value: object) -> object:
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            raise ValueError("Temperature must be a finite number between 0 and 1")
+        return value
+
+    @field_validator("temperature")
+    @classmethod
+    def require_finite_temperature(cls, value: float) -> float:
+        if not math.isfinite(value):
+            raise ValueError("Temperature must be a finite number between 0 and 1")
+        return value
 
 
 class ModelUsage(BaseModel):
@@ -46,6 +61,14 @@ class ModelGenerationResponse(BaseModel):
     usage: ModelUsage | None = None
     finish_reason: Literal["stop", "length", "content_filter", "unknown"]
     generated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+
+    @field_validator("provider", "model")
+    @classmethod
+    def normalize_identifier(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("Provider and model identifiers must not be blank")
+        return normalized
 
 
 class ModelProvider(Protocol):
@@ -80,10 +103,15 @@ class ModelGateway:
     def __init__(
         self, provider: ModelProvider | None = None, *, timeout_seconds: float = 30.0
     ) -> None:
-        if not 0.1 <= timeout_seconds <= 120.0:
-            raise ValueError("Model gateway timeout must be between 0.1 and 120 seconds")
+        if isinstance(timeout_seconds, bool) or not isinstance(
+            timeout_seconds, (int, float)
+        ):
+            raise ValueError("Model gateway timeout must be a finite number between 0.1 and 120 seconds")
+        timeout = float(timeout_seconds)
+        if not math.isfinite(timeout) or not 0.1 <= timeout <= 120.0:
+            raise ValueError("Model gateway timeout must be a finite number between 0.1 and 120 seconds")
         self.provider = provider
-        self.timeout_seconds = timeout_seconds
+        self.timeout_seconds = timeout
 
     async def generate(self, request: ModelGenerationRequest) -> ModelGenerationResponse:
         if self.provider is None:
@@ -92,14 +120,19 @@ class ModelGateway:
             result = await asyncio.wait_for(
                 self.provider.generate(request), timeout=self.timeout_seconds
             )
+            if not isinstance(result, ProviderGeneration):
+                raise TypeError("Provider returned an invalid response contract")
+            # Validate provider metadata and generated content inside the sanitized
+            # boundary too. A faulty adapter must never turn a malformed result into
+            # an unhandled API exception or leak its internal details.
+            return ModelGenerationResponse(
+                provider=self.provider.provider_id,
+                model=self.provider.model_id,
+                output=result.output,
+                usage=result.usage,
+                finish_reason=result.finish_reason,
+            )
         except TimeoutError as exc:
             raise ModelProviderTimeout("Model provider request timed out") from exc
         except Exception as exc:
             raise ModelProviderFailure("Model provider request failed") from exc
-        return ModelGenerationResponse(
-            provider=self.provider.provider_id,
-            model=self.provider.model_id,
-            output=result.output,
-            usage=result.usage,
-            finish_reason=result.finish_reason,
-        )

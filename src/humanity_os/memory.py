@@ -114,41 +114,85 @@ class MemoryStore:
         rationale: str,
         source_document_id: str | None = None,
         source_chunk_id: str | None = None,
+        actor: str = "owner",
+        connection: sqlite3.Connection | None = None,
     ) -> dict:
+        """Create a pending proposal and attribute it to its actual initiator.
+
+        When a caller supplies a connection, the insert and audit event join
+        that caller's transaction. Agent Runtime uses this to fence writes
+        inside the run's live-lease transaction.
+        """
+        if not actor.strip() or len(actor) > 128:
+            raise ValueError("Memory proposal actor must contain 1-128 characters")
         if not title.strip() or not content.strip() or not rationale.strip():
             raise ValueError("Memory proposal title, content, and rationale cannot be blank")
         if (source_document_id is None) != (source_chunk_id is None):
             raise ValueError("Document and chunk source references must be supplied together")
+        if connection is not None:
+            return self._create_proposal(
+                connection,
+                title=title,
+                content=content,
+                rationale=rationale,
+                source_document_id=source_document_id,
+                source_chunk_id=source_chunk_id,
+                actor=actor,
+            )
+        with self._connect() as active_connection:
+            return self._create_proposal(
+                active_connection,
+                title=title,
+                content=content,
+                rationale=rationale,
+                source_document_id=source_document_id,
+                source_chunk_id=source_chunk_id,
+                actor=actor,
+            )
+
+    def _create_proposal(
+        self,
+        connection: sqlite3.Connection,
+        *,
+        title: str,
+        content: str,
+        rationale: str,
+        source_document_id: str | None,
+        source_chunk_id: str | None,
+        actor: str,
+    ) -> dict:
         proposal_id = str(uuid4())
         created_at = datetime.now(UTC).isoformat()
-        with self._connect() as connection:
-            if source_document_id is not None:
-                source = connection.execute(
-                    """SELECT 1 FROM document_chunks
-                       WHERE id = ? AND document_id = ?""",
-                    (source_chunk_id, source_document_id),
-                ).fetchone()
-                if source is None:
-                    raise LookupError("Source document chunk was not found")
-            connection.execute(
-                """INSERT INTO memory_proposals(
-                    id, title, content, rationale, source_document_id,
-                    source_chunk_id, status, created_at
-                ) VALUES (?, ?, ?, ?, ?, ?, 'pending_review', ?)""",
-                (
-                    proposal_id, title, content, rationale, source_document_id,
-                    source_chunk_id, created_at,
-                ),
-            )
-            self._event(
-                connection,
-                event_type="proposal_created",
-                actor="owner",
-                details={"status": "pending_review"},
-                proposal_id=proposal_id,
-                occurred_at=created_at,
-            )
-        return self.get_proposal(proposal_id)
+        if source_document_id is not None:
+            source = connection.execute(
+                """SELECT 1 FROM document_chunks
+                   WHERE id = ? AND document_id = ?""",
+                (source_chunk_id, source_document_id),
+            ).fetchone()
+            if source is None:
+                raise LookupError("Source document chunk was not found")
+        connection.execute(
+            """INSERT INTO memory_proposals(
+                id, title, content, rationale, source_document_id,
+                source_chunk_id, status, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, 'pending_review', ?)""",
+            (
+                proposal_id, title, content, rationale, source_document_id,
+                source_chunk_id, created_at,
+            ),
+        )
+        self._event(
+            connection,
+            event_type="proposal_created",
+            actor=actor,
+            details={"status": "pending_review"},
+            proposal_id=proposal_id,
+            occurred_at=created_at,
+        )
+        row = connection.execute(
+            "SELECT * FROM memory_proposals WHERE id = ?", (proposal_id,)
+        ).fetchone()
+        return dict(row)
 
     def get_proposal(self, proposal_id: str) -> dict | None:
         with self._connect() as connection:

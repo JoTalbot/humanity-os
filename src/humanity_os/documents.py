@@ -220,6 +220,29 @@ class DocumentStore:
             },
         }
 
+    def get_source_chunk(self, document_id: str, chunk_id: str) -> dict | None:
+        """Fetch full current provenance for one exact stored source chunk."""
+        with self._connect() as connection:
+            row = connection.execute(
+                """SELECT d.id AS document_id, d.filename, d.media_type,
+                          d.content_hash AS document_hash,
+                          c.id AS chunk_id, c.ordinal, c.start_offset, c.end_offset,
+                          c.content_hash AS chunk_hash, c.content AS excerpt
+                   FROM documents d
+                   JOIN document_chunks c ON c.document_id = d.id
+                   WHERE d.id = ? AND c.id = ?""",
+                (document_id, chunk_id),
+            ).fetchone()
+        if row is None:
+            return None
+        source = dict(row)
+        identity = ":".join(str(source[key]) for key in (
+            "document_id", "chunk_id", "document_hash", "chunk_hash",
+            "start_offset", "end_offset",
+        ))
+        source["citation_id"] = "src-" + hashlib.sha256(identity.encode("utf-8")).hexdigest()[:24]
+        return source
+
     def verify_source(self, source: dict) -> bool:
         """Verify a context source against the current stored document and chunk."""
         with self._connect() as connection:

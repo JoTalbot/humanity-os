@@ -5,6 +5,7 @@ import pytest
 from fastapi.testclient import TestClient as _TestClient
 
 from humanity_os.app import create_app as _create_app
+from humanity_os.models import ClaimNode, ClaimRelation
 from humanity_os.store import KnowledgeStore
 
 
@@ -202,3 +203,423 @@ def test_reasoning_rejects_missing_root_and_oversized_limits(tmp_path):
         "max_depth": 99,
     })
     assert oversized.status_code == 422
+
+
+def test_reasoning_run_carries_latest_human_evidence_assessment(tmp_path):
+    client = TestClient(create_app(str(tmp_path / "reasoning-assessments.sqlite3")))
+    record = _record(client, "Assessed evidence")
+    claim = _claim(client, record, "A proposition with reviewed evidence")
+
+    first = client.post("/v1/evidence-assessments", json={
+        "knowledge_id": record["id"],
+        "source_id": "source-1",
+        "evidence_id": "evidence-1",
+        "stance": "supports",
+        "status": "review_required",
+        "method": "automated_triage",
+        "notes": "Automated triage found a possible supporting passage; human review remains required.",
+    })
+    assert first.status_code == 201
+    second = client.post("/v1/evidence-assessments", json={
+        "knowledge_id": record["id"],
+        "source_id": "source-1",
+        "evidence_id": "evidence-1",
+        "stance": "refutes",
+        "status": "assessed",
+        "method": "manual",
+        "notes": "Manual review found the excerpt does not support the proposition.",
+    })
+    assert second.status_code == 201
+
+    result = client.post("/v1/reasoning/runs", json={
+        "query": "Explain the assessed proposition",
+        "root_claim_id": claim["id"],
+    })
+    assert result.status_code == 201
+    evidence = result.json()["evidence"]
+    assert len(evidence) == 1
+    assert evidence[0]["assessments"] == [second.json()]
+    assert evidence[0]["assessments"][0]["stance"] == "refutes"
+    assert evidence[0]["assessments"][0]["status"] == "assessed"
+
+
+def test_reasoning_run_includes_bounded_source_independence_report(tmp_path):
+    client = TestClient(create_app(str(tmp_path / "reasoning-independence.sqlite3")))
+    record = client.post("/v1/knowledge", json={
+        "kind": "claim",
+        "title": "Dependent publications",
+        "content": "Two publications repeat the same upstream source.",
+        "sources": [
+            {"id": "primary", "uri": "https://example.org/original", "source_type": "primary"},
+            {"id": "copy-a", "uri": "https://example.net/reprint-a", "derived_from_source_ids": ["primary"]},
+            {"id": "copy-b", "uri": "https://example.com/reprint-b", "derived_from_source_ids": ["primary"]},
+        ],
+        "evidence": [
+            {"id": "evidence-a", "source_id": "copy-a", "relation": "supports", "excerpt": "Repeated text A"},
+            {"id": "evidence-b", "source_id": "copy-b", "relation": "supports", "excerpt": "Repeated text B"},
+        ],
+    })
+    assert record.status_code == 201
+    claim = client.post("/v1/claims", json={
+        "knowledge_id": record.json()["id"],
+        "statement": "The publications share an upstream source.",
+        "evidence_ids": ["evidence-a", "evidence-b"],
+    })
+    assert claim.status_code == 201
+
+    result = client.post("/v1/reasoning/runs", json={
+        "query": "Inspect evidence dependence",
+        "root_claim_id": claim.json()["id"],
+    })
+
+    assert result.status_code == 201
+    report = result.json()["evidence_independence"]
+    assert report["knowledge_ids"] == [record.json()["id"]]
+    assert len(report["dependent_clusters"]) == 1
+    assert report["dependent_clusters"][0]["root_source_ids"] == ["primary"]
+    assert set(report["dependent_clusters"][0]["member_source_ids"]) == {
+        "primary", "copy-a", "copy-b"
+    }
+    statuses = {item["source_id"]: item["independence_status"] for item in report["sources"]}
+    assert statuses["copy-a"] == "derived_dependency"
+    assert statuses["copy-b"] == "derived_dependency"
+    assert statuses["primary"] == "unknown"
+
+
+def test_reasoning_comparison_profiles_evidence_without_truth_ranking(tmp_path):
+    client = TestClient(create_app(str(tmp_path / "reasoning-comparison-profiles.sqlite3")))
+    record = client.post("/v1/knowledge", json={
+        "kind": "claim",
+        "title": "Competing hypotheses evidence",
+        "content": "Two hypotheses reference overlapping evidence.",
+        "sources": [
+            {"id": "source-1", "uri": "https://example.org/shared", "title": "Shared source"},
+            {"id": "source-2", "uri": "https://example.net/unique", "title": "Additional source"},
+        ],
+        "evidence": [
+            {"id": "evidence-1", "source_id": "source-1", "relation": "supports", "excerpt": "Shared evidence"},
+            {"id": "evidence-2", "source_id": "source-2", "relation": "supports", "excerpt": "Additional evidence"},
+        ],
+    })
+    assert record.status_code == 201
+    first = client.post("/v1/claims", json={
+        "knowledge_id": record.json()["id"],
+        "statement": "Hypothesis A",
+        "evidence_ids": ["evidence-1"],
+    })
+    second = client.post("/v1/claims", json={
+        "knowledge_id": record.json()["id"],
+        "statement": "Hypothesis B",
+        "evidence_ids": ["evidence-1", "evidence-2"],
+    })
+    assert first.status_code == second.status_code == 201
+    for claim, classification in [
+        (first.json(), "assumption"),
+        (second.json(), "hypothesis"),
+    ]:
+        assessment = client.post(
+            "/v1/claims/" + claim["id"] + "/assessments",
+            json={"classification": classification,
+                "rationale": "Owner classification for the comparison fixture.",
+            },
+        )
+        assert assessment.status_code == 201
+    for evidence_id, source_id, stance, status in [
+        ("evidence-1", "source-1", "supports", "assessed"),
+        ("evidence-2", "source-2", "refutes", "review_required"),
+    ]:
+        response = client.post("/v1/evidence-assessments", json={
+            "knowledge_id": record.json()["id"],
+            "source_id": source_id,
+            "evidence_id": evidence_id,
+            "stance": stance,
+            "status": status,
+            "method": "manual" if status == "assessed" else "automated_triage",
+            "notes": "Recorded evidence review state for comparison.",
+        })
+        assert response.status_code == 201
+
+    comparison = client.post("/v1/reasoning/compare", json={
+        "query": "Compare the competing hypotheses",
+        "root_claim_ids": [first.json()["id"], second.json()["id"]],
+    })
+
+    assert comparison.status_code == 201
+    body = comparison.json()
+    shared = record.json()["id"] + ":evidence-1"
+    unique = record.json()["id"] + ":evidence-2"
+    assert body["shared_evidence_ids"] == [shared]
+    assert body["unique_evidence_ids"][first.json()["id"]] == []
+    assert body["unique_evidence_ids"][second.json()["id"]] == [unique]
+    profile_a = body["evidence_profiles"][first.json()["id"]]
+    profile_b = body["evidence_profiles"][second.json()["id"]]
+    assert profile_a["claim_classifications"] == {"assumption": 1}
+    assert profile_b["claim_classifications"] == {"hypothesis": 1}
+    assert profile_a["assessed_evidence_link_count"] == 1
+    assert profile_a["review_required_evidence_link_count"] == 0
+    assert profile_b["assessed_evidence_link_count"] == 1
+    assert profile_b["review_required_evidence_link_count"] == 1
+    assert profile_b["evidence_stance_counts"] == {"refutes": 1, "supports": 1}
+    assert "ranking" in body["limitations"][0]
+    assert "correctness" in body["limitations"][1]
+
+
+def test_reasoning_detects_structured_opposite_polarity_candidates(tmp_path):
+    client = TestClient(create_app(str(tmp_path / "reasoning-structured-contradictions.sqlite3")))
+    record_a = _record(client, "Affirmed structured claim")
+    record_b = _record(client, "Negated structured claim")
+    first = client.post("/v1/claims", json={
+        "knowledge_id": record_a["id"],
+        "statement": "The service is available.",
+        "subject": "Service",
+        "predicate": "available",
+        "object": "region A",
+        "polarity": "affirmed",
+        "scope": "region A",
+        "temporal_scope": "2026-Q4",
+        "evidence_ids": ["evidence-1"],
+    })
+    second = client.post("/v1/claims", json={
+        "knowledge_id": record_b["id"],
+        "statement": "The service is not available.",
+        "subject": " service ",
+        "predicate": "AVAILABLE",
+        "object": "REGION A",
+        "polarity": "negated",
+        "scope": "region A",
+        "temporal_scope": "2026-Q4",
+        "evidence_ids": ["evidence-1"],
+    })
+    assert first.status_code == second.status_code == 201
+    edge = client.post("/v1/claim-relations", json={
+        "source_claim_id": first.json()["id"],
+        "target_claim_id": second.json()["id"],
+        "relation": "supports",
+        "rationale": "Connect both propositions for comparison.",
+    })
+    assert edge.status_code == 201
+
+    result = client.post("/v1/reasoning/runs", json={
+        "query": "Inspect structured polarity",
+        "root_claim_id": first.json()["id"],
+        "max_depth": 1,
+    })
+
+    assert result.status_code == 201
+    candidates = result.json()["potential_contradictions"]
+    assert len(candidates) == 1
+    assert candidates[0]["left_claim_id"] == first.json()["id"]
+    assert candidates[0]["right_claim_id"] == second.json()["id"]
+    assert candidates[0]["basis"] == "exact_structured_match_opposite_polarity"
+    assert result.json()["contradiction_candidates"] == []
+
+
+def test_reasoning_separates_temporal_variants_from_contradictions(tmp_path):
+    client = TestClient(create_app(str(tmp_path / "reasoning-temporal-variants.sqlite3")))
+    record_a = _record(client, "Earlier-period service claim")
+    record_b = _record(client, "Later-period service claim")
+    first = client.post("/v1/claims", json={
+        "knowledge_id": record_a["id"],
+        "statement": "The service is available in the earlier period.",
+        "subject": "Service",
+        "predicate": "available",
+        "object": "region A",
+        "polarity": "affirmed",
+        "scope": "region A",
+        "modality": "asserted",
+        "temporal_scope": "2025",
+    })
+    second = client.post("/v1/claims", json={
+        "knowledge_id": record_b["id"],
+        "statement": "The service is unavailable in the later period.",
+        "subject": " service ",
+        "predicate": "AVAILABLE",
+        "object": "REGION A",
+        "polarity": "negated",
+        "scope": "region A",
+        "modality": "asserted",
+        "temporal_scope": "2026",
+    })
+    assert first.status_code == second.status_code == 201
+    relation = client.post("/v1/claim-relations", json={
+        "source_claim_id": first.json()["id"],
+        "target_claim_id": second.json()["id"],
+        "relation": "supports",
+        "rationale": "Link the claims for temporal comparison only.",
+    })
+    assert relation.status_code == 201
+
+    result = client.post("/v1/reasoning/runs", json={
+        "query": "Compare service availability over time",
+        "root_claim_id": first.json()["id"],
+        "max_depth": 1,
+    })
+
+    assert result.status_code == 201
+    body = result.json()
+    assert body["potential_contradictions"] == []
+    assert len(body["temporal_claim_differences"]) == 1
+    difference = body["temporal_claim_differences"][0]
+    assert difference["left_temporal_scope"] == "2025"
+    assert difference["right_temporal_scope"] == "2026"
+    assert difference["polarity_relation"] == "opposite"
+    assert difference["basis"] == "same_structured_proposition_distinct_time_labels"
+
+
+def test_reasoning_exposes_only_explicit_dependency_paths(tmp_path):
+    client = TestClient(create_app(str(tmp_path / "reasoning-dependency-paths.sqlite3")))
+    record = _record(client, "Dependency chain fixture")
+    claims = []
+    for statement in ["Outcome exists", "Process completes", "Input is available"]:
+        response = client.post("/v1/claims", json={
+            "knowledge_id": record["id"],
+            "statement": statement,
+        })
+        assert response.status_code == 201
+        claims.append(response.json())
+    relations = []
+    for source, target in zip(claims, claims[1:]):
+        response = client.post("/v1/claim-relations", json={
+            "source_claim_id": source["id"],
+            "target_claim_id": target["id"],
+            "relation": "depends_on",
+            "rationale": "Explicitly recorded dependency for the fixture.",
+        })
+        assert response.status_code == 201
+        relations.append(response.json())
+
+    result = client.post("/v1/reasoning/runs", json={
+        "query": "Explain declared dependencies",
+        "root_claim_id": claims[0]["id"],
+        "max_depth": 2,
+    })
+
+    assert result.status_code == 201
+    paths = result.json()["declared_dependency_paths"]
+    assert [item["claim_ids"] for item in paths] == [
+        [claims[0]["id"], claims[1]["id"]],
+        [claims[0]["id"], claims[1]["id"], claims[2]["id"]],
+    ]
+    assert [item["relation_ids"] for item in paths] == [
+        [relations[0]["id"]],
+        [relations[0]["id"], relations[1]["id"]],
+    ]
+    assert all(item["basis"] == "explicit_depends_on_edges" for item in paths)
+
+
+
+def test_hypothesis_comparison_reports_observed_structured_claim_coverage_gaps(tmp_path):
+    client = TestClient(create_app(str(tmp_path / "reasoning-coverage-gaps.sqlite3")))
+    record_a = _record(client, "Coverage hypothesis A")
+    record_b = _record(client, "Coverage hypothesis B")
+
+    hypothesis_a = client.post("/v1/claims", json={
+        "knowledge_id": record_a["id"],
+        "statement": "The battery is healthy.",
+        "subject": "Battery",
+        "predicate": "health",
+        "object": "healthy",
+        "polarity": "affirmed",
+        "scope": "vehicle",
+        "modality": "asserted",
+        "temporal_scope": "2026",
+    }).json()
+    hypothesis_b = client.post("/v1/claims", json={
+        "knowledge_id": record_b["id"],
+        "statement": "The battery is not healthy.",
+        "subject": " battery ",
+        "predicate": "HEALTH",
+        "object": "healthy",
+        "polarity": "negated",
+        "scope": "vehicle",
+        "modality": "asserted",
+        "temporal_scope": "2026",
+    }).json()
+    additional = client.post("/v1/claims", json={
+        "knowledge_id": record_b["id"],
+        "statement": "The starter circuit is intact.",
+        "subject": "Starter circuit",
+        "predicate": "integrity",
+        "object": "intact",
+        "polarity": "affirmed",
+        "scope": "vehicle",
+        "modality": "asserted",
+        "temporal_scope": "2026",
+    }).json()
+    relation = client.post("/v1/claim-relations", json={
+        "source_claim_id": hypothesis_b["id"],
+        "target_claim_id": additional["id"],
+        "relation": "supports",
+        "rationale": "Include the additional structured proposition in this bounded hypothesis view.",
+    })
+    assert relation.status_code == 201
+
+    comparison = client.post("/v1/reasoning/compare", json={
+        "query": "Compare observed proposition coverage",
+        "root_claim_ids": [hypothesis_a["id"], hypothesis_b["id"]],
+        "max_depth": 1,
+    })
+
+    assert comparison.status_code == 201
+    gaps = comparison.json()["claim_coverage_gaps"]
+    assert len(gaps) == 1
+    gap = gaps[0]
+    assert gap["target_root_claim_id"] == hypothesis_a["id"]
+    assert (gap["subject"], gap["predicate"], gap["object"]) == (
+        "starter circuit", "integrity", "intact"
+    )
+    assert gap["represented_in"] == [{
+        "root_claim_id": hypothesis_b["id"],
+        "claim_ids": [additional["id"]],
+    }]
+    assert gap["basis"] == (
+        "peer_hypothesis_structured_claim_not_present_in_target_bounded_traversal"
+    )
+    assert any("do not establish missing evidence" in item for item in comparison.json()["limitations"])
+
+
+
+def test_reasoning_traverses_old_root_edges_outside_global_latest_100(tmp_path):
+    application = create_app(str(tmp_path / "reasoning-old-root.sqlite3"))
+    client = TestClient(application)
+    record = _record(client, "Old root neighborhood")
+    root = _claim(client, record, "Old root claim")
+    target = _claim(client, record, "Old target claim")
+    graph = application.state.claim_graph_store
+    graph.create_relation(ClaimRelation(
+        source_claim_id=root["id"],
+        target_claim_id=target["id"],
+        relation="supports",
+        rationale="The older root edge must remain discoverable.",
+        actor="owner",
+    ))
+
+    previous = None
+    for index in range(101):
+        claim = ClaimNode(
+            knowledge_id=record["id"],
+            statement=f"Newer unrelated claim {index}",
+            actor="owner",
+        )
+        graph.create_claim(claim)
+        if previous is not None:
+            graph.create_relation(ClaimRelation(
+                source_claim_id=previous.id,
+                target_claim_id=claim.id,
+                relation="supports",
+                rationale="Populate newer unrelated graph edges.",
+                actor="owner",
+            ))
+        previous = claim
+
+    result = client.post("/v1/reasoning/runs", json={
+        "query": "Traverse an older claim neighborhood",
+        "root_claim_id": root["id"],
+        "max_depth": 1,
+        "max_nodes": 2,
+    })
+
+    assert result.status_code == 201
+    body = result.json()
+    assert [claim["id"] for claim in body["claims"]] == [root["id"], target["id"]]
+    assert [relation["source_claim_id"] for relation in body["relations"]] == [root["id"]]

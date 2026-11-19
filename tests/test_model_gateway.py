@@ -7,6 +7,7 @@ from humanity_os.app import create_app
 from humanity_os.model_gateway import (
     ModelGateway,
     ModelGenerationRequest,
+    ModelProviderFailure,
     ModelProviderTimeout,
     ModelUsage,
     ProviderGeneration,
@@ -31,6 +32,39 @@ class FailingProvider:
 
     async def generate(self, request):
         raise RuntimeError("private prompt must not leak")
+
+
+
+class MalformedProvider:
+    provider_id = "test-provider"
+    model_id = "malformed-v1"
+
+    async def generate(self, request):
+        return {"output": "not a validated ProviderGeneration"}
+
+
+class InvalidMetadataProvider:
+    provider_id = "x" * 65
+    model_id = "invalid-metadata-v1"
+
+    async def generate(self, request):
+        return ProviderGeneration(output="private output")
+
+
+class BlankMetadataProvider:
+    provider_id = "   "
+    model_id = "blank-metadata-v1"
+
+    async def generate(self, request):
+        return ProviderGeneration(output="private output")
+
+
+class PaddedMetadataProvider:
+    provider_id = " test-provider "
+    model_id = " deterministic-v1 "
+
+    async def generate(self, request):
+        return ProviderGeneration(output="valid output")
 
 
 class SlowProvider:
@@ -131,3 +165,70 @@ def test_model_endpoint_remains_authenticated_by_default(tmp_path):
     )
 
     assert response.status_code == 401
+
+
+def test_malformed_provider_response_is_sanitized():
+    gateway = ModelGateway(MalformedProvider())
+
+    with pytest.raises(ModelProviderFailure) as error:
+        asyncio.run(gateway.generate(ModelGenerationRequest(prompt="private prompt")))
+
+    assert str(error.value) == "Model provider request failed"
+    assert "private prompt" not in str(error.value)
+
+
+def test_invalid_provider_metadata_is_sanitized():
+    gateway = ModelGateway(InvalidMetadataProvider())
+
+    with pytest.raises(ModelProviderFailure) as error:
+        asyncio.run(gateway.generate(ModelGenerationRequest(prompt="private prompt")))
+
+    assert str(error.value) == "Model provider request failed"
+    assert "private prompt" not in str(error.value)
+
+
+
+def test_blank_provider_metadata_is_sanitized():
+    gateway = ModelGateway(BlankMetadataProvider())
+
+    with pytest.raises(ModelProviderFailure) as error:
+        asyncio.run(gateway.generate(ModelGenerationRequest(prompt="private prompt")))
+
+    assert str(error.value) == "Model provider request failed"
+    assert "private prompt" not in str(error.value)
+
+
+def test_provider_and_model_identifiers_are_normalized():
+    gateway = ModelGateway(PaddedMetadataProvider())
+
+    response = asyncio.run(gateway.generate(ModelGenerationRequest(prompt="hello")))
+
+    assert response.provider == "test-provider"
+    assert response.model == "deterministic-v1"
+
+
+@pytest.mark.parametrize(
+    "timeout_seconds",
+    [0, -1, 0.09, 120.01, float("nan"), float("inf"), -float("inf"), True, False, "30"],
+)
+def test_gateway_rejects_invalid_timeout_configuration(timeout_seconds):
+    with pytest.raises(ValueError, match="finite number"):
+        ModelGateway(timeout_seconds=timeout_seconds)
+
+
+@pytest.mark.parametrize("temperature", [float("nan"), float("inf"), -float("inf")])
+def test_generation_request_rejects_non_finite_temperature(temperature):
+    with pytest.raises(ValueError, match="finite number"):
+        ModelGenerationRequest(prompt="hello", temperature=temperature)
+
+
+@pytest.mark.parametrize("temperature", [True, False, "0.5"])
+def test_generation_request_rejects_coerced_temperature_inputs(temperature):
+    with pytest.raises(ValueError, match="finite number"):
+        ModelGenerationRequest(prompt="hello", temperature=temperature)
+
+
+@pytest.mark.parametrize("temperature", [0, 0.2, 1])
+def test_generation_request_accepts_finite_temperature_boundaries(temperature):
+    request = ModelGenerationRequest(prompt="hello", temperature=temperature)
+    assert request.temperature == temperature
