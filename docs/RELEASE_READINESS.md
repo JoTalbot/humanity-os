@@ -1,15 +1,14 @@
 # Live candidate status — 2026-11-19 (measured before this status-note commit)
 
 - Active candidate: PR #29, open Draft, branch `fix/agent-lease-side-effects-audit`, base `integration/humanity-one-0.1`.
-- Measured implementation/documentation HEAD: `cef2ac44d412a7a67557d69d5989d3ab8297ea0f`.
-- Candidate vs integration base: **242 ahead / 0 behind** (merge base `bfaf67c9cfaad81ec66a430c05cc25294f429979`).
-- Candidate vs `main`: **653 ahead / 1 behind**, status `diverged`; merge base `de57a48d8d57c023d02ee1c337e29bb557451a9a`.
+- Measured HEAD: `6d93cc7fe51dbd4155733cc8f4a8ff1ddff3044b`.
+- Candidate vs integration base: **245 ahead / 0 behind** (merge base `bfaf67c9cfaad81ec66a430c05cc25294f429979`).
+- Candidate vs `main`: **656 ahead / 1 behind**, status `diverged`; merge base `de57a48d8d57c023d02ee1c337e29bb557451a9a`.
 - No combined status checks or PR-triggered workflow runs are attached to this HEAD. Tests and workflows were not executed in this batch; the candidate is not CI-validated.
-- This batch fixes the final-character-budget edge case in reasoning-aware Answer prompts: if even the minimum serialized fallback cannot fit, graph context is omitted and marked truncated. A focused regression test was added but not run.
-- Corrected capability descriptions in `docs/ANSWER_CONTEXT.md` and `roadmap/DELIVERY_ROADMAP.md`: provider-backed answer synthesis and provenance-only citation-label validation exist; semantic citation-support assessment remains open.
+- The Answer Engine now omits reasoning graph context when the remaining prompt budget cannot fit even the minimum serialized fallback. A focused boundary regression was added but not run.
+- Documentation now correctly describes the implemented `/v1/answers` provider-backed flow and distinguishes provenance validation from semantic citation support.
 - Manual operator acceptance remains DEFERRED and unvalidated. Independent security review is not required or a release gate.
 - No merge, rebase, cherry-pick, force-push, ref rewrite, tag, release, publication, deployment, test run or workflow dispatch was performed. `main` and the integration base remain untouched.
-- The next technical release work is source-level completion review, branch-history reconciliation planning that preserves the one main-only commit, then the focused automated validation milestone and one full RC CI campaign. No history operation is authorized by this status note.
 
 ---
 
