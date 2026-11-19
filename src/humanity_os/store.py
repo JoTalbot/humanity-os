@@ -351,9 +351,19 @@ class KnowledgeStore:
             raise ValueError("Refusing to replace a database symlink")
         source = Path(backup_path).expanduser()
         safety = Path(safety_backup_path).expanduser()
-        if source.resolve() == database.resolve():
-            raise ValueError("Restore source must differ from the active database")
-        if safety.resolve() in {database.resolve(), source.resolve()}:
+        if source.is_symlink() or not source.is_file():
+            raise ValueError("Restore source must be a regular file, not a symlink")
+        protected_paths = {
+            database.resolve(),
+            Path(str(database) + "-wal").resolve(),
+            Path(str(database) + "-shm").resolve(),
+            Path(str(database) + "-journal").resolve(),
+        }
+        if source.resolve() in protected_paths:
+            raise ValueError("Restore source must differ from the active database and SQLite sidecars")
+        if safety.resolve() in protected_paths:
+            raise ValueError("Safety backup must differ from the active database and SQLite sidecars")
+        if safety.resolve() == source.resolve():
             raise ValueError("Safety backup must be a separate file")
         record_count = self.verify_backup(source)
 
@@ -375,6 +385,9 @@ class KnowledgeStore:
             staged_count = self.verify_backup(temporary)
             if staged_count != record_count:
                 raise sqlite3.DatabaseError("Staged restore record count changed")
+            self.checkpoint_database(database)
+            for suffix in ("-wal", "-shm", "-journal"):
+                Path(str(database) + suffix).unlink(missing_ok=True)
             os.replace(temporary, database)
             self._initialise()
             from humanity_os.claim_graph import ClaimGraphStore
