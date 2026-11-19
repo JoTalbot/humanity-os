@@ -5,6 +5,7 @@ import pytest
 from fastapi.testclient import TestClient as _TestClient
 
 from humanity_os.app import create_app as _create_app
+from humanity_os.models import ClaimNode, ClaimRelation
 from humanity_os.store import KnowledgeStore
 
 
@@ -575,3 +576,50 @@ def test_hypothesis_comparison_reports_observed_structured_claim_coverage_gaps(t
         "peer_hypothesis_structured_claim_not_present_in_target_bounded_traversal"
     )
     assert any("do not establish missing evidence" in item for item in comparison.json()["limitations"])
+
+
+
+def test_reasoning_traverses_old_root_edges_outside_global_latest_100(tmp_path):
+    application = create_app(str(tmp_path / "reasoning-old-root.sqlite3"))
+    client = TestClient(application)
+    record = _record(client, "Old root neighborhood")
+    root = _claim(client, record, "Old root claim")
+    target = _claim(client, record, "Old target claim")
+    graph = application.state.claim_graph_store
+    graph.create_relation(ClaimRelation(
+        source_claim_id=root["id"],
+        target_claim_id=target["id"],
+        relation="supports",
+        rationale="The older root edge must remain discoverable.",
+        actor="owner",
+    ))
+
+    previous = None
+    for index in range(101):
+        claim = ClaimNode(
+            knowledge_id=record["id"],
+            statement=f"Newer unrelated claim {index}",
+            actor="owner",
+        )
+        graph.create_claim(claim)
+        if previous is not None:
+            graph.create_relation(ClaimRelation(
+                source_claim_id=previous.id,
+                target_claim_id=claim.id,
+                relation="supports",
+                rationale="Populate newer unrelated graph edges.",
+                actor="owner",
+            ))
+        previous = claim
+
+    result = client.post("/v1/reasoning/runs", json={
+        "query": "Traverse an older claim neighborhood",
+        "root_claim_id": root["id"],
+        "max_depth": 1,
+        "max_nodes": 2,
+    })
+
+    assert result.status_code == 201
+    body = result.json()
+    assert [claim["id"] for claim in body["claims"]] == [root["id"], target["id"]]
+    assert [relation["source_claim_id"] for relation in body["relations"]] == [root["id"]]
