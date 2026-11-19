@@ -246,12 +246,14 @@ class ReasoningEngine:
         selected: dict[str, ClaimNode] = {root.id: root}
         paths: list[list[str]] = [[root.id]]
         selected_relations: dict[str, ClaimRelation] = {}
+        relation_limit_hit = False
         queue = deque([(root.id, 0, [root.id])])
         while queue and len(selected) < request.max_nodes:
             current_id, depth, path = queue.popleft()
             if depth >= request.max_depth:
                 continue
             edges = self.graph.list_relations(claim_id=current_id, limit=100)
+            relation_limit_hit = relation_limit_hit or len(edges) == 100
             for edge in edges:
                 if edge.relation in {"contradicts", "duplicates"} and edge.source_claim_id == current_id:
                     next_id = edge.target_claim_id
@@ -426,12 +428,12 @@ class ReasoningEngine:
             "Temporal claim differences only report distinct non-empty time labels; interval overlap and chronological ordering are not inferred.",
             "Declared dependency paths contain only explicit depends_on edges; they do not establish causation.",
             "Scope and temporal filters use exact string matching, not interval or ontology reasoning.",
-            "The graph snapshot is bounded to at most 100 claims and 100 relations.",
+            "Each visited claim neighborhood is bounded to 100 directly linked relations; traversal also obeys the requested depth and node limits.",
         ]
         if len(selected) >= request.max_nodes:
             limitations.append("The requested node limit was reached; additional connected claims may exist.")
-        if len(all_claims) >= 100 or len(all_relations) >= 100:
-            limitations.append("The stored graph exceeds the traversal snapshot cap; results may be incomplete.")
+        if relation_limit_hit:
+            limitations.append("At least one visited claim has 100 or more directly linked relations; additional edges may be omitted.")
         if independence_limit_hit:
             limitations.append(
                 "Source-lineage analysis exceeded its 500-source bound; independence remains unassessed."
