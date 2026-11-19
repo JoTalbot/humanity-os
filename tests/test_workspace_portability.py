@@ -164,7 +164,7 @@ def test_workspace_deletion_rejects_safety_backup_on_sqlite_sidecar(tmp_path, mo
             "humanity-os",
             "--delete-workspace",
             "--safety-backup",
-            str(database) + "-wal",
+            str(database) + "-journal",
             "--confirm-delete",
         ],
     )
@@ -173,7 +173,7 @@ def test_workspace_deletion_rejects_safety_backup_on_sqlite_sidecar(tmp_path, mo
 
     assert database.exists()
     assert KnowledgeStore(database).list()[0].title == "Keep"
-    assert not Path(str(database) + "-wal").exists()
+    assert not Path(str(database) + "-journal").exists()
 
 
 def test_portable_import_rejects_safety_backup_on_sqlite_sidecar(tmp_path):
