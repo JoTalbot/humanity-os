@@ -273,3 +273,11 @@ This measurement is tied to the exact SHA above. The documentation commit that f
 - Safety-backup destination checks for both deletion and portable import reject the rollback-journal path, matching the existing database/WAL/SHM protections.
 - Portable import removes a stale rollback journal before replacing the active database.
 - Updated the workspace-portability regression to exercise the rollback-journal destination guard. Tests and CI were not run for this focused change; the regression remains pending execution.
+
+
+## SQLite backup and restore sidecar protection — 2026-11-19
+
+- Backup destinations and restore safety-backup destinations now reject aliases of the active database and its `-wal`, `-shm`, and `-journal` sidecars.
+- Restore accepts only a regular non-symlink source file, verifies and stages it, checkpoints the active database, removes stale SQLite sidecars, then replaces the database.
+- Added parameterized regressions for backup and restore path collisions against the database and all three sidecars.
+- Updated local operations guidance. Tests and CI were not run; these new regressions remain pending targeted execution.
