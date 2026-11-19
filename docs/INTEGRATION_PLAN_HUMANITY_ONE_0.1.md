@@ -1,3 +1,14 @@
+# Live integration snapshot — 2026-11-19
+
+- PR #29 is the sole integrated Draft candidate. Measured implementation/documentation HEAD before this note: `bd9e30a816e7d0dd21bda2dbaabdc765f300ddec`.
+- Candidate vs `integration/humanity-one-0.1`: **243 ahead / 0 behind**. Candidate vs `main`: **654 ahead / 1 behind**, divergent; merge base `de57a48d8d57c023d02ee1c337e29bb557451a9a`.
+- No combined status checks or PR workflow runs are attached to the measured HEAD. Tests and CI remain unrun for this batch; no green status is claimed.
+- The latest Answer Engine increment reserves space for the serialized minimum reasoning fallback; if it cannot fit, reasoning graph transmission is omitted and marked truncated. Regression coverage is added but unexecuted.
+- Manual operator acceptance remains DEFERRED and unvalidated. Independent security review is not required or a release gate.
+- Preserve the integration base and `main`. Do not merge, rebase, cherry-pick, force-push, rewrite refs, tag, publish or deploy without separate owner authorization. Reconcile the one main-only commit before any future promotion.
+
+---
+
 # HUMANITY ONE 0.1 Integration Plan
 
 ## Authoritative current status — 2026-11-18
