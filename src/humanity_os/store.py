@@ -210,11 +210,18 @@ class KnowledgeStore:
         """Create a consistent SQLite snapshot without overwriting an existing file."""
         target_path = Path(destination).expanduser()
         target_path.parent.mkdir(parents=True, exist_ok=True)
-        if (
-            self.database_path != ":memory:"
-            and target_path.resolve() == Path(self.database_path).resolve()
-        ):
-            raise ValueError("Backup destination must differ from the active database")
+        if self.database_path != ":memory:":
+            database = Path(self.database_path).expanduser()
+            protected_paths = {
+                database.resolve(),
+                Path(str(database) + "-wal").resolve(),
+                Path(str(database) + "-shm").resolve(),
+                Path(str(database) + "-journal").resolve(),
+            }
+            if target_path.resolve() in protected_paths:
+                raise ValueError(
+                    "Backup destination must differ from the active database and SQLite sidecars"
+                )
 
         # O_EXCL prevents clobbering existing files and symlinks; 0600 protects personal data.
         descriptor = os.open(target_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
