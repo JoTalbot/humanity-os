@@ -248,3 +248,12 @@ This measurement is tied to the exact SHA above. The documentation commit that f
 - Omitted consent remains false; provider invocation remains gated by explicit true.
 - Added API regression coverage for string and numeric consent values.
 - Tests and CI were not run for this increment; targeted validation remains pending.
+
+
+### Strict provider-consent input and current candidate snapshot — 2026-11-19
+- `allow_provider_processing` requires a strict JSON boolean; strings and numeric lookalikes are rejected instead of being coerced into consent.
+- Added API regression coverage for string and numeric consent values and documented the request contract.
+- Measured implementation HEAD: `cf3e9636119d14132fb9f5df1717ad30a5763ea0`.
+- At that HEAD: 220 commits ahead / 0 behind `integration/humanity-one-0.1`; 631 ahead / 1 behind `main`, divergent at `de57a48d8d57c023d02ee1c337e29bb557451a9a`.
+- No workflow run or combined commit status is attached to the measured HEAD. The new regression has not been executed.
+- PR #29 remains open Draft. No merge, history rewrite, release, publication or deployment was performed.
