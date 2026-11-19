@@ -1,11 +1,12 @@
-# Live integration snapshot — 2026-11-19
+# Live integration snapshot — 2026-11-19 (measured before this status-note commit)
 
-- PR #29 is the sole integrated Draft candidate. Measured implementation/documentation HEAD before this note: `bd9e30a816e7d0dd21bda2dbaabdc765f300ddec`.
-- Candidate vs `integration/humanity-one-0.1`: **243 ahead / 0 behind**. Candidate vs `main`: **654 ahead / 1 behind**, divergent; merge base `de57a48d8d57c023d02ee1c337e29bb557451a9a`.
+- PR #29 is the sole integrated Draft candidate. Measured HEAD: `0cfd236e89d6ef527e56f7683da7acc6f4aee0ce`.
+- Candidate vs `integration/humanity-one-0.1`: **246 ahead / 0 behind**. Candidate vs `main`: **657 ahead / 1 behind**, divergent; merge base `de57a48d8d57c023d02ee1c337e29bb557451a9a`.
 - No combined status checks or PR workflow runs are attached to the measured HEAD. Tests and CI remain unrun for this batch; no green status is claimed.
-- The latest Answer Engine increment reserves space for the serialized minimum reasoning fallback; if it cannot fit, reasoning graph transmission is omitted and marked truncated. Regression coverage is added but unexecuted.
+- The Answer Engine prompt-budget boundary now omits reasoning graph context if the minimum serialized fallback cannot fit. Focused regression coverage is present but unexecuted.
+- README, Answer Context and roadmap now distinguish the implemented provider-backed /v1/answers flow and provenance-only citation checks from future semantic support assessment.
 - Manual operator acceptance remains DEFERRED and unvalidated. Independent security review is not required or a release gate.
-- Preserve the integration base and `main`. Do not merge, rebase, cherry-pick, force-push, rewrite refs, tag, publish or deploy without separate owner authorization. Reconcile the one main-only commit before any future promotion.
+- Preserve the integration base and `main`. Do not merge, rebase, cherry-pick, force-push, rewrite refs, tag, publish or deploy without separate owner authorization. Reconciliation must preserve the one main-only commit and PR provenance.
 
 ---
 
