@@ -49,7 +49,10 @@ def _add_source(client):
             "content": "HUMANITY OS follows a local-first design with owner-controlled data.",
         },
     )
-    assert response.status@pytest.mark.parametrize("consent", ["true", "false", 1, 0])
+    assert response.status_code == 201
+
+
+@pytest.mark.parametrize("consent", ["true", "false", 1, 0])
 def test_answer_route_rejects_non_boolean_provider_consent(tmp_path, consent):
     client = _client(tmp_path, CitedProvider())
     _add_source(client)
@@ -61,8 +64,6 @@ def test_answer_route_rejects_non_boolean_provider_consent(tmp_path, consent):
 
     assert response.status_code == 422
 
-
-_code == 201
 
 
 def test_answer_route_requires_explicit_provider_processing_consent(tmp_path):
