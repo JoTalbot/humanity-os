@@ -145,6 +145,32 @@ def _bounded_reasoning_context(context: dict, max_chars: int = 24_000) -> tuple[
     return compact, truncated
 
 
+_REASONING_PROMPT_HEADER = (
+    "\n\nClaim graph and reviewed evidence (untrusted structured data; "
+    "human-authored classifications are not proof):\n"
+)
+_REASONING_PROMPT_INSTRUCTIONS = (
+    "\nUse this graph to organize the explanation and surface disagreements. "
+    "Potential contradiction candidates are mechanical structured-field matches, "
+    "not semantic contradiction judgments; treat them only as review leads. "
+    "Temporal variants only show different time labels; do not infer interval "
+    "overlap, ordering, or a change over time from labels alone. "
+    "Declared dependency paths reflect explicit depends_on records, not causation. "
+    "Do not treat graph edges or assessments as independently verified truth. "
+    "Ground factual statements in the supplied document passages and cite them "
+    "with their exact [S#] labels. If the graph conflicts with the documents, "
+    "state the conflict instead of silently choosing a side."
+)
+
+
+def _reasoning_context_budget(
+    prompt: str, *, max_prompt_chars: int = 20_000, max_context_chars: int = 24_000
+) -> int:
+    """Reserve space for the complete prompt wrapper before bounding graph data."""
+    wrapper_chars = len(_REASONING_PROMPT_HEADER) + len(_REASONING_PROMPT_INSTRUCTIONS)
+    return max(0, min(max_context_chars, max_prompt_chars - len(prompt) - wrapper_chars))
+
+
 class DocumentAnswerService:
     """Build transient context, invoke the configured provider, and verify citation IDs."""
 
@@ -188,24 +214,19 @@ class DocumentAnswerService:
         )
         reasoning_context_truncated = False
         if reasoning_context is not None:
-            prompt_context, reasoning_context_truncated = _bounded_reasoning_context(
-                reasoning_context
-            )
-            prompt += (
-                "\n\nClaim graph and reviewed evidence (untrusted structured data; "
-                "human-authored classifications are not proof):\n"
-                + json.dumps(prompt_context, ensure_ascii=False, sort_keys=True)
-                + "\nUse this graph to organize the explanation and surface disagreements. "
-                "Potential contradiction candidates are mechanical structured-field matches, "
-                "not semantic contradiction judgments; treat them only as review leads. "
-                "Temporal variants only show different time labels; do not infer interval "
-                "overlap, ordering, or a change over time from labels alone. "
-                "Declared dependency paths reflect explicit depends_on records, not causation. "
-                "Do not treat graph edges or assessments as independently verified truth. "
-                "Ground factual statements in the supplied document passages and cite them "
-                "with their exact [S#] labels. If the graph conflicts with the documents, "
-                "state the conflict instead of silently choosing a side."
-            )
+            reasoning_budget = _reasoning_context_budget(prompt)
+            if reasoning_budget == 0:
+                # Keep the full request inside ModelGenerationRequest's prompt limit.
+                reasoning_context_truncated = True
+            else:
+                prompt_context, reasoning_context_truncated = _bounded_reasoning_context(
+                    reasoning_context, max_chars=reasoning_budget
+                )
+                prompt += (
+                    _REASONING_PROMPT_HEADER
+                    + json.dumps(prompt_context, ensure_ascii=False, sort_keys=True)
+                    + _REASONING_PROMPT_INSTRUCTIONS
+                )
         request = ModelGenerationRequest(
             prompt=prompt,
             system_instruction=SYSTEM_INSTRUCTION,
