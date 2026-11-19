@@ -1,12 +1,12 @@
 # Live candidate status — 2026-11-19 (measured before this status-note commit)
 
 - Active candidate: PR #29, open Draft, branch `fix/agent-lease-side-effects-audit`, base `integration/humanity-one-0.1`.
-- Measured HEAD: `6d93cc7fe51dbd4155733cc8f4a8ff1ddff3044b`.
-- Candidate vs integration base: **245 ahead / 0 behind** (merge base `bfaf67c9cfaad81ec66a430c05cc25294f429979`).
-- Candidate vs `main`: **656 ahead / 1 behind**, status `diverged`; merge base `de57a48d8d57c023d02ee1c337e29bb557451a9a`.
+- Measured HEAD: `a0f50af4e628c791865e95f6018dd488e6727ec1`.
+- Candidate vs integration base: **251 ahead / 0 behind** (merge base `bfaf67c9cfaad81ec66a430c05cc25294f429979`).
+- Candidate vs `main`: **662 ahead / 1 behind**, status `diverged`; merge base `de57a48d8d57c023d02ee1c337e29bb557451a9a`.
 - No combined status checks or PR-triggered workflow runs are attached to this HEAD. Tests and workflows were not executed in this batch; the candidate is not CI-validated.
-- The Answer Engine now omits reasoning graph context when the remaining prompt budget cannot fit even the minimum serialized fallback. A focused boundary regression was added but not run.
-- Documentation now correctly describes the implemented `/v1/answers` provider-backed flow and distinguishes provenance validation from semantic citation support.
+- Reasoning traversal now fetches adjacency per visited claim rather than relying on a global latest-100 graph slice. Older roots and their links remain discoverable; each visited claim is bounded to 100 edges, with truncation reported. A regression test covers a root edge pushed outside the former global window; it was added but not run.
+- Answer Engine prompt-budget boundary and provider-backed answers capability documentation fixes from the previous batch remain included.
 - Manual operator acceptance remains DEFERRED and unvalidated. Independent security review is not required or a release gate.
 - No merge, rebase, cherry-pick, force-push, ref rewrite, tag, release, publication, deployment, test run or workflow dispatch was performed. `main` and the integration base remain untouched.
 
