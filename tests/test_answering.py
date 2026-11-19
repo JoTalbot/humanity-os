@@ -13,6 +13,7 @@ from humanity_os.answering import (
     _REASONING_PROMPT_INSTRUCTIONS,
     _bounded_reasoning_context,
     _reasoning_context_budget,
+    _MIN_REASONING_CONTEXT_CHARS,
 )
 from humanity_os.model_gateway import ModelUsage, ProviderGeneration
 
@@ -329,3 +330,17 @@ def test_reasoning_context_budget_reserves_space_for_the_complete_model_prompt()
 
     assert 0 < budget <= 24_000
     assert len(complete_prompt) <= 20_000
+
+
+
+def test_reasoning_context_budget_omits_graph_when_minimum_fallback_cannot_fit():
+    wrapper_chars = len(_REASONING_PROMPT_HEADER) + len(_REASONING_PROMPT_INSTRUCTIONS)
+    almost_full_prompt = "x" * (
+        20_000 - wrapper_chars - _MIN_REASONING_CONTEXT_CHARS + 1
+    )
+    exact_fit_prompt = "x" * (
+        20_000 - wrapper_chars - _MIN_REASONING_CONTEXT_CHARS
+    )
+
+    assert _reasoning_context_budget(almost_full_prompt) == 0
+    assert _reasoning_context_budget(exact_fit_prompt) == _MIN_REASONING_CONTEXT_CHARS
