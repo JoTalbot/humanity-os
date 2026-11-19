@@ -241,3 +241,10 @@ This measurement is tied to the exact SHA above. The documentation commit that f
 - 626 commits ahead / 1 behind `main`; history remains divergent at merge base `de57a48d8d57c023d02ee1c337e29bb557451a9a`.
 - No workflow run or commit status is attached to this exact HEAD. The candidate is not CI-validated.
 - PR #29 remains open Draft. GitHub reports mergeable, but this does not resolve the divergent `main` history.
+
+
+### Strict per-request provider consent typing — 2026-11-19
+- `allow_provider_processing` now requires an actual JSON boolean. String and numeric lookalikes are rejected at request validation instead of being coerced into consent.
+- Omitted consent remains false; provider invocation remains gated by explicit true.
+- Added API regression coverage for string and numeric consent values.
+- Tests and CI were not run for this increment; targeted validation remains pending.
