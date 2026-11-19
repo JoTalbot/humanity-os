@@ -116,7 +116,7 @@ class DocumentContextRequest(BaseModel):
 class DocumentAnswerRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     query: str = Field(min_length=2, max_length=200)
-    allow_provider_processing: bool = False
+    allow_provider_processing: bool = Field(default=False, strict=True)
     passage_limit: int = Field(default=5, ge=1, le=10)
     max_context_chars: int = Field(default=8_000, ge=512, le=16_000)
     max_output_tokens: int = Field(default=768, ge=1, le=1_024)
