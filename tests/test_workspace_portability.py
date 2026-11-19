@@ -8,6 +8,7 @@ from fastapi.testclient import TestClient
 
 from humanity_os.app import create_app
 from humanity_os.cli import main
+from humanity_os.models import KnowledgeRecord
 from humanity_os.store import KnowledgeStore
 
 
@@ -326,7 +327,7 @@ def test_backup_rejects_destination_on_active_database_or_sidecar(tmp_path, suff
     database = tmp_path / "active.sqlite3"
     store = KnowledgeStore(database)
     store.create(
-        __import__("humanity_os.models", fromlist=["KnowledgeRecord"]).KnowledgeRecord(
+        KnowledgeRecord(
             kind="concept", title="Protect active database", content="Do not overwrite"
         )
     )
