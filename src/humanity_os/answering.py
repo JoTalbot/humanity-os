@@ -163,12 +163,24 @@ _REASONING_PROMPT_INSTRUCTIONS = (
 )
 
 
+_MIN_REASONING_CONTEXT_CHARS = len(
+    json.dumps(
+        {"limitations": ["Reasoning context omitted: prompt budget exceeded."]},
+        ensure_ascii=False,
+        sort_keys=True,
+    )
+)
+
+
 def _reasoning_context_budget(
     prompt: str, *, max_prompt_chars: int = 20_000, max_context_chars: int = 24_000
 ) -> int:
-    """Reserve space for the complete prompt wrapper before bounding graph data."""
+    """Reserve the wrapper and ensure even the smallest fallback fits."""
     wrapper_chars = len(_REASONING_PROMPT_HEADER) + len(_REASONING_PROMPT_INSTRUCTIONS)
-    return max(0, min(max_context_chars, max_prompt_chars - len(prompt) - wrapper_chars))
+    available = max_prompt_chars - len(prompt) - wrapper_chars
+    if available < _MIN_REASONING_CONTEXT_CHARS:
+        return 0
+    return min(max_context_chars, available)
 
 
 class DocumentAnswerService:
