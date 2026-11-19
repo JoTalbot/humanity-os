@@ -32,7 +32,7 @@ The response includes `manifest_sha256`, a deterministic SHA-256 digest over the
 - No claim that retrieved material is true or independent.
 - No generated answer is returned by this endpoint.
 
-The current lexical retriever scans local chunks and requires every extracted query term to occur in a chunk. Semantic retrieval, reranking, answer synthesis, citation verification, PDF/DOCX/OCR and a user interface remain future work.
+The current lexical retriever scans local chunks and requires every extracted query term to occur in a chunk. Semantic retrieval/reranking, semantic citation-support assessment, PDF/DOCX/OCR and broader document-format support remain future work. Provider-backed answer synthesis and provenance-only citation-label verification are implemented by the separate `/v1/answers` flow.
 
 ## Citation provenance validation
 
@@ -47,4 +47,7 @@ The `allow_provider_processing` field must be a JSON boolean. String and numeric
 
 ## Combined provider prompt budget
 
-The complete Answer Engine prompt is limited by the Model Gateway request contract to 20,000 characters. When a reasoning graph is included, its serialized context budget is calculated from the remaining space after the retrieved-document prompt and the graph's explanatory wrapper are accounted for. The 24,000-character reasoning-context ceiling is an upper bound only; it is not an additional allowance on top of the model request limit. If no space remains, graph context is omitted from the provider prompt and marked truncated rather than allowing request validation to fail.
+The complete Answer Engine prompt is limited by the Model Gateway request contract to 20,000 characters. When a reasoning graph is included, its serialized context budget is calculated from the remaining space after the retrieved-document prompt and the graph's explanatory wrapper are accounted for. The 24,000-character reasoning-context ceiling is an upper bound only; it is not an additional allowance on top of the model request limit. If no space remains, or the remaining space cannot fit the smallest serialized fallback notice, graph context is omitted from the provider prompt and marked truncated rather than allowing request validation to fail.
+
+When the remaining prompt space is smaller than the serialized minimum fallback notice, the graph is omitted entirely and the response marks reasoning context as truncated. This avoids exceeding the Model Gateway limit even when only a few characters remain.
+
