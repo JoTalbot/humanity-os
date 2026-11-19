@@ -43,3 +43,8 @@ A `verified` result means only that each cited excerpt is present in the supplie
 
 ## Consent input type
 The `allow_provider_processing` field must be a JSON boolean. String and numeric lookalikes are rejected by request validation; they are not coerced into consent. Omitted consent remains false.
+
+
+## Combined provider prompt budget
+
+The complete Answer Engine prompt is limited by the Model Gateway request contract to 20,000 characters. When a reasoning graph is included, its serialized context budget is calculated from the remaining space after the retrieved-document prompt and the graph's explanatory wrapper are accounted for. The 24,000-character reasoning-context ceiling is an upper bound only; it is not an additional allowance on top of the model request limit. If no space remains, graph context is omitted from the provider prompt and marked truncated rather than allowing request validation to fail.
