@@ -241,17 +241,8 @@ class ReasoningEngine:
         if not self._matches(root, request):
             raise ValueError("Root claim does not match the requested scope and temporal filters")
 
-        # Existing list APIs are deliberately bounded; the run never scans an unbounded graph.
-        all_claims = self.graph.list_claims(limit=100)
-        claim_by_id = {claim.id: claim for claim in all_claims}
-        claim_by_id[root.id] = root
-        all_relations = self.graph.list_relations(limit=100)
-        adjacency: dict[str, list[ClaimRelation]] = {}
-        for relation in all_relations:
-            adjacency.setdefault(relation.source_claim_id, []).append(relation)
-            if relation.relation in {"contradicts", "duplicates"}:
-                adjacency.setdefault(relation.target_claim_id, []).append(relation)
-
+        # Fetch only the bounded neighborhood of each visited node. A global
+        # "latest 100" graph slice silently hid older roots and their edges.
         selected: dict[str, ClaimNode] = {root.id: root}
         paths: list[list[str]] = [[root.id]]
         selected_relations: dict[str, ClaimRelation] = {}
@@ -260,14 +251,20 @@ class ReasoningEngine:
             current_id, depth, path = queue.popleft()
             if depth >= request.max_depth:
                 continue
-            for edge in adjacency.get(current_id, []):
+            edges = self.graph.list_relations(claim_id=current_id, limit=100)
+            for edge in edges:
                 if edge.relation in {"contradicts", "duplicates"} and edge.source_claim_id == current_id:
                     next_id = edge.target_claim_id
                 elif edge.relation in {"contradicts", "duplicates"} and edge.target_claim_id == current_id:
                     next_id = edge.source_claim_id
                 else:
                     next_id = edge.target_claim_id
-                candidate = claim_by_id.get(next_id)
+                if next_id == current_id:
+                    selected_relations[edge.id] = edge
+                    continue
+                candidate = selected.get(next_id)
+                if candidate is None:
+                    candidate = self.graph.get_claim(next_id)
                 if candidate is None or not self._matches(candidate, request):
                     continue
                 selected_relations[edge.id] = edge
