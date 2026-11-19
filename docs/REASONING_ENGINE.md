@@ -17,6 +17,8 @@ It is an evidence-navigation and explanation layer, not an autonomous truth judg
 - The latest evidence assessment for the exact source/evidence pair, plus any latest source-level assessment.
 - Explicit limitations, including graph bounds and the fact that graph traversal is not proof of truth.
 
+Traversal now loads the adjacency list for each visited claim instead of taking one global latest-100 slice. This keeps older roots and their linked claims discoverable as the graph grows. Each visited claim is still bounded to 100 directly linked relations, in addition to the requested depth and node limits; reaching that per-claim edge bound is reported as a limitation.
+
 Each run is persisted as an append-only snapshot. Later assessments do not rewrite historical runs; a new run captures the then-current review state.
 
 ## Evidence assessment semantics
