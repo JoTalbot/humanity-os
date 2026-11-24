@@ -1,5 +1,7 @@
 import sqlite3
+from concurrent.futures import ThreadPoolExecutor
 from itertools import pairwise
+from threading import Barrier
 
 import pytest
 from fastapi.testclient import TestClient as _TestClient
@@ -623,3 +625,45 @@ def test_reasoning_traverses_old_root_edges_outside_global_latest_100(tmp_path):
     body = result.json()
     assert [claim["id"] for claim in body["claims"]] == [root["id"], target["id"]]
     assert [relation["source_claim_id"] for relation in body["relations"]] == [root["id"]]
+
+
+
+def test_concurrent_dependency_insertions_cannot_create_a_cycle(tmp_path):
+    application = create_app(str(tmp_path / "reasoning-dependency-race.sqlite3"))
+    client = TestClient(application)
+    record = _record(client, "Concurrent dependency cycle")
+    graph = application.state.claim_graph_store
+    first = ClaimNode(
+        knowledge_id=record["id"], statement="First dependency node", actor="owner"
+    )
+    second = ClaimNode(
+        knowledge_id=record["id"], statement="Second dependency node", actor="owner"
+    )
+    graph.create_claim(first)
+    graph.create_claim(second)
+    barrier = Barrier(2)
+
+    def insert(source_id, target_id):
+        barrier.wait(timeout=5)
+        try:
+            graph.create_relation(ClaimRelation(
+                source_claim_id=source_id,
+                target_claim_id=target_id,
+                relation="depends_on",
+                rationale="Concurrent cycle regression fixture.",
+                actor="owner",
+            ))
+            return "created"
+        except ValueError as error:
+            return str(error)
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        results = list(executor.map(
+            lambda pair: insert(*pair),
+            [(first.id, second.id), (second.id, first.id)],
+        ))
+
+    assert results.count("created") == 1
+    assert results.count("Claim dependency relations cannot contain cycles") == 1
+    edges = graph.list_relations(limit=100)
+    assert len([edge for edge in edges if edge.relation == "depends_on"]) == 1
