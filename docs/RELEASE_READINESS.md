@@ -322,3 +322,14 @@ This measurement is tied to the exact SHA above. The documentation commit that f
 - Candidate vs integration base: **256 ahead / 0 behind**. Candidate vs `main`: **667 ahead / 1 behind**, divergent at `de57a48d8d57c023d02ee1c337e29bb557451a9a`.
 - No combined status checks are attached to this HEAD. No tests or workflows were run; the candidate is not CI-validated.
 - PR #29 remains open Draft. No merge, rebase, cherry-pick, force-push, ref rewrite, tag, publication or deployment was performed. `main` and the integration base remain untouched.
+
+
+## Live candidate update — 2026-11-24 (directed graph traversal)
+
+- Implementation HEAD before this documentation update: `eb92e9819fc1acff6119dbfea7f8c69f5bd8d97a`.
+- Reasoning traversal now follows directed `supports`, `depends_on`, and `refines` edges only from source to target. Symmetric `contradicts` and `duplicates` edges remain traversable from either endpoint.
+- Incoming directed edges are excluded when the run is rooted at their target, ensuring every returned relation references claims present in the same bounded reasoning snapshot.
+- Added a regression for the dangling incoming-edge case and aligned the graph contract and Reasoning Engine documentation. Test not run.
+- At the measured implementation HEAD: 263 commits ahead / 0 behind `integration/humanity-one-0.1`; 674 ahead / 1 behind `main`, divergent at `de57a48d8d57c023d02ee1c337e29bb557451a9a`.
+- No combined status checks are attached to the measured HEAD. No tests or workflows were run; candidate is not CI-validated.
+- PR #29 is intended to remain open Draft against `integration/humanity-one-0.1`. No merge, history rewrite, release or deployment was performed.
