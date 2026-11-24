@@ -90,3 +90,8 @@ A coverage gap means only that the proposition is not present in the selected gr
 ## Concurrent graph writes
 
 Dependency-cycle validation and relation insertion run inside the same SQLite `BEGIN IMMEDIATE` transaction. This serializes competing writers before the recursive reachability check, preventing two concurrent workers from validating opposite edges against the same stale graph snapshot and jointly introducing a dependency cycle. The guarantee relies on SQLite's transaction and filesystem locking semantics; it is intended for the supported same-host local database deployment.
+
+
+## Directed relation boundary
+
+Reasoning traversal follows outgoing edges for directed relation types (`supports`, `depends_on`, and `refines`). Incoming directed edges are not included in a run rooted at their target, because that would emit a relation whose source claim is absent from the bounded result. Symmetric `contradicts` and `duplicates` relations remain traversable from either endpoint. Every returned relation therefore connects claims included in that reasoning snapshot.
