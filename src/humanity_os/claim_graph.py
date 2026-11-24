@@ -99,6 +99,10 @@ class ClaimGraphStore:
                 update={"source_claim_id": target_id, "target_claim_id": source_id}
             )
         with self._connect() as connection:
+            # The cycle check and insert must share one reserved write
+            # transaction. Otherwise two workers can validate opposite edges
+            # against the same pre-insert graph and jointly create a cycle.
+            connection.execute("BEGIN IMMEDIATE")
             if relation.relation == "depends_on":
                 cycle = connection.execute(
                     """WITH RECURSIVE reachable(claim_id) AS (
