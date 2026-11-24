@@ -255,14 +255,18 @@ class ReasoningEngine:
             edges = self.graph.list_relations(claim_id=current_id, limit=100)
             relation_limit_hit = relation_limit_hit or len(edges) == 100
             for edge in edges:
-                if edge.relation in {"contradicts", "duplicates"} and edge.source_claim_id == current_id:
+                if edge.relation in {"contradicts", "duplicates"}:
+                    # Symmetric relations can be traversed from either endpoint.
+                    next_id = (
+                        edge.target_claim_id
+                        if edge.source_claim_id == current_id
+                        else edge.source_claim_id
+                    )
+                elif edge.source_claim_id == current_id:
+                    # All other relation types are directed. Incoming edges
+                    # must not leak into the result without their source node.
                     next_id = edge.target_claim_id
-                elif edge.relation in {"contradicts", "duplicates"} and edge.target_claim_id == current_id:
-                    next_id = edge.source_claim_id
                 else:
-                    next_id = edge.target_claim_id
-                if next_id == current_id:
-                    selected_relations[edge.id] = edge
                     continue
                 candidate = selected.get(next_id)
                 if candidate is None:
