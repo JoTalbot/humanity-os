@@ -1,3 +1,20 @@
+# Live candidate status — 2026-11-24 (measured against GitHub at this update)
+
+- Active candidate: PR #29, open Draft, branch `fix/agent-lease-side-effects-audit`, base `integration/humanity-one-0.1`.
+- Current candidate HEAD: `d9ecab8863cc916377c7d34face77d0e53f2bf7e`.
+- Candidate vs integration base: **258 ahead / 0 behind**.
+- Candidate vs `main`: **669 ahead / 1 behind**, status `diverged`; merge base `de57a48d8d57c023d02ee1c337e29bb557451a9a`. The one main-only commit is `ac46e16728382c0af800421978f0bf7df6943de9` and must be preserved during any separately authorized reconciliation.
+- GitHub reports no combined status checks on this exact HEAD. No CI run or test execution is claimed for this candidate.
+- PR #29 has zero unresolved inline review threads. PR #28 remains a historical implementation/reference branch and must not be merged independently; PR #26 remains the integration-foundation reference.
+- Latest implementation increment serializes dependency-cycle validation and relation insertion in SQLite with `BEGIN IMMEDIATE`; the current regression suite includes cycle rejection. This code has not been executed in this update.
+- Manual clean-machine setup and backup/restore/import acceptance remain **DEFERRED by owner**, unvalidated, and are not current development gates. Independent security review is not required or a release gate.
+- Remaining product-policy work includes privacy/key recovery and retention, licensing/governance, accessibility and supported-platform decisions. These must be recorded as unresolved decisions rather than represented as completed capabilities.
+- No merge, rebase, cherry-pick, force-push, ref rewrite, tag, release, publication or deployment was performed. `main` and `integration/humanity-one-0.1` remain untouched.
+
+This live snapshot supersedes older numeric topology and HEAD claims below. Historical CI results apply only to their exact recorded commit SHAs.
+
+---
+
 # Live candidate status — 2026-11-19 (measured before this status-note commit)
 
 - Active candidate: PR #29, open Draft, branch `fix/agent-lease-side-effects-audit`, base `integration/humanity-one-0.1`.
