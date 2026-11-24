@@ -54,3 +54,8 @@ The claim graph is included in SQLite backup verification and restore. Older bac
 This layer does not automatically extract claims from prose, resolve entity identity, infer causal relations, calculate truth or confidence scores, perform theorem proving, crawl external sources, or decide contradictions. It does not treat the number of linked sources as independent corroboration. Claims and edges remain reviewable assertions with explicit provenance.
 
 The current implementation is a local single-owner prototype. It is not a multi-user knowledge graph service, a legal record of collective consent, or a production-ready public platform.
+
+
+## Reasoning traversal direction
+
+The reasoning engine traverses directed relations only from source to target. Symmetric `contradicts` and `duplicates` relations may be traversed from either endpoint. Incoming directed relations are excluded from a run rooted at the target, preserving the invariant that every returned relation references claims present in the same bounded snapshot.
