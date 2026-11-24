@@ -667,3 +667,36 @@ def test_concurrent_dependency_insertions_cannot_create_a_cycle(tmp_path):
     assert results.count("Claim dependency relations cannot contain cycles") == 1
     edges = graph.list_relations(limit=100)
     assert len([edge for edge in edges if edge.relation == "depends_on"]) == 1
+
+
+
+def test_reasoning_omits_incoming_directed_relations_without_their_source_claim(tmp_path):
+    application = create_app(str(tmp_path / "reasoning-incoming-edge.sqlite3"))
+    client = TestClient(application)
+    record = _record(client, "Incoming directed relation")
+    source = _claim(client, record, "Source proposition")
+    root = _claim(client, record, "Root proposition")
+    relation = client.post("/v1/claim-relations", json={
+        "source_claim_id": source["id"],
+        "target_claim_id": root["id"],
+        "relation": "supports",
+        "rationale": "The source proposition supports the root proposition.",
+    })
+    assert relation.status_code == 201
+
+    result = client.post("/v1/reasoning/runs", json={
+        "query": "Inspect only outgoing directed graph context",
+        "root_claim_id": root["id"],
+        "max_depth": 1,
+    })
+
+    assert result.status_code == 201
+    body = result.json()
+    assert [claim["id"] for claim in body["claims"]] == [root["id"]]
+    assert body["relations"] == []
+    included_claim_ids = {claim["id"] for claim in body["claims"]}
+    assert all(
+        edge["source_claim_id"] in included_claim_ids
+        and edge["target_claim_id"] in included_claim_ids
+        for edge in body["relations"]
+    )
