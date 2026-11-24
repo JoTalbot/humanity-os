@@ -295,3 +295,13 @@ This measurement is tied to the exact SHA above. The documentation commit that f
 - Restore accepts only a regular non-symlink source file, verifies and stages it, checkpoints the active database, removes stale SQLite sidecars, then replaces the database.
 - Added parameterized regressions for backup and restore path collisions against the database and all three sidecars.
 - Updated local operations guidance. Tests and CI were not run; these new regressions remain pending targeted execution.
+
+
+## Live candidate update — 2026-11-24
+
+- PR #29 HEAD at this snapshot: `08c15719aa8bfd4261e6a369754160af63b889f8`.
+- Dependency-cycle protection now acquires SQLite `BEGIN IMMEDIATE` before checking reachability and inserting a `depends_on` edge. This serializes competing writers and prevents two concurrent opposite-edge inserts from jointly creating a cycle.
+- Added a concurrent insertion regression test and documented the same-host SQLite locking boundary. The test has not been run.
+- Candidate vs integration base: **256 ahead / 0 behind**. Candidate vs `main`: **667 ahead / 1 behind**, divergent at `de57a48d8d57c023d02ee1c337e29bb557451a9a`.
+- No combined status checks are attached to this HEAD. No tests or workflows were run; the candidate is not CI-validated.
+- PR #29 remains open Draft. No merge, rebase, cherry-pick, force-push, ref rewrite, tag, publication or deployment was performed. `main` and the integration base remain untouched.
