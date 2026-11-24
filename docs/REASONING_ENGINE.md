@@ -85,3 +85,8 @@ Reasoning runs expose `declared_dependency_paths`, containing only paths whose e
 Each gap identifies the target hypothesis, the normalized proposition and the peer hypothesis claim IDs where it is represented. Only structured claims are compared; free-text statements without all three structured terms are omitted. The result is capped at 500 gaps and each peer reference is bounded by the traversal limits.
 
 A coverage gap means only that the proposition is not present in the selected graph snapshot for that alternative. It does not mean evidence is missing in reality, that the proposition is relevant or decision-discriminating, or that the target hypothesis is false. It is a prompt for human review and for deciding whether additional data requirements should be formalized.
+
+
+## Concurrent graph writes
+
+Dependency-cycle validation and relation insertion run inside the same SQLite `BEGIN IMMEDIATE` transaction. This serializes competing writers before the recursive reachability check, preventing two concurrent workers from validating opposite edges against the same stale graph snapshot and jointly introducing a dependency cycle. The guarantee relies on SQLite's transaction and filesystem locking semantics; it is intended for the supported same-host local database deployment.
