@@ -282,3 +282,14 @@ This measurement is tied to the exact SHA above. The documentation commit that f
 - Latest implementation increment serializes dependency-cycle validation and insertion under SQLite `BEGIN IMMEDIATE`; a concurrent regression test was added but not executed.
 - No combined status checks are attached to this HEAD; it is not CI-validated. Inline review threads: zero.
 - No merge, rebase, cherry-pick, force-push, ref rewrite, tag, publication or deployment was performed. `main` and the integration base remain untouched.
+
+
+## Live integration snapshot — 2026-11-24 (directed graph traversal)
+
+- PR #29 candidate branch: `fix/agent-lease-side-effects-audit`; intended base: `integration/humanity-one-0.1`.
+- Implementation HEAD before this documentation update: `eb92e9819fc1acff6119dbfea7f8c69f5bd8d97a`.
+- Candidate vs integration base: **263 ahead / 0 behind**. Candidate vs `main`: **674 ahead / 1 behind**, divergent at `de57a48d8d57c023d02ee1c337e29bb557451a9a`.
+- Reasoning Engine follows directed relations only source-to-target and symmetric relations from either endpoint. Incoming directed edges are omitted from target-rooted runs so result relations never dangle outside the selected claims.
+- A regression test and matching contract/documentation updates were added; tests remain unexecuted. No combined status checks are attached to the measured HEAD.
+- PR #29 remains open Draft and must target `integration/humanity-one-0.1`; preserve the one main-only commit and original PR provenance during any separately authorized reconciliation.
+- No merge, rebase, cherry-pick, force-push, ref rewrite, tag, publication or deployment was performed.
