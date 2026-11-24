@@ -271,3 +271,14 @@ The owner has cancelled the manual operator-acceptance runbook for the current d
 - The current owner decision remains: manual clean-machine and backup/restore/import acceptance is deferred, unvalidated, and not a current gate.
 
 This measurement is tied to the exact SHA above. The documentation commit that follows changes the branch HEAD; re-run comparisons before any future history operation.
+
+
+## Live integration snapshot — 2026-11-24
+
+- PR #29 remains the sole integrated Draft candidate: `fix/agent-lease-side-effects-audit` targeting `integration/humanity-one-0.1`.
+- Current HEAD: `08c15719aa8bfd4261e6a369754160af63b889f8`.
+- Candidate is **256 commits ahead / 0 behind** its integration base.
+- Compared with `main`, candidate is **667 ahead / 1 behind**, with divergent history and merge base `de57a48d8d57c023d02ee1c337e29bb557451a9a`. Preserve the one main-only commit and PR provenance during any separately authorized reconciliation.
+- Latest implementation increment serializes dependency-cycle validation and insertion under SQLite `BEGIN IMMEDIATE`; a concurrent regression test was added but not executed.
+- No combined status checks are attached to this HEAD; it is not CI-validated. Inline review threads: zero.
+- No merge, rebase, cherry-pick, force-push, ref rewrite, tag, publication or deployment was performed. `main` and the integration base remain untouched.
