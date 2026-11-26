@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import sqlite3
 
@@ -12,102 +13,103 @@ from humanity_os.memory import MemoryStore
 from humanity_os.store import KnowledgeStore
 
 
-def test_proposal_is_not_durable_memory_until_owner_approves(tmp_path):
-    store = MemoryStore(tmp_path / "workspace.sqlite3")
+def test_proposal_is_not_memory_until_explicit_approval(tmp_path):
+    database = tmp_path / "workspace.sqlite3"
+    store = MemoryStore(database)
     proposal = store.create_proposal(
-        title="Human agency",
-        content="People retain authority over durable memory.",
-        rationale="A deliberate owner-approved principle.",
+        title="Preferred language",
+        content="The workspace should preserve the owner's chosen language.",
+        rationale="Explicitly captured preference.",
     )
 
     assert proposal["status"] == "pending_review"
     assert store.list_memories() == []
-    assert [event["event_type"] for event in store.list_events(proposal_id=proposal["id"])] == [
-        "proposal_created"
-    ]
+    assert store.get_memory(proposal["id"]) is None
 
     memory = store.approve(proposal["id"])
     assert memory["status"] == "active"
-    assert memory["content"] == proposal["content"]
-    assert store.get_proposal(proposal["id"])["status"] == "approved"
+    assert memory["proposal_id"] == proposal["id"]
+    assert store.get_proposal(proposal["id"])["approved_memory_id"] == memory["id"]
     assert [event["event_type"] for event in store.list_events(proposal_id=proposal["id"])] == [
         "proposal_created",
         "proposal_approved",
     ]
+    with pytest.raises(ValueError, match="Only pending"):
+        store.approve(proposal["id"])
 
 
-def test_memory_proposal_rejection_and_duplicate_approval_are_terminal(tmp_path):
+def test_proposal_rejection_never_creates_memory(tmp_path):
     store = MemoryStore(tmp_path / "workspace.sqlite3")
-    rejected = store.create_proposal(
-        title="Rejected", content="Not retained.", rationale="Owner review."
+    proposal = store.create_proposal(
+        title="Maybe",
+        content="A proposed memory.",
+        rationale="Needs owner review.",
     )
-    assert store.reject(rejected["id"])["status"] == "rejected"
-    with pytest.raises(ValueError, match="pending"):
-        store.approve(rejected["id"])
-
-    approved = store.create_proposal(
-        title="Approved", content="Keep this.", rationale="Owner review."
-    )
-    store.approve(approved["id"])
-    with pytest.raises(ValueError, match="pending"):
-        store.approve(approved["id"])
+    rejected = store.reject(proposal["id"])
+    assert rejected["status"] == "rejected"
+    assert store.list_memories() == []
+    with pytest.raises(ValueError, match="Only pending"):
+        store.approve(proposal["id"])
 
 
-def test_memory_source_references_must_match_a_real_document_chunk(tmp_path):
+def test_memory_source_must_resolve_to_exact_document_chunk(tmp_path):
     database = tmp_path / "workspace.sqlite3"
     documents = DocumentStore(database)
-    document = documents.create("source.txt", "A source with traceable context.")
-    store = MemoryStore(database)
+    document = documents.create("source.md", "A source paragraph.")
+    chunk = document["chunks"][0]
+    memory = MemoryStore(database)
+
+    proposal = memory.create_proposal(
+        title="Sourced note",
+        content="A retained note grounded in a document.",
+        rationale="Owner-selected source context.",
+        source_document_id=document["id"],
+        source_chunk_id=chunk["id"],
+    )
+    approved = memory.approve(proposal["id"])
+    assert approved["source_document_id"] == document["id"]
+    assert approved["source_chunk_id"] == chunk["id"]
 
     with pytest.raises(LookupError, match="not found"):
-        store.create_proposal(
+        memory.create_proposal(
             title="Bad source",
-            content="Unverified",
-            rationale="Must reject invalid source links.",
+            content="Unlinked.",
+            rationale="Invalid provenance.",
             source_document_id=document["id"],
-            source_chunk_id="missing",
+            source_chunk_id="missing-chunk",
+        )
+    with pytest.raises(ValueError, match="supplied together"):
+        memory.create_proposal(
+            title="Incomplete source",
+            content="Unlinked.",
+            rationale="Incomplete provenance.",
+            source_document_id=document["id"],
         )
 
-    proposal = store.create_proposal(
-        title="Grounded memory",
-        content="A source with traceable context.",
-        rationale="Preserve source lineage.",
-        source_document_id=document["id"],
-        source_chunk_id=document["chunks"][0]["id"],
-    )
-    assert proposal["source_document_id"] == document["id"]
-    assert proposal["source_chunk_id"] == document["chunks"][0]["id"]
 
-
-def test_memory_archive_restore_and_event_history_are_append_only(tmp_path):
-    database = tmp_path / "workspace.sqlite3"
-    store = MemoryStore(database)
+def test_memory_archive_restore_is_explicit_and_audited(tmp_path):
+    store = MemoryStore(tmp_path / "workspace.sqlite3")
     proposal = store.create_proposal(
-        title="Lifecycle", content="Archive and restore.", rationale="Test lifecycle."
+        title="Archive lifecycle",
+        content="This memory can be archived and restored.",
+        rationale="Lifecycle test.",
     )
     item = store.approve(proposal["id"])
-    assert store.set_archived(item["id"], True)["status"] == "archived"
-    assert store.list_memories(status="active") == []
-    assert store.set_archived(item["id"], False)["status"] == "active"
-    assert [event["event_type"] for event in store.list_events(memory_id=item["id"])] == [
+    archived = store.set_archived(item["id"], True)
+    assert archived["status"] == "archived"
+    restored = store.set_archived(item["id"], False)
+    assert restored["status"] == "active"
+    events = store.list_events(memory_id=item["id"])
+    assert [event["event_type"] for event in events] == [
         "proposal_approved",
         "memory_archived",
         "memory_restored",
     ]
-
-    with sqlite3.connect(database) as connection:
-        with pytest.raises(sqlite3.IntegrityError, match="append-only"):
-            connection.execute(
-                "UPDATE memory_events SET actor = 'system' WHERE memory_id = ?",
-                (item["id"],),
-            )
-        with pytest.raises(sqlite3.IntegrityError, match="append-only"):
-            connection.execute(
-                "DELETE FROM memory_events WHERE memory_id = ?", (item["id"],)
-            )
+    with pytest.raises(ValueError, match="already active"):
+        store.set_archived(item["id"], False)
 
 
-def test_memory_api_requires_auth_and_approval_is_a_separate_action(tmp_path):
+def test_memory_api_requires_authentication_and_separate_approval(tmp_path):
     strict = TestClient(
         create_app(str(tmp_path / "strict.sqlite3")),
         client=("127.0.0.1", 50000),
@@ -118,113 +120,185 @@ def test_memory_api_requires_auth_and_approval_is_a_separate_action(tmp_path):
     ).status_code == 401
 
     client = TestClient(
-        create_app(
-            str(tmp_path / "local.sqlite3"), allow_unauthenticated_local=True
-        ),
+        create_app(str(tmp_path / "local.sqlite3"), allow_unauthenticated_local=True),
         client=("127.0.0.1", 50000),
     )
-    created = client.post(
+    response = client.post(
         "/v1/memory/proposals",
         json={
-            "title": "Owner control",
-            "content": "Approval is a distinct explicit action.",
-            "rationale": "Never infer durable consent from model output.",
+            "title": "Human review",
+            "content": "Only owner approval makes this durable.",
+            "rationale": "A test proposal.",
         },
     )
-    assert created.status_code == 201
-    proposal = created.json()
+    assert response.status_code == 201
+    proposal = response.json()
     assert proposal["status"] == "pending_review"
     assert client.get("/v1/memories").json()["items"] == []
-
     approved = client.post(f"/v1/memory/proposals/{proposal['id']}/approve")
     assert approved.status_code == 201
     assert approved.json()["status"] == "active"
+    assert client.get("/v1/memories").json()["items"][0]["id"] == approved.json()["id"]
     assert client.post(f"/v1/memory/proposals/{proposal['id']}/approve").status_code == 409
-    assert client.post(f"/v1/memories/{approved.json()['id']}/archive").json()["status"] == "archived"
-    assert client.post(f"/v1/memories/{approved.json()['id']}/restore").json()["status"] == "active"
 
 
-def test_memory_lifecycle_round_trips_in_portable_workspace_export(tmp_path):
-    source_db = tmp_path / "source.sqlite3"
-    app = create_app(str(source_db), allow_unauthenticated_local=True)
-    client = TestClient(app, client=("127.0.0.1", 50000))
-    source = client.post(
+def test_memory_api_validates_document_source_and_archives(tmp_path):
+    client = TestClient(
+        create_app(str(tmp_path / "workspace.sqlite3"), allow_unauthenticated_local=True),
+        client=("127.0.0.1", 50000),
+    )
+    document = client.post(
         "/v1/documents",
-        json={"filename": "source.md", "content": "A source for approved memory."},
+        json={"filename": "source.txt", "content": "Source for a saved memory."},
     ).json()
-    proposal = client.post(
+    chunk = document["chunks"][0]
+    response = client.post(
         "/v1/memory/proposals",
         json={
-            "title": "Traceable",
-            "content": "Memory stays connected to evidence.",
-            "rationale": "Owner accepted this source-backed idea.",
-            "source_document_id": source["id"],
-            "source_chunk_id": source["chunks"][0]["id"],
+            "title": "Sourced",
+            "content": "Remember this source fact.",
+            "rationale": "Owner approved source context.",
+            "source_document_id": document["id"],
+            "source_chunk_id": chunk["id"],
         },
-    ).json()
-    memory = client.post(f"/v1/memory/proposals/{proposal['id']}/approve").json()
-    client.post(f"/v1/memories/{memory['id']}/archive")
+    )
+    assert response.status_code == 201
+    approved = client.post(f"/v1/memory/proposals/{response.json()['id']}/approve")
+    memory_id = approved.json()["id"]
+    assert client.post(f"/v1/memories/{memory_id}/archive").json()["status"] == "archived"
+    assert client.post(f"/v1/memories/{memory_id}/restore").json()["status"] == "active"
+    assert client.get("/v1/memory/events", params={"proposal_id": response.json()["id"]}).status_code == 200
 
-    exported = KnowledgeStore(source_db).export_workspace()
-    assert exported["schema_version"] == "1.2.0"
+
+def test_memory_export_import_round_trip_and_secret_exclusion(tmp_path):
+    source = tmp_path / "source.sqlite3"
+    client = TestClient(
+        create_app(str(source), allow_unauthenticated_local=True),
+        client=("127.0.0.1", 50000),
+    )
+    proposal = client.post(
+        "/v1/memory/proposals",
+        json={"title": "Portable memory", "content": "Export this selected memory.", "rationale": "Owner choice."},
+    ).json()
+    approved = client.post(f"/v1/memory/proposals/{proposal['id']}/approve").json()
+    client.post(f"/v1/memories/{approved['id']}/archive")
+    exported = KnowledgeStore(source).export_workspace()
+    assert exported["schema_version"] == "1.3.0"
     assert len(exported["tables"]["memory_proposals"]) == 1
     assert len(exported["tables"]["memory_items"]) == 1
     assert len(exported["tables"]["memory_events"]) == 3
-    export_path = tmp_path / "workspace.json"
-    export_path.write_text(json.dumps(exported, ensure_ascii=False), encoding="utf-8")
+    assert all("password_hash" not in row for rows in exported["tables"].values() for row in rows)
 
-    target_db = tmp_path / "target.sqlite3"
+    export_path = tmp_path / "workspace.json"
+    export_path.write_text(json.dumps(exported), encoding="utf-8")
+    target = tmp_path / "target.sqlite3"
     TestClient(
-        create_app(str(target_db), allow_unauthenticated_local=True),
+        create_app(str(target), allow_unauthenticated_local=True),
         client=("127.0.0.1", 50000),
     )
-    KnowledgeStore(target_db).import_workspace(export_path, tmp_path / "safety.sqlite3")
-    imported = MemoryStore(target_db)
-    assert imported.get_proposal(proposal["id"])["status"] == "approved"
-    assert imported.get_memory(memory["id"])["status"] == "archived"
-    assert [event["event_type"] for event in imported.list_events(memory_id=memory["id"])] == [
-        "proposal_approved",
-        "memory_archived",
-    ]
+    KnowledgeStore(target).import_workspace(export_path, tmp_path / "safety.sqlite3")
+    restored = MemoryStore(target).list_memories()
+    assert len(restored) == 1
+    assert restored[0]["content"] == "Export this selected memory."
+    assert restored[0]["status"] == "archived"
+    assert [
+        event["event_type"]
+        for event in MemoryStore(target).list_events(memory_id=restored[0]["id"])
+    ] == ["proposal_approved", "memory_archived"]
 
 
-def test_memory_export_rejects_invalid_lifecycle_even_with_recomputed_digest(tmp_path):
-    database = tmp_path / "source.sqlite3"
-    app = create_app(str(database), allow_unauthenticated_local=True)
-    client = TestClient(app, client=("127.0.0.1", 50000))
+def test_memory_import_rejects_domain_tampering_even_with_recomputed_digest(tmp_path):
+    source = tmp_path / "source.sqlite3"
+    client = TestClient(
+        create_app(str(source), allow_unauthenticated_local=True),
+        client=("127.0.0.1", 50000),
+    )
     proposal = client.post(
         "/v1/memory/proposals",
-        json={"title": "Pending", "content": "Not approved", "rationale": "Review."},
+        json={"title": "Tamper", "content": "Original memory content.", "rationale": "Test."},
     ).json()
-    exported = KnowledgeStore(database).export_workspace()
-    exported["tables"]["memory_items"].append(
-        {
-            "id": "forged-memory",
-            "proposal_id": proposal["id"],
-            "title": "Forged",
-            "content": "Not approved",
-            "content_hash": "0" * 64,
-            "rationale": "Forged state",
-            "source_document_id": None,
-            "source_chunk_id": None,
-            "status": "active",
-            "created_at": proposal["created_at"],
-            "updated_at": proposal["created_at"],
-        }
-    )
+    client.post(f"/v1/memory/proposals/{proposal['id']}/approve")
+    exported = KnowledgeStore(source).export_workspace()
+    exported["tables"]["memory_items"][0]["content_hash"] = hashlib.sha256(
+        b"forged content"
+    ).hexdigest()
     unsigned = {key: value for key, value in exported.items() if key != "integrity"}
-    import hashlib
-
     canonical = json.dumps(unsigned, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()
     exported["integrity"]["canonical_document_sha256"] = hashlib.sha256(canonical).hexdigest()
     export_path = tmp_path / "forged.json"
-    export_path.write_text(json.dumps(exported, ensure_ascii=False), encoding="utf-8")
+    export_path.write_text(json.dumps(exported), encoding="utf-8")
 
-    target_db = tmp_path / "target.sqlite3"
+    target = tmp_path / "target.sqlite3"
     TestClient(
-        create_app(str(target_db), allow_unauthenticated_local=True),
+        create_app(str(target), allow_unauthenticated_local=True),
         client=("127.0.0.1", 50000),
     )
-    with pytest.raises(ValueError, match="explicitly approved"):
-        KnowledgeStore(target_db).import_workspace(export_path, tmp_path / "safety.sqlite3")
+    with pytest.raises(ValueError, match="explicitly approved proposal"):
+        KnowledgeStore(target).import_workspace(export_path, tmp_path / "safety.sqlite3")
     assert not (tmp_path / "safety.sqlite3").exists()
+
+
+def test_memory_events_are_append_only(tmp_path):
+    database = tmp_path / "workspace.sqlite3"
+    store = MemoryStore(database)
+    proposal = store.create_proposal(
+        title="Immutable event",
+        content="The event must not be rewritten.",
+        rationale="Audit test.",
+    )
+    event = store.list_events(proposal_id=proposal["id"])[0]
+    with sqlite3.connect(database) as connection, pytest.raises(
+        sqlite3.IntegrityError, match="append-only"
+    ):
+        connection.execute(
+            "UPDATE memory_events SET event_type = 'rewritten' WHERE id = ?",
+            (event["id"],),
+        )
+    with sqlite3.connect(database) as connection, pytest.raises(
+        sqlite3.IntegrityError, match="append-only"
+    ):
+        connection.execute("DELETE FROM memory_events WHERE id = ?", (event["id"],))
+
+
+@pytest.mark.parametrize("legacy_version", ["1.0.0", "1.1.0", "1.2.0"])
+def test_legacy_workspace_exports_remain_importable_after_memory_schema_upgrade(
+    tmp_path, legacy_version
+):
+    source = tmp_path / "source.sqlite3"
+    client = TestClient(
+        create_app(str(source), allow_unauthenticated_local=True),
+        client=("127.0.0.1", 50000),
+    )
+    client.post(
+        "/v1/knowledge",
+        json={"kind": "concept", "title": "Legacy data", "content": "Keep this record."},
+    )
+    exported = KnowledgeStore(source).export_workspace()
+    tables = dict(exported["tables"])
+    if legacy_version in {"1.0.0", "1.1.0"}:
+        tables.pop("memory_proposals")
+        tables.pop("memory_items")
+        tables.pop("memory_events")
+    tables.pop("agent_runs")
+    tables.pop("agent_events")
+    if legacy_version == "1.0.0":
+        tables.pop("documents")
+        tables.pop("document_chunks")
+    exported["schema_version"] = legacy_version
+    exported["tables"] = tables
+    unsigned = {key: value for key, value in exported.items() if key != "integrity"}
+    canonical = json.dumps(unsigned, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()
+    exported["integrity"]["canonical_document_sha256"] = hashlib.sha256(canonical).hexdigest()
+
+    export_path = tmp_path / f"legacy-{legacy_version}.json"
+    export_path.write_text(json.dumps(exported), encoding="utf-8")
+    target = tmp_path / f"target-{legacy_version}.sqlite3"
+    TestClient(
+        create_app(str(target), allow_unauthenticated_local=True),
+        client=("127.0.0.1", 50000),
+    )
+    KnowledgeStore(target).import_workspace(
+        export_path, tmp_path / f"safety-{legacy_version}.sqlite3"
+    )
+    assert KnowledgeStore(target).list()[0].content == "Keep this record."
+    assert MemoryStore(target).list_memories() == []

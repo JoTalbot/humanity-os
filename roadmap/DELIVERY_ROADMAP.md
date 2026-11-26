@@ -1,0 +1,25 @@
+# Delivery Roadmap
+
+## 0 — Foundation
+Deliver constitution draft, architecture, data model, agent contract, threat model, governance, product spec and acceptance criteria. Exit: consistency review complete; open decisions recorded.
+
+## 1 — Personal Core
+Implement private workspace, identity, authorisation, event history, storage adapters, versioned full-workspace export, verified deletion, backup and restore. Exit: export coverage and secret exclusion verified; deletion requires an explicit offline confirmation and a verified safety backup; restore demonstrated.
+
+## 2 — HUMANITY ONE
+Implement provider-neutral model gateway, document ingestion, source-aware search, provenance, explicit memory, responsive UI and local deployment. Local text/Markdown ingestion, chunk-level lexical retrieval, bounded source-grounded context preparation, provenance-only citation validation, provider-backed answer synthesis with explicit per-request consent, evidence-aware reasoning context, an explicit owner-approved memory API, and a responsive local workspace UI now exist. PDF/DOCX/OCR, semantic retrieval/reranking, semantic citation-support assessment, and a dedicated memory review workflow remain open. Exit: primary journey works end-to-end; no model provider receives data without explicit configuration and user disclosure.
+
+## 3 — Agent Runtime
+Implement bounded lifecycle, capabilities, approvals, tool adapters, quotas, cancellation and audit. Exit: tests prove agents cannot exceed permissions.
+
+## 4 — Release hardening
+Complete focused engineering review, privacy and accessibility evaluation, dependency/build validation, documentation review, and the milestone-based RC test campaign. Exit: documented limitations, no unresolved release-blocking defect, reproducible automated build/validation evidence, and an explicit owner decision on deferred operational acceptance. Manual operator acceptance is currently deferred and is not a development gate. A separate independent security review is not part of this delivery plan.
+
+## 5 — Public 0.1
+Publish source, specs, reproducible build, deployment/operator guides, known limitations and contribution process. Exit: an independent developer can install, operate and extend the system.
+
+## Later releases
+0.2 multi-agent collaboration; 0.3 institutional workspaces; 0.4 opt-in federation prototype; 0.5 education/research workflows; 1.0 after independent implementations and security/governance maturity.
+
+## Delivery discipline
+Work in coherent milestone batches. Run targeted checks during development and the configured integration, migration, recovery and security-related engineering checks at the release-candidate milestone. Never claim a test passed unless executed and recorded.

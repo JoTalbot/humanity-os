@@ -1,0 +1,234 @@
+import asyncio
+
+import pytest
+from fastapi.testclient import TestClient
+
+from humanity_os.app import create_app
+from humanity_os.model_gateway import (
+    ModelGateway,
+    ModelGenerationRequest,
+    ModelProviderFailure,
+    ModelProviderTimeout,
+    ModelUsage,
+    ProviderGeneration,
+)
+
+
+class DeterministicProvider:
+    provider_id = "test-provider"
+    model_id = "deterministic-v1"
+
+    async def generate(self, request):
+        return ProviderGeneration(
+            output=f"TEST OUTPUT: {request.prompt}",
+            usage=ModelUsage(input_tokens=3, output_tokens=4),
+            finish_reason="stop",
+        )
+
+
+class FailingProvider:
+    provider_id = "test-provider"
+    model_id = "failure-v1"
+
+    async def generate(self, request):
+        raise RuntimeError("private prompt must not leak")
+
+
+
+class MalformedProvider:
+    provider_id = "test-provider"
+    model_id = "malformed-v1"
+
+    async def generate(self, request):
+        return {"output": "not a validated ProviderGeneration"}
+
+
+class InvalidMetadataProvider:
+    provider_id = "x" * 65
+    model_id = "invalid-metadata-v1"
+
+    async def generate(self, request):
+        return ProviderGeneration(output="private output")
+
+
+class BlankMetadataProvider:
+    provider_id = "   "
+    model_id = "blank-metadata-v1"
+
+    async def generate(self, request):
+        return ProviderGeneration(output="private output")
+
+
+class PaddedMetadataProvider:
+    provider_id = " test-provider "
+    model_id = " deterministic-v1 "
+
+    async def generate(self, request):
+        return ProviderGeneration(output="valid output")
+
+
+class SlowProvider:
+    provider_id = "test-provider"
+    model_id = "slow-v1"
+
+    async def generate(self, request):
+        await asyncio.sleep(0.5)
+        return ProviderGeneration(output="late")
+
+
+def test_default_app_has_no_provider_and_returns_unavailable(tmp_path):
+    app = create_app(
+        str(tmp_path / "workspace.sqlite3"), allow_unauthenticated_local=True
+    )
+    client = TestClient(app, client=("127.0.0.1", 50000))
+
+    response = client.post(
+        "/v1/models/generate", json={"prompt": "private content"}
+    )
+
+    assert response.status_code == 503
+    assert response.json()["detail"] == "No model provider is configured"
+
+
+def test_injected_provider_returns_versioned_provider_neutral_response(tmp_path):
+    app = create_app(
+        str(tmp_path / "workspace.sqlite3"),
+        allow_unauthenticated_local=True,
+        model_provider=DeterministicProvider(),
+    )
+    client = TestClient(app, client=("127.0.0.1", 50000))
+
+    response = client.post(
+        "/v1/models/generate",
+        json={"prompt": "hello", "max_output_tokens": 64, "temperature": 0},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["schema_version"] == "1.0"
+    assert response.json()["provider"] == "test-provider"
+    assert response.json()["model"] == "deterministic-v1"
+    assert response.json()["output"] == "TEST OUTPUT: hello"
+    assert response.json()["usage"] == {"input_tokens": 3, "output_tokens": 4}
+
+
+def test_generation_request_rejects_oversized_prompt_and_unbounded_settings(tmp_path):
+    app = create_app(
+        str(tmp_path / "workspace.sqlite3"),
+        allow_unauthenticated_local=True,
+        model_provider=DeterministicProvider(),
+    )
+    client = TestClient(app, client=("127.0.0.1", 50000))
+
+    oversized = client.post(
+        "/v1/models/generate", json={"prompt": "x" * 20_001}
+    )
+    unbounded = client.post(
+        "/v1/models/generate",
+        json={"prompt": "hello", "max_output_tokens": 100_000},
+    )
+
+    assert oversized.status_code == 422
+    assert unbounded.status_code == 422
+
+
+def test_provider_failure_is_sanitized_and_prompt_is_not_logged(tmp_path, caplog):
+    app = create_app(
+        str(tmp_path / "workspace.sqlite3"),
+        allow_unauthenticated_local=True,
+        model_provider=FailingProvider(),
+    )
+    client = TestClient(app, client=("127.0.0.1", 50000))
+
+    response = client.post(
+        "/v1/models/generate", json={"prompt": "private prompt marker"}
+    )
+
+    assert response.status_code == 502
+    assert response.json()["detail"] == "Model provider request failed"
+    assert "private prompt marker" not in caplog.text
+    assert "private prompt must not leak" not in caplog.text
+
+
+def test_gateway_timeout_is_bounded():
+    gateway = ModelGateway(SlowProvider(), timeout_seconds=0.1)
+
+    with pytest.raises(ModelProviderTimeout):
+        asyncio.run(gateway.generate(ModelGenerationRequest(prompt="timeout")))
+
+
+def test_model_endpoint_remains_authenticated_by_default(tmp_path):
+    app = create_app(str(tmp_path / "workspace.sqlite3"))
+    client = TestClient(app, client=("127.0.0.1", 50000))
+
+    response = client.post(
+        "/v1/models/generate", json={"prompt": "must be protected"}
+    )
+
+    assert response.status_code == 401
+
+
+def test_malformed_provider_response_is_sanitized():
+    gateway = ModelGateway(MalformedProvider())
+
+    with pytest.raises(ModelProviderFailure) as error:
+        asyncio.run(gateway.generate(ModelGenerationRequest(prompt="private prompt")))
+
+    assert str(error.value) == "Model provider request failed"
+    assert "private prompt" not in str(error.value)
+
+
+def test_invalid_provider_metadata_is_sanitized():
+    gateway = ModelGateway(InvalidMetadataProvider())
+
+    with pytest.raises(ModelProviderFailure) as error:
+        asyncio.run(gateway.generate(ModelGenerationRequest(prompt="private prompt")))
+
+    assert str(error.value) == "Model provider request failed"
+    assert "private prompt" not in str(error.value)
+
+
+
+def test_blank_provider_metadata_is_sanitized():
+    gateway = ModelGateway(BlankMetadataProvider())
+
+    with pytest.raises(ModelProviderFailure) as error:
+        asyncio.run(gateway.generate(ModelGenerationRequest(prompt="private prompt")))
+
+    assert str(error.value) == "Model provider request failed"
+    assert "private prompt" not in str(error.value)
+
+
+def test_provider_and_model_identifiers_are_normalized():
+    gateway = ModelGateway(PaddedMetadataProvider())
+
+    response = asyncio.run(gateway.generate(ModelGenerationRequest(prompt="hello")))
+
+    assert response.provider == "test-provider"
+    assert response.model == "deterministic-v1"
+
+
+@pytest.mark.parametrize(
+    "timeout_seconds",
+    [0, -1, 0.09, 120.01, float("nan"), float("inf"), -float("inf"), True, False, "30"],
+)
+def test_gateway_rejects_invalid_timeout_configuration(timeout_seconds):
+    with pytest.raises(ValueError, match="finite number"):
+        ModelGateway(timeout_seconds=timeout_seconds)
+
+
+@pytest.mark.parametrize("temperature", [float("nan"), float("inf"), -float("inf")])
+def test_generation_request_rejects_non_finite_temperature(temperature):
+    with pytest.raises(ValueError, match="finite number"):
+        ModelGenerationRequest(prompt="hello", temperature=temperature)
+
+
+@pytest.mark.parametrize("temperature", [True, False, "0.5"])
+def test_generation_request_rejects_coerced_temperature_inputs(temperature):
+    with pytest.raises(ValueError, match="finite number"):
+        ModelGenerationRequest(prompt="hello", temperature=temperature)
+
+
+@pytest.mark.parametrize("temperature", [0, 0.2, 1])
+def test_generation_request_accepts_finite_temperature_boundaries(temperature):
+    request = ModelGenerationRequest(prompt="hello", temperature=temperature)
+    assert request.temperature == temperature

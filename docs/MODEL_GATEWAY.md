@@ -1,0 +1,84 @@
+# HUMANITY ONE Model Gateway 0.1
+
+## Status
+
+This document defines the first provider-neutral boundary. The current implementation contains no network-backed provider. The default application has no provider configured and returns HTTP 503 for generation requests until a provider is explicitly injected by the application host.
+
+## Contract
+
+Endpoint: `POST /v1/models/generate`
+
+Request schema version: `1.0`
+
+- `prompt`: required, 1–20,000 characters.
+- `system_instruction`: optional, maximum 4,000 characters.
+- `max_output_tokens`: 1–4,096, default 512.
+- `temperature`: finite numeric value from 0.0–1.0, default 0.2; NaN, positive/negative infinity, booleans and string-coerced values are rejected.
+- Unknown request fields are rejected.
+
+Response includes schema version, provider ID, model ID, output, optional token usage, finish reason and generation timestamp. Provider credentials, endpoint URLs and internal exception details are never returned.
+
+The gateway uses an asynchronous provider protocol and a bounded request timeout (30 seconds by default, configurable in the gateway constructor between 0.1 and 120 seconds). The constructor rejects booleans, non-numeric values, NaN and infinities rather than allowing invalid values into timeout scheduling. Provider errors and malformed provider results, including invalid provider/model metadata or output contracts, are mapped to sanitized HTTP responses: unavailable provider 503, timeout 504, provider failure 502. Input validation errors remain 422.
+
+## Default safety behavior
+
+- No provider is configured by default.
+- No environment variable automatically activates a provider.
+- No outbound model traffic is made by this release.
+- The only provider in this milestone is an in-process deterministic test provider used in tests.
+- Prompts and completions are transient request data. The gateway does not persist them, add them to the knowledge store, or write them to the security audit ledger.
+- The gateway does not log prompt or completion content.
+- The API remains behind the existing authentication and loopback middleware.
+- No tools, autonomous actions, external side effects, retrieval augmentation or automatic memory writes are part of this endpoint.
+
+## Future provider activation requirements
+
+A future local or remote adapter must not be enabled merely by installing a package or setting an undocumented environment variable. Before activation, the operator must explicitly configure and review:
+
+1. Provider identity, model identity, endpoint and hosting location.
+2. Data classification and exactly which prompt fields can leave the local node.
+3. Clear user-facing disclosure and explicit opt-in for remote transmission.
+4. Secret injection from a protected runtime secret source; never persist credentials in workspace tables, exports, responses or logs.
+5. TLS and endpoint authentication for remote providers.
+6. Connection and response timeouts, maximum request/response size, token quotas, rate limits and cost controls.
+7. Sanitized error handling, retry policy and failure behavior that does not silently switch providers.
+8. Provider retention/training terms and jurisdictional/privacy review.
+9. Tests proving no network traffic occurs when disabled and no secret or prompt content leaks to logs.
+
+A future provider switch must be explicit and visible. No provider may be silently selected as a fallback.
+
+## Known limitations
+
+- There is no production model provider adapter.
+- There is no streaming response API.
+- There is no model selection UI or per-workspace provider configuration.
+- `/v1/answers/context` remains retrieval-only and never invokes the gateway. The separate `/v1/answers` route can synthesize an answer through an explicitly injected provider after per-request consent, and checks citation-label resolution; it does not prove semantic entailment.
+- Token usage is provider-reported and cannot be independently verified by the gateway.
+- The timeout bounds the awaited provider call; adapter implementations must also enforce transport-level connection and read timeouts.
+
+
+## Source-grounded answer endpoint
+
+`POST /v1/answers` composes local document retrieval with the explicitly injected Model Gateway. It is separate from `/v1/answers/context` (which never calls a model) and `/v1/answers/validate` (which checks provenance only). The request requires `allow_provider_processing: true`; the default is false and returns HTTP 403 without calling a provider. Even after consent, the default app has no provider and returns HTTP 503. A configured provider receives the query and bounded local excerpts. The response resolves every returned `[S#]` citation to the exact retrieved document/chunk metadata and reports `semantic_entailment_verified: false`. Missing or unknown citations are rejected. The endpoint does not persist prompts, completions, or generated answers and does not write memory. This citation check confirms label resolution, not that the source logically supports the claim.
+
+
+After provider generation, the answer service re-fetches and verifies every full source chunk against current local document content and hashes. If a source was edited or deleted while generation was in flight, the answer is discarded and the API returns HTTP 409; callers must retrieve fresh context and retry. This also checks full chunk integrity when the prompt context used a bounded excerpt.
+
+
+### Reasoning-aware answer generation
+
+`POST /v1/answers` optionally accepts `root_claim_id` plus bounded reasoning controls (`reasoning_max_depth`, `reasoning_max_nodes`, exact `reasoning_scope`, and `reasoning_temporal_scope`). When supplied, the API creates an immutable Reasoning Engine run and passes a compact, size-bounded representation of its claims, typed relations, claim assessments, evidence provenance, and latest evidence assessments to the provider alongside the local document excerpts.
+
+The graph is explicitly untrusted explanatory context, not proof. The prompt directs the provider to surface disagreements and ground factual statements in the retrieved document passages using `[S#]` citations. The response includes the reasoning run ID, selected claim IDs, contradiction candidates, evidence count, limitations, and whether graph context was truncated for the prompt. Provider consent is checked before creating a reasoning run when `root_claim_id` is supplied. The reasoning context is only transmitted when the same per-request provider consent is true.
+
+Post-generation source verification fetches each exact document chunk by its immutable document/chunk IDs; it does not depend on the chunk remaining in a bounded lexical search result page. Truncated prompt excerpts are checked against the full stored chunk and its hashes.
+
+Reasoning-aware prompts also receive a compact summary of the source-lineage report: declared groups, shared upstream derivation clusters, and sources whose lineage is unknown. This is derived only from owner-declared provenance metadata. The summary is bounded before provider transmission and must not be interpreted as independent verification or a truth/corroboration score.
+
+Reasoning-aware prompts may also contain `potential_contradictions`: deterministic matches of the same non-empty structured subject/predicate/object, scope, temporal scope and modality with opposite explicit polarity. They are review leads only, not semantic contradiction judgments; the prompt says so explicitly. Explicit reviewer-authored contradiction edges remain distinct.
+
+Reasoning context may include `temporal_claim_differences` and `declared_dependency_paths`. Temporal entries preserve distinct source labels without inferring interval overlap or chronology. Dependency paths include only explicit `depends_on` edges and are not causation evidence. The Answer Engine is instructed to preserve these limits.
+
+### Provider identity normalization
+
+Provider and model identifiers are trimmed before they are returned. Identifiers containing only whitespace are rejected inside the gateway's sanitized provider-failure boundary and produce the same generic HTTP 502 response as other malformed adapter metadata. This prevents ambiguous blank identities and avoids exposing adapter validation details. Regression tests cover blank identifiers, whitespace normalization, and the sanitized exception type.
