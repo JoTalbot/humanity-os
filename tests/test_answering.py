@@ -4,17 +4,16 @@ import json
 import sqlite3
 
 import pytest
-
 from fastapi.testclient import TestClient
 
-from humanity_os.app import create_app
 from humanity_os.answering import (
+    _MIN_REASONING_CONTEXT_CHARS,
     _REASONING_PROMPT_HEADER,
     _REASONING_PROMPT_INSTRUCTIONS,
     _bounded_reasoning_context,
     _reasoning_context_budget,
-    _MIN_REASONING_CONTEXT_CHARS,
 )
+from humanity_os.app import create_app
 from humanity_os.model_gateway import ModelUsage, ProviderGeneration
 
 

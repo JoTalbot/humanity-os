@@ -480,7 +480,7 @@ def test_reasoning_exposes_only_explicit_dependency_paths(tmp_path):
         assert response.status_code == 201
         claims.append(response.json())
     relations = []
-    for source, target in zip(claims, claims[1:]):
+    for source, target in pairwise(claims):
         response = client.post("/v1/claim-relations", json={
             "source_claim_id": source["id"],
             "target_claim_id": target["id"],

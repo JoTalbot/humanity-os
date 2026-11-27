@@ -26,7 +26,7 @@ class ModelGenerationRequest(BaseModel):
     @classmethod
     def require_numeric_temperature_input(cls, value: object) -> object:
         if isinstance(value, bool) or not isinstance(value, (int, float)):
-            raise ValueError("Temperature must be a finite number between 0 and 1")
+            raise ValueError("Temperature must be a finite number between 0 and 1")  # noqa: TRY004
         return value
 
     @field_validator("temperature")
@@ -106,7 +106,7 @@ class ModelGateway:
         if isinstance(timeout_seconds, bool) or not isinstance(
             timeout_seconds, (int, float)
         ):
-            raise ValueError("Model gateway timeout must be a finite number between 0.1 and 120 seconds")
+            raise ValueError("Model gateway timeout must be a finite number between 0.1 and 120 seconds")  # noqa: TRY004
         timeout = float(timeout_seconds)
         if not math.isfinite(timeout) or not 0.1 <= timeout <= 120.0:
             raise ValueError("Model gateway timeout must be a finite number between 0.1 and 120 seconds")

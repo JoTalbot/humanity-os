@@ -4,6 +4,7 @@ from __future__ import annotations
 import sqlite3
 from collections import deque
 from datetime import UTC, datetime
+from itertools import pairwise
 from pathlib import Path
 from typing import Literal
 from uuid import uuid4
@@ -391,7 +392,7 @@ class ReasoningEngine:
         declared_dependency_paths: list[DeclaredDependencyPath] = []
         for path in paths:
             relation_ids: list[str] = []
-            for source_id, target_id in zip(path, path[1:]):
+            for source_id, target_id in pairwise(path):
                 dependency = next(
                     (
                         edge for edge in selected_relations.values()

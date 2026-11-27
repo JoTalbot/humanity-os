@@ -100,11 +100,11 @@ class AgentRuntimeStore:
         lease_duration_seconds: float = 60,
     ) -> None:
         if isinstance(lease_duration_seconds, bool):
-            raise ValueError("Agent run lease duration must be a finite positive number")
+            raise ValueError("Agent run lease duration must be a finite positive number")  # noqa: TRY004
         try:
             lease_duration = float(lease_duration_seconds)
         except (TypeError, ValueError, OverflowError) as exc:
-            raise ValueError(
+            raise ValueError(  # noqa: TRY004
                 "Agent run lease duration must be a finite positive number"
             ) from exc
         if not math.isfinite(lease_duration) or lease_duration <= 0:

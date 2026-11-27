@@ -1,5 +1,4 @@
 """Source-grounded document answer orchestration with explicit provider consent."""
-import hashlib
 import json
 import re
 
